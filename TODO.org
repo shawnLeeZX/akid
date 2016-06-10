@@ -1,0 +1,83 @@
+*** DONE Use seaborn to rewrite the net visualization script.
+   CLOSED: [2015-09-30 Wed 09:29]
+   - State "DONE"       from "TODO"       [2015-09-30 Wed 09:29]
+*** CANCELLED Random Visualization.
+    CLOSED: [2015-12-23 Wed 09:58]
+    - State "CANCELLED"  from "TODO"       [2015-12-23 Wed 09:58] \\
+      Changed to visualize a batch a time instead of a random sample.
+    Randomly choose a data to visualize instead of always choose the first one
+    in the batch.
+*** DONE Add a last test after training ends.
+    CLOSED: [2015-12-25 Fri 20:16]
+    - State "DONE"       from "TODO"       [2015-12-25 Fri 20:16]
+*** DONE Factor out train_op to a class. Call it Kongfu or some thing about skills.
+    CLOSED: [2015-12-25 Fri 20:16]
+    - State "DONE"       from "TODO"       [2015-12-25 Fri 20:16]
+*** DONE Conditional stat.
+    CLOSED: [2016-01-18 Mon 21:01]
+    - State "DONE"       from "TODO"       [2016-01-18 Mon 21:01]
+*** DONE Copy behavior of brain is not right.
+    CLOSED: [2016-01-18 Mon 21:01]
+    - State "DONE"       from "TODO"       [2016-01-18 Mon 21:01]
+    After setting up validation brain, training brain would hold reference to
+    tensors of validation brain. A deep copy needs to be implemented to copy
+    layers of Brain but not copy tensor references(tensor reference would be
+    updated when setup is called again).
+*** DONE Add test.
+    CLOSED: [2016-01-12 Tue 08:59]
+    - State "DONE"       from "TODO"       [2016-01-12 Tue 08:59]
+    MNIST is suitable to be used as test data. The one layer convolution
+    network trained before is a good candidate to use for testing.
+*** CANCELLED Add coordinator to do exact testing.
+    CLOSED: [2016-01-18 Mon 21:00]
+    - State "CANCELLED"  from "TODO"       [2016-01-18 Mon 21:00] \\
+      Solved by adding evenly dividing validation batch size.
+*** CANCELLED Add test to test summary name to fix wrong summary names.
+    CLOSED: [2016-01-18 Mon 21:01]
+    - State "CANCELLED"  from "TODO"       [2016-01-18 Mon 21:01] \\
+      Should just look at the tensorboard.
+*** CANCELLED Consider moving the control dependency in BN layer to global
+    CLOSED: [2016-01-18 Mon 21:02]
+    - State "CANCELLED"  from "TODO"       [2016-01-18 Mon 21:02] \\
+      Should be local.
+    Since the update could be any time as long as in the same iteration, the
+    update should be put in the global context. For now, for agile coding, I
+    put it in BN layer.
+*** DONE Add summary of sensor systematically
+    CLOSED: [2016-01-22 Fri 11:52]
+    - State "DONE"       from "TODO"       [2016-01-22 Fri 11:52]
+*** DONE Factor out visualization codes to a class. Call it Observer.
+    CLOSED: [2016-03-13 Sun 11:39]
+    - State "DONE"       from "TODO"       [2016-03-13 Sun 11:39]
+*** DONE Add test to model saving. Also move saving method to brain from survivor.
+    CLOSED: [2016-03-13 Sun 11:39]
+    - State "DONE"       from "TODO"       [2016-03-13 Sun 11:39]
+    Add option to not save model. So only the training would be
+    tested. Saving should be tested in its own test.
+*** DONE Test the disk competition risk really exists or not.
+    CLOSED: [2016-03-13 Sun 11:39]
+    - State "DONE"       from "TODO"       [2016-03-13 Sun 11:39]
+*** DONE Write a program to extract the highest performance from tensorflow event file.
+    CLOSED: [2016-03-21 Mon 16:16]
+    - State "DONE"       from "TODO"       [2016-03-21 Mon 16:16]
+*** DONE Let tuner.py to handle arbitrary file path.
+    CLOSED: [2016-03-25 Fri 16:34]
+    - State "DONE"       from "TODO"       [2016-03-25 Fri 16:34]
+*** TODO Add option and flag to tuner to continue training from checkpoint.
+*** TODO Write a better test for layers.
+*** TODO Handle the epoch completed exception of tensorflow, so if things go wrong, it would fail loudly.
+*** TODO Remove summaries for the activations that obviously are not going to be sparse.
+*** TODO Add a source providing fake data to do finer granularity test.
+*** TODO Change MNIST sensor to use all training data as training.
+*** TODO Visual a batch
+    Visualize more than one sample a time.
+*** TODO Check whether scalar parameter summary is right
+*** TODO Consider adding a common super class for FeedSource and TFSource for Cifar10.
+*** TODO The interface of Source and Sensor should be reconsidered.
+     1. Maybe Source and Sensor could be merged.
+     2. They should have similar abstract property like data of Block.
+*** TODO Make system exit more informative instead of just 1 or 0.
+*** TODO Parameter saving should be an iteration over layers of a brain
+     instead of all the syntax sugar of tensorflow that saves all trainable
+     variables.
+     It also should be moved to brain instead of staying in Survivor.

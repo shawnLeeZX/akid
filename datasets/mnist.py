@@ -1,0 +1,126 @@
+import os
+import urllib
+import gzip
+
+import numpy as np
+
+from ..utils import glog as log
+from ..core.sources import InMemoryFeedSouce, SupervisedSource
+from .datasets import DataSet, DataSets
+
+
+class MNISTFeedSource(InMemoryFeedSouce, SupervisedSource):
+    """
+    A concrete `Source` for MNIST dataset.
+    """
+    @property
+    def shape(self):
+        return [28, 28, 1]
+
+    @property
+    def label_shape(self):
+        return [1]
+
+    def _maybe_download(self, filename, work_directory):
+        """Download the data from Yann's website, unless it's already here."""
+        if not os.path.exists(work_directory):
+            os.mkdir(work_directory)
+        filepath = os.path.join(work_directory, filename)
+        if not os.path.exists(filepath):
+            filepath, _ = urllib.urlretrieve(self.url + filename, filepath)
+            statinfo = os.stat(filepath)
+            log.info('Successfully downloaded', filename, statinfo.st_size,
+                     'bytes.')
+        return filepath
+
+    def _load(self, fake_data=False, one_hot=False):
+        if fake_data:
+            training_dataset = DataSet([], [], fake_data=True)
+            validation_dataset = DataSet([], [], fake_data=True)
+            test_dataset = DataSet([], [], fake_data=True)
+            return DataSets(training_dataset, validation_dataset, test_dataset)
+
+        TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
+        TRAIN_LABELS = 'train-labels-idx1-ubyte.gz'
+        TEST_IMAGES = 't10k-images-idx3-ubyte.gz'
+        TEST_LABELS = 't10k-labels-idx1-ubyte.gz'
+
+        local_file = self._maybe_download(TRAIN_IMAGES, self.work_dir)
+        train_images = self._extract_images(local_file)
+
+        local_file = self._maybe_download(TRAIN_LABELS, self.work_dir)
+        train_labels = self._extract_labels(local_file, one_hot=one_hot)
+
+        local_file = self._maybe_download(TEST_IMAGES, self.work_dir)
+        test_images = self._extract_images(local_file)
+
+        local_file = self._maybe_download(TEST_LABELS, self.work_dir)
+        test_labels = self._extract_labels(local_file, one_hot=one_hot)
+
+        VALIDATION_SIZE = self.validation_rate * self.num_train
+        validation_images = train_images[:VALIDATION_SIZE]
+        validation_labels = train_labels[:VALIDATION_SIZE]
+        train_images = train_images[VALIDATION_SIZE:]
+        train_labels = train_labels[VALIDATION_SIZE:]
+
+        training_dataset = DataSet(train_images,
+                                   train_labels,
+                                   center=self.center,
+                                   scale=self.scale)
+        validation_dataset = DataSet(validation_images,
+                                     validation_labels,
+                                     center=self.center,
+                                     scale=self.scale)
+        test_dataset = DataSet(test_images,
+                               test_labels,
+                               center=self.center,
+                               scale=self.scale)
+
+        return DataSets(training_dataset, test_dataset, validation_dataset)
+
+    def _read32(self, bytestream):
+        dt = np.dtype(np.uint32).newbyteorder('>')
+        return np.frombuffer(bytestream.read(4), dtype=dt)
+
+    def _dense_to_one_hot(self, labels_dense, num_classes=10):
+        """Convert class labels from scalars to one-hot vectors."""
+        num_labels = labels_dense.shape[0]
+        index_offset = np.arange(num_labels) * num_classes
+        labels_one_hot = np.zeros((num_labels, num_classes))
+        labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
+        return labels_one_hot
+
+    def _extract_images(self, filename):
+        """
+        Extract the images into a 4D uint8 np array [index, y, x, depth].
+        """
+        log.info('Extracting', filename)
+        with gzip.open(filename) as bytestream:
+            magic = self._read32(bytestream)
+            if magic != 2051:
+                raise ValueError(
+                    'Invalid magic number %d in MNIST image file: %s' %
+                    (magic, filename))
+            num_images = self._read32(bytestream)
+            rows = self._read32(bytestream)
+            cols = self._read32(bytestream)
+            buf = bytestream.read(rows * cols * num_images)
+            data = np.frombuffer(buf, dtype=np.uint8)
+            data = data.reshape(num_images, rows, cols, 1)
+            return data
+
+    def _extract_labels(self, filename, one_hot=False):
+        """Extract the labels into a 1D uint8 numpy array [index]."""
+        print('Extracting', filename)
+        with gzip.open(filename) as bytestream:
+            magic = self._read32(bytestream)
+            if magic != 2049:
+                raise ValueError(
+                    'Invalid magic number %d in MNIST label file: %s' %
+                    (magic, filename))
+            num_items = self._read32(bytestream)
+            buf = bytestream.read(num_items)
+            labels = np.frombuffer(buf, dtype=np.uint8)
+            if one_hot:
+                return self._dense_to_one_hot(labels)
+            return labels

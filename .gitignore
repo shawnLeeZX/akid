@@ -1,0 +1,4 @@
+data
+log
+*.sw[op]
+*.pyc
