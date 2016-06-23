@@ -63,6 +63,9 @@
 *** DONE Let tuner.py to handle arbitrary file path.
     CLOSED: [2016-03-25 Fri 16:34]
     - State "DONE"       from "TODO"       [2016-03-25 Fri 16:34]
+*** TODO Think how to place PaddingLayer and Jokers into the right place
+    Currently, PaddingLayer is Child of both ProcessingLayer and
+    Joker. Essentially, it should be the child of certain general block.
 *** TODO Add option and flag to tuner to continue training from checkpoint.
 *** TODO Write a better test for layers.
 *** TODO Handle the epoch completed exception of tensorflow, so if things go wrong, it would fail loudly.

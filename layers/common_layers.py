@@ -3,6 +3,7 @@ import inspect
 import tensorflow as tf
 
 from ..core.blocks import ProcessingLayer
+from ..core.jokers import Joker
 
 
 class ReshapeLayer(ProcessingLayer):
@@ -29,9 +30,11 @@ class ReshapeLayer(ProcessingLayer):
         self._data = tf.reshape(input, shape)
 
 
-class PaddingLayer(ProcessingLayer):
+class PaddingLayer(ProcessingLayer, Joker):
     """
     Zero padding on height and width dimensions of the input feature map.
+
+    This layer can work with input shape [H, W, C] and [N, H, W, C].
     """
     def __init__(self, padding=[1, 1], **kwargs):
         """
@@ -49,12 +52,20 @@ class PaddingLayer(ProcessingLayer):
         self.padding = padding
 
     def _setup(self, input):
-        _padding = [
-            [0, 0],
-            [self.padding[0], self.padding[0]],
-            [self.padding[1], self.padding[1]],
-            [0, 0]
-        ]
+        shape = input.get_shape().as_list()
+        if len(shape) is 4:
+            _padding = [
+                [0, 0],
+                [self.padding[0], self.padding[0]],
+                [self.padding[1], self.padding[1]],
+                [0, 0]
+            ]
+        else:
+            _padding = [
+                [self.padding[0], self.padding[0]],
+                [self.padding[1], self.padding[1]],
+                [0, 0]
+            ]
         self._data = tf.pad(input, paddings=_padding)
 
 
