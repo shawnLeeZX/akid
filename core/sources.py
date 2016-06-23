@@ -164,7 +164,7 @@ class StaticSource(Source):
     @property
     # TODO(Shuai): This property should be used to deal with the case batch
     # cannot divide the number of test data. It should be updated
-    # accordingly. For instance, for InMemoryFeedSouce, the information comes
+    # accordingly. For instance, for InMemoryFeedSource, the information comes
     # from `_epochs_completed` of `DataSet`.
     def epochs_completed(self):
         return self._epochs_completed
@@ -201,7 +201,7 @@ class FeedSource(Source):
         sys.exit()
 
 
-class InMemoryFeedSouce(StaticSource, FeedSource):
+class InMemoryFeedSource(StaticSource, FeedSource):
     """
     An abstract class to load all data into memory.
 
@@ -253,10 +253,12 @@ class TFSource(StaticSource):
     """
     An abstract class that uses Reader Op of tensorflow to supply data.
 
-    `_setup` of `TFSource` should initialized `self.data` to a tf.Tensor that
-    returns by some Reader Op of tensorflow. So the data provided by this class
-    of source has necessary information associated with it, and could be used
-    directly in the further pipeline.
+    Since normally usage of `TFSource` accompanies with data augmentation, and
+    the way data augmentation works at the granularity of one sample, so
+    `_setup` of `TFSource` should initialized `training_datum` and `val_datum`
+    to a `tf.Tensor` that returns by some Reader Op of tensorflow. The data
+    provided by this class of source has necessary information associated with
+    the tensor variable, and could be used directly in the further pipeline.
 
     Note the optional properties of `Source`, is made abstract, consequently
     mandatory.
@@ -297,6 +299,29 @@ class TFSource(StaticSource):
                                   " implement this method to provide"
                                   " a validation datum!")
         sys.exit()
+
+    def _float_feature(self, value):
+        """
+        Helper method for construct Feature protobuf for tfrecord.
+
+        `_int_feature`, `_bytes_feature` are similar methods.
+        Args:
+            value: list
+                A list that holds float values to store.
+        """
+        return tf.train.Feature(float_list=tf.train.FloatList(value=value))
+
+    def _int_feature(self, value):
+        """
+        See `_float_feature`.
+        """
+        return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
+
+    def _bytes_feature(self, value):
+        """
+        See `_float_feature`.
+        """
+        return tf.train.Feature(bytes_list=tf.train.BytesList(value=value))
 
 
 __all__ = [name for name, x in locals().items() if

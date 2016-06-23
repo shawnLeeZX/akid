@@ -5,11 +5,11 @@ import gzip
 import numpy as np
 
 from ..utils import glog as log
-from ..core.sources import InMemoryFeedSouce, SupervisedSource
+from ..core.sources import InMemoryFeedSource, SupervisedSource
 from .datasets import DataSet, DataSets
 
 
-class MNISTFeedSource(InMemoryFeedSouce, SupervisedSource):
+class MNISTFeedSource(InMemoryFeedSource, SupervisedSource):
     """
     A concrete `Source` for MNIST dataset.
     """
