@@ -4,8 +4,6 @@ import tensorflow as tf
 
 from ..core.blocks import ProcessingLayer
 
-NUM_CLASSES = 10
-
 
 class LossLayer(ProcessingLayer):
     """
@@ -18,6 +16,10 @@ class LossLayer(ProcessingLayer):
 
 
 class SoftmaxWithLossLayer(LossLayer):
+    def __init__(self, class_num, **kwargs):
+        super(SoftmaxWithLossLayer, self).__init__(**kwargs)
+        self.class_num = class_num
+
     def _setup(self, logits, labels):
         # Convert from sparse integer labels in the range [0, NUM_CLASSSES) to
         # 1-hot dense float vectors (that is we will have batch_size vectors,
@@ -28,7 +30,7 @@ class SoftmaxWithLossLayer(LossLayer):
         indices = tf.expand_dims(tf.range(0, batch_size, 1), 1)
         concated = tf.concat(1, [indices, labels])
         onehot_labels = tf.sparse_to_dense(
-            concated, tf.pack([batch_size, NUM_CLASSES]), 1.0, 0.0)
+            concated, tf.pack([batch_size, self.class_num]), 1.0, 0.0)
         cross_entropy \
             = tf.nn.softmax_cross_entropy_with_logits(logits,
                                                       onehot_labels,

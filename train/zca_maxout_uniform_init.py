@@ -79,7 +79,7 @@ def setup(graph, lr):
                                    wd={"type": "l2", "scale": 0.004},
                                    out_channel_num=10,
                                    name='softmax_linear'))
-    brain.attach(SoftmaxWithLossLayer(name='loss'))
+    brain.attach(SoftmaxWithLossLayer(class_num=10, name='loss'))
 
     # Set up a sensor.
     # #########################################################################

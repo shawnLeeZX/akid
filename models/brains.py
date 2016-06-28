@@ -74,7 +74,7 @@ class AlexNet(Brain):
                                       out_channel_num=10,
                                       name='softmax_linear'))
 
-        self.attach(SoftmaxWithLossLayer(name='loss'))
+        self.attach(SoftmaxWithLossLayer(class_num=10, name='loss'))
 
 
 class OneLayerBrain(Brain):
@@ -95,11 +95,8 @@ class OneLayerBrain(Brain):
                          name="pool1")
         )
 
-        self.attach(
-            InnerProductLayer(out_channel_num=10, name="ip1"))
-
-        self.attach(
-            SoftmaxWithLossLayer(name="loss"))
+        self.attach(InnerProductLayer(out_channel_num=10, name="ip1"))
+        self.attach(SoftmaxWithLossLayer(class_num=10, name="loss"))
 
 
 class LeNet(Brain):
@@ -136,7 +133,7 @@ class LeNet(Brain):
 
         self.attach(InnerProductLayer(out_channel_num=10, name="ip2"))
 
-        self.attach(SoftmaxWithLossLayer(name="loss"))
+        self.attach(SoftmaxWithLossLayer(class_num=10, name="loss"))
 
 
 class MnistTfTutorialNet(Brain):
@@ -192,11 +189,11 @@ class MnistTfTutorialNet(Brain):
                                       wd={"type": "l2", "scale": 5e-4},
                                       name="ip2"))
 
-        self.attach(SoftmaxWithLossLayer(name="loss"))
+        self.attach(SoftmaxWithLossLayer(class_num=10, name="loss"))
 
 
 class VGGNet(Brain):
-    def __init__(self, padding, **kwargs):
+    def __init__(self, class_num=10, padding="SAME", **kwargs):
         super(VGGNet, self).__init__(**kwargs)
         self.padding = padding
 
@@ -261,12 +258,12 @@ class VGGNet(Brain):
         self.top_layer_No += 1
         self.attach(DropoutLayer(keep_prob=0.5,
                                  name="dropout{}".format(self.top_layer_No)))
-        self.attach(InnerProductLayer(out_channel_num=10,
+        self.attach(InnerProductLayer(out_channel_num=class_num,
                                       init_para={
                                           "name": "truncated_normal",
                                           "stddev": 1e-4},
                                       name="ip2"))
-        self.attach(SoftmaxWithLossLayer(name="loss"))
+        self.attach(SoftmaxWithLossLayer(class_num=class_num, name="loss"))
 
     def attach_conv_bn_relu(self, out_channel_num):
         """

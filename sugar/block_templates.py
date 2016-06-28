@@ -87,7 +87,8 @@ def cnn_block(ksize=None,
                 name="gsoftmax{}".format(counter),
                 group_size=activation["group_size"])
         elif activation_type == "softmax":
-            layer = SoftmaxWithLossLayer(name="loss")
+            layer = SoftmaxWithLossLayer(class_num=out_channel_num,
+                                         name="loss")
         elif activation_type == "linearize":
             layer = LinearizationLayer(name="linearize{}".format(counter),
                                        group_size=activation["group_size"])

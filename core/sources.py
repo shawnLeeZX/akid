@@ -11,7 +11,11 @@ word, the one with the most complete parameters.
 import abc
 import sys
 import inspect
+import os
+import urllib
+import tarfile
 
+import numpy as np
 import tensorflow as tf
 
 from .blocks import Block
@@ -65,6 +69,37 @@ class Source(Block):
             self.validation_rate = validation_rate
         else:
             self.validation_rate = 0
+
+        self._get_raw_data_if_not_yet()
+
+    def _get_raw_data_if_not_yet(self):
+        """
+        Download anything pointed by `self.url` and save it under
+        `self.work_dir`. If the file is a tarball, it will be extracted.
+        """
+        if not os.path.exists(self.work_dir):
+            os.makedirs(self.work_dir)
+
+        filename = self.url.split('/')[-1]
+        filepath = os.path.join(self.work_dir, filename)
+        if not os.path.exists(filepath):
+            def _progress(count, block_size, total_size):
+                sys.stdout.write(
+                    '\r>> Downloading %s %.1f%%' %
+                    (filename,
+                        float(count * block_size) /
+                        float(total_size) * 100.0))
+                sys.stdout.flush()
+            filepath, _ = urllib.urlretrieve(
+                self.url, filepath, reporthook=_progress)
+            print()
+            statinfo = os.stat(filepath)
+            print('Succesfully downloaded',
+                  filename, statinfo.st_size, 'bytes.')
+            # Extract if a tarball.
+            suffixes = filename[filename.find('.')+1:]
+            if suffixes == 'tar.gz':
+                tarfile.open(filepath, 'r:gz').extractall(self.work_dir)
 
     def data(self):
         """
@@ -322,6 +357,81 @@ class TFSource(StaticSource):
         See `_float_feature`.
         """
         return tf.train.Feature(bytes_list=tf.train.BytesList(value=value))
+
+
+class ClassificationTFSource(TFSource, SupervisedSource):
+    """
+    An abstract class supplies data using tfrecords for classification problem.
+
+    It further makes concrete most of the abstract methods of its super
+    classes.
+    """
+    def _setup(self):
+        self._read()
+
+    @abc.abstractmethod
+    def _read(self):
+        """
+        TFSource uses Reader Ops of Tensorflow to read data. So any sub-classes
+        of `TFSource` should implement it to actually read data. If it is
+        combined with `SupervisedSource`, then setup of `labels` should also be
+        put here.
+        """
+        raise NotImplementedError("Each sub-class of TFSource needs to"
+                                  " implement this method to read data!")
+        sys.exit()
+
+    @property
+    def training_datum(self):
+        return self._training_datum
+
+    @property
+    def val_datum(self):
+        return self._val_datum
+
+    @property
+    def training_label(self):
+        return self._training_label
+
+    @property
+    def val_label(self):
+        return self._val_label
+
+    def _convert_to_tf(self, images, labels, name):
+        """
+        Take a numpy array of images and corresponding labels and convert it to
+        tfrecord format.
+
+        Args:
+            images: numpy array
+                images of shape of shape [N, H, w, C].
+            labels: numpy array of shape [N] or list
+                corresponding labels
+            name: a str
+                The output tfrecord file will be named `name.tfrecords`.
+        """
+        num_examples = labels.shape[0]
+        if images.shape[0] != num_examples:
+            raise ValueError("Images size %d does not match label size %d." %
+                             (images.shape[0], num_examples))
+        row = images.shape[1]
+        col = images.shape[2]
+        depth = images.shape[3]
+
+        filename = os.path.join(self.work_dir, name + '.tfrecords')
+        print('Writing', filename)
+        writer = tf.python_io.TFRecordWriter(filename)
+        for index in range(num_examples):
+            image_raw = np.reshape(images[index], -1).tolist()
+            example = tf.train.Example(features=tf.train.Features(
+                feature={
+                    'height': self._int_feature([row]),
+                    'width': self._int_feature([col]),
+                    'depth': self._int_feature([depth]),
+                    'label': self._int_feature([int(labels[index])]),
+                    'image_raw': self._float_feature(image_raw)}))
+            writer.write(example.SerializeToString())
+        writer.close()
 
 
 __all__ = [name for name, x in locals().items() if

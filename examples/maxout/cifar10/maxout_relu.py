@@ -72,7 +72,7 @@ brain.attach(InnerProductLayer(stddev=1/2500.0,
                                out_channel_num=10,
                                name='softmax_linear'))
 
-brain.attach(SoftmaxWithLossLayer(name='loss'))
+brain.attach(SoftmaxWithLossLayer(class_num=10, name='loss'))
 
 # Set up a sensor.
 # #########################################################################

@@ -37,7 +37,7 @@ class TestBlock(TestCase):
 
         brain.attach(InnerProductLayer(out_channel_num=10, name="ip1"))
 
-        brain.attach(SoftmaxWithLossLayer(name="loss"))
+        brain.attach(SoftmaxWithLossLayer(class_num=10, name="loss"))
 
         source = TestFactory.get_test_feed_source()
         kid = TestFactory.get_test_survivor(source, brain)
@@ -59,7 +59,7 @@ class TestBlock(TestCase):
                              name="conv1")
         )
         brain.attach(InnerProductLayer(out_channel_num=10, name="ip1"))
-        brain.attach(SoftmaxWithLossLayer(name="loss"))
+        brain.attach(SoftmaxWithLossLayer(class_num=10, name="loss"))
 
         source = TestFactory.get_test_feed_source()
 

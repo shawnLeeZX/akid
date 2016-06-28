@@ -1,13 +1,22 @@
+"""
+This module holds sources (feed source and tfrecord source) for CIFAR10
+dataset. It supports using raw CIFAR10 images as input, as well as global
+contrasted normalized, and ZCA whitened images (the common pre-processing done
+on CIFAR dataset, starting from the Maxout paper).
+"""
+
+
 import os
-import sys
-import tarfile
-import urllib
 import cPickle as pickle
 
 import numpy as np
 import tensorflow as tf
 
-from ..core.sources import InMemoryFeedSource, SupervisedSource, TFSource
+from ..core.sources import (
+    InMemoryFeedSource,
+    SupervisedSource,
+    ClassificationTFSource
+)
 from .datasets import DataSet, DataSets
 
 
@@ -66,7 +75,7 @@ class Cifar10FeedSource(Cifar10Source, InMemoryFeedSource):
         return [1]
 
     def _load(self):
-        self._maybe_download_and_extract()
+        self._get_raw_data_if_not_yet()
 
         # Load training set into memory.
         train_filenames = [os.path.join(self.work_dir, 'cifar-10-batches-py',
@@ -96,53 +105,11 @@ class Cifar10FeedSource(Cifar10Source, InMemoryFeedSource):
 
         return DataSets(training_dataset, test_dataset)
 
-    def _maybe_download_and_extract(self):
-        """Download and extract the tarball from Alex's website."""
-        # TODO(Shuai) this download piece does not work at all here. It is
-        # copied from the tf tutorial directly and only checks the existence of
-        # binary version of cifar10.
-        dest_directory = self.work_dir
-        if not os.path.exists(dest_directory):
-            os.makedirs(dest_directory)
-            filename = self.url.split('/')[-1]
-            filepath = os.path.join(dest_directory, filename)
-            if not os.path.exists(filepath):
-                def _progress(count, block_size, total_size):
-                    sys.stdout.write(
-                        '\r>> Downloading %s %.1f%%' %
-                        (filename,
-                         float(count * block_size) /
-                         float(total_size) * 100.0))
-                    sys.stdout.flush()
-                filepath, _ = urllib.urlretrieve(
-                    self.url, filepath, reporthook=_progress)
-                print()
-                statinfo = os.stat(filepath)
-                print('Succesfully downloaded',
-                      filename, statinfo.st_size, 'bytes.')
-                tarfile.open(filepath, 'r:gz').extractall(dest_directory)
 
-
-class Cifar10TFSource(Cifar10Source, TFSource):
+class Cifar10TFSource(Cifar10Source, ClassificationTFSource):
     """
     A concrete `Source` for Cifar10 dataset.
     """
-    @property
-    def training_datum(self):
-        return self._training_datum
-
-    @property
-    def val_datum(self):
-        return self._val_datum
-
-    @property
-    def training_label(self):
-        return self._training_label
-
-    @property
-    def val_label(self):
-        return self._val_label
-
     def _read(self):
         """
         Construct input for CIFAR evaluation using the Reader ops.
@@ -209,42 +176,6 @@ class Cifar10TFSource(Cifar10Source, TFSource):
             test_labels = self._load_cifar10_python(test_filenames).labels
             self._convert_to_tf(imgs, test_labels, TEST_TF_FILENAME)
 
-    def _convert_to_tf(self, images, labels, name):
-        """
-        Take a numpy array of images and corresponding labels and convert it to
-        tfrecord format.
-
-        Args:
-            images: numpy array
-                images of shape of shape [N, H, w, C].
-            labels: numpy array of shape [N] or list
-                corresponding labels
-            name: a str
-                The output tfrecord file will be named `name.tfrecords`.
-        """
-        num_examples = labels.shape[0]
-        if images.shape[0] != num_examples:
-            raise ValueError("Images size %d does not match label size %d." %
-                             (images.shape[0], num_examples))
-        row = images.shape[1]
-        col = images.shape[2]
-        depth = images.shape[3]
-
-        filename = os.path.join(self.work_dir, name + '.tfrecords')
-        print('Writing', filename)
-        writer = tf.python_io.TFRecordWriter(filename)
-        for index in range(num_examples):
-            image_raw = np.reshape(images[index], -1).tolist()
-            example = tf.train.Example(features=tf.train.Features(
-                feature={
-                    'height': self._int_feature([row]),
-                    'width': self._int_feature([col]),
-                    'depth': self._int_feature([depth]),
-                    'label': self._int_feature([int(labels[index])]),
-                    'image_raw': self._float_feature(image_raw)}))
-            writer.write(example.SerializeToString())
-        writer.close()
-
     def _get_sample_tensors_from_tfrecords(self, filename_queue):
         """
         Read from tfrecord file and return data tensors.
@@ -277,7 +208,7 @@ class Cifar10TFSource(Cifar10Source, TFSource):
         return image, label
 
     def _read_from_bin(self):
-        self._maybe_download_and_extract()
+        self._get_raw_data_if_not_yet()
 
         filenames = [os.path.join(self.work_dir, 'cifar-10-batches-bin',
                                   'data_batch_%d.bin' % i)
@@ -368,25 +299,3 @@ class Cifar10TFSource(Cifar10Source, TFSource):
         result.uint8image = tf.transpose(depth_major, [1, 2, 0])
 
         return result
-
-    def _maybe_download_and_extract(self):
-        """Download and extract the tarball from Alex's website."""
-        dest_directory = self.work_dir
-        if not os.path.exists(dest_directory):
-            os.makedirs(dest_directory)
-        filename = self.url.split('/')[-1]
-        filepath = os.path.join(dest_directory, filename)
-        if not os.path.exists(filepath):
-            def _progress(count, block_size, total_size):
-                sys.stdout.write(
-                    '\r>> Downloading %s %.1f%%' %
-                    (filename,
-                     float(count * block_size) / float(total_size) * 100.0))
-                sys.stdout.flush()
-            filepath, _ = urllib.urlretrieve(
-                self.url, filepath, reporthook=_progress)
-            print()
-            statinfo = os.stat(filepath)
-            print('Succesfully downloaded',
-                  filename, statinfo.st_size, 'bytes.')
-            tarfile.open(filepath, 'r:gz').extractall(dest_directory)
