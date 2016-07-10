@@ -38,9 +38,9 @@ class TestFeedSensor(TestCase):
             MomentumKongFu(),
             max_steps=900)
         kid.setup()
-        precision = kid.practice()
+        loss = kid.practice()
 
-        assert precision >= 0.96
+        assert loss < 0.2
 
     def test_summary_on_val(self):
         """
@@ -93,8 +93,8 @@ class TestIntegratedSensor(TestCase):
             max_steps=1000)
         kid.setup()
 
-        precision = kid.practice()
-        assert precision > 0.2
+        loss = kid.practice()
+        assert loss < 3.4
 
     def test_summary_on_val(self):
         kid = Survivor(

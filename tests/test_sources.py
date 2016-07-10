@@ -100,10 +100,10 @@ class TestSource(TestCase):
             max_steps=1000)
         kid.setup()
 
-        precision = kid.practice()
-        assert precision > 0.4
+        loss = kid.practice()
+        assert loss < 1.5
 
-    def test_cifar10_zca_tf_source(self):
+    def test_cifar100_zca_tf_source(self):
         from akid.models.brains import VGGNet
         from akid import IntegratedSensor, Survivor, GradientDescentKongFu
         source = Cifar100TFSource(
@@ -129,8 +129,58 @@ class TestSource(TestCase):
             max_steps=1000)
         kid.setup()
 
-        precision = kid.practice()
-        assert precision > 0.13
+        loss = kid.practice()
+        assert loss < 3.7
+
+    def test_hcifar100_source(self):
+        from akid import HCifar100TFSource
+        from akid.models.brains import VGGNet
+        from akid import IntegratedSensor, Survivor, GradientDescentKongFu
+        from akid.layers import (
+            GroupSoftmaxWithLossLayer,
+            MaxoutLayer,
+            SoftmaxWithLossLayer
+        )
+        source = HCifar100TFSource(
+            name="CIFAR100",
+            url='https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz',
+            work_dir=AKID_DATA_PATH + '/cifar100',
+            num_train=50000,
+            num_val=10000)
+        source.setup()
+
+        sensor = IntegratedSensor(source_in=source,
+                                  batch_size=128,
+                                  val_batch_size=100,
+                                  name='data')
+
+        brain = VGGNet(class_num=100,
+                       loss_layer=(GroupSoftmaxWithLossLayer,
+                                   {"group_size": 5,
+                                    "inputs": [
+                                        {"name": "ip2", "idxs": [0]},
+                                        {"name": "system_in", "idxs": [2, 3]}]
+                                    }),
+                       name="VGGNet")
+        brain.attach(MaxoutLayer(group_size=5, name="maxout"))
+        brain.attach(SoftmaxWithLossLayer(
+            class_num=20,
+            inputs=[
+                {"name": "maxout", "idxs": [0]},
+                {"name": "system_in", "idxs": [1]}],
+            name="super_class_loss"))
+        kid = Survivor(
+            sensor,
+            brain,
+            GradientDescentKongFu(base_lr=0.1,
+                                  decay_rate=0.1,
+                                  decay_epoch_num=350),
+            summary_on_val=True,
+            max_steps=2000)
+        kid.setup()
+
+        loss = kid.practice()
+        assert loss < 2.8
 
 if __name__ == "__main__":
     main()

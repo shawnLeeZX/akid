@@ -38,7 +38,8 @@ class Block(object):
     `setup` is the interface for any containers, such as a `Brain` class, that
     hold this block, to call to set up this block. It is a wrapper for the
     actual abstract `_setup` method which should be implemented by concrete
-    layer, and other pre-setup and post-setup methods.
+    layer, and other pre-setup and post-setup methods. The caller is
+    responsible for passing in the right data for the `setup` method.
     """
     __metaclass__ = abc.ABCMeta
 
@@ -60,9 +61,10 @@ class Block(object):
                 to visualize later.
         """
         if not name:
-            log.error("{}'s `name` argument cannot be None! It serves as an"
-                      " identifier, also is used in visualization and"
-                      " summary etc.".format(type(self)))
+            raise Exception(
+                "{}'s `name` argument cannot be None! It serves as an"
+                " identifier, also is used in visualization and"
+                " summary etc.".format(type(self)))
             sys.exit(1)
 
         self.name = name
@@ -183,8 +185,17 @@ class ProcessingLayer(Block):
 
     For now, all processing layers only have one output, and provide it via
     property `data`. So it overrides the `data` method of `Block`.
+
+    Optionally a `ProcessingLayer` could have a `loss` property for loss (or
+    losses) in this layer and a `eval` property for any evaluation metrics in
+    this layer. `loss` should be a list if there are multiple losses, so is
+    eval graphs.
+
+    If `inputs` in the constructor is not None (in this case it should be a
+    list), this layer is supposed to have multiple inputs. Refer to
+    `system.GraphSystem` for more explanation.
     """
-    def __init__(self, moving_average_decay=None, **kwargs):
+    def __init__(self, moving_average_decay=None, inputs=None, **kwargs):
         """
         Args:
             moving_average_decay: A fraction. If `None`, When the parameters of
@@ -192,6 +203,9 @@ class ProcessingLayer(Block):
                 the current value of the paras. If has a value, it would be
                 used in `tf.train.ExponentialMovingAverage`. Then the shared
                 value would be the moving average.
+            inputs: list
+                A list to list inputs of this layer. Refer to
+                `system.GraphSystem` for more explanation.
         """
         super(ProcessingLayer, self).__init__(**kwargs)
 
@@ -200,6 +214,8 @@ class ProcessingLayer(Block):
             ("Invalid moving_average_decay value {}. Should be None or"
              " between [0.5, 1]".format(moving_average_decay))
         self.moving_average_decay = moving_average_decay
+
+        self.inputs = inputs
 
         # Bookkeeping all variables.
         self.var_list = []
@@ -322,6 +338,17 @@ class ProcessingLayer(Block):
         """
         if hasattr(self, "_loss"):
             return self._loss
+        else:
+            return None
+
+    @property
+    def eval(self):
+        """
+        All sub-class `ProcessingLayer` should save the evaluation graph to
+        `_eval`.
+        """
+        if hasattr(self, "_eval"):
+            return self._eval
         else:
             return None
 

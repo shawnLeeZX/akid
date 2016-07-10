@@ -18,8 +18,8 @@ class TestSurvivor(TestCase):
         kid = TestFactory.get_test_survivor(source, brain)
         kid.setup()
 
-        precision = kid.practice()
-        assert precision >= 0.96
+        loss = kid.practice()
+        assert loss < 0.2
 
     def test_saver(self):
         brain = TestFactory.get_test_brain()
@@ -31,12 +31,12 @@ class TestSurvivor(TestCase):
             graph=kid.graph,
             config=tf.ConfigProto(allow_soft_placement=True))
         with sess:
-            precision = kid.practice(sess)
-            assert precision >= 0.96
+            loss = kid.practice()
+            assert loss < 0.2
 
             kid.restore_from_ckpt(sess)
-            precision = kid.validate(sess)
-            assert precision >= 0.96
+            loss = kid.validate(sess)
+            assert loss < 0.2
 
     def test_log_to_file_flag(self):
         brain = TestFactory.get_test_brain()

@@ -114,3 +114,74 @@ class LinkedSystem(System):
             data = l.data
 
         self._data = data
+
+
+class GraphSystem(LinkedSystem):
+    """
+    A system that is capable to handle arbitrary graph style connections
+    between blocks.
+
+    It is supposed to contain `ProcessingLayer` that has a `inputs` attributes
+    to hold interconnection information between layers.  If `inputs` is None,
+    it means this layer is supposed to take the first output of previous layer
+    (depending on the actually topology of the system this block is in) as its
+    input data. If not None, a list of tuples should be passed in. For example,
+    the input of this layer is supposed to be outputs of layer "conv_1" and
+    "conv2", then a list of [{"name": "conv1", "idxs": [0]}, {"name":
+    "conv2", "idxs": [0]}] should be passed in. Output of any blocks are a
+    tuple (if there are multiple outputs). The list of indices means the
+    indices of outputs of that layer to use.
+    """
+    def _link_blocks(self, data_in):
+        """
+        Method overrode to handle arbitrary layer interconnections.
+        """
+        # Normalize input to a list for convenience even if there is only one
+        # input.
+        data = data_in if type(data_in) is list else [data_in]
+        log.info("System input shape: {}".format(
+            [d.get_shape().as_list() for d in data]))
+
+        for l in self.blocks:
+            log.info("Setting up block {}.".format(l.name))
+            l.do_summary = self.do_summary
+            inputs = None
+            if l.inputs:
+                # Find inputs in the system to current block.
+                inputs = []
+                for input in l.inputs:
+                    # First check whether the input is from the system input.
+                    if input["name"] == "system_in":
+                        for i in input["idxs"]:
+                            inputs.append(data_in[i])
+                    # Then look through outputs of setup layers.
+                    for b in self.blocks:
+                        if b.is_setup and b.name == input["name"]:
+                            if type(b.data) is not list:
+                                b_data = [b.data]
+                            else:
+                                b_data = b.data
+                            for i in input["idxs"]:
+                                inputs.append(b_data[i])
+                            break
+                l.setup(inputs)
+            else:
+                l.setup(data[0])
+
+            # Logging
+            in_name = data[0].name if not inputs else [i.name for i in inputs]
+            if l.data is not None:
+                log.info("Connected: {} -> {}".format(
+                    in_name,
+                    l.data.name if type(l.data) is not tuple
+                    else [d.name for d in l.data]))
+                log.info("Top shape: {}".format(
+                    l.data.get_shape().as_list() if l.data is not tuple
+                    else [d.get_shape().as_list() for d in l.data]))
+            else:
+                log.info("{} is not connected to any block(s).".format(
+                    in_name))
+
+            data = l.data if type(l.data) is tuple else [l.data]
+
+        self._data = data

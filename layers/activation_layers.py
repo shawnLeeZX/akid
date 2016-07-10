@@ -88,12 +88,12 @@ class SoftmaxNormalizationLayer(ProcessingLayer):
         self._data = output
 
 
-class LinearizationLayer(ProcessingLayer):
+class GroupSoftmaxLayer(ProcessingLayer):
     # A default name for the tensor returned by the layer.
-    NAME = "Linearization"
+    NAME = "GSMax"
 
     def __init__(self, use_temperature=False, group_size=4, **kwargs):
-        super(LinearizationLayer, self).__init__(**kwargs)
+        super(GroupSoftmaxLayer, self).__init__(**kwargs)
         self.use_temperature = use_temperature
         self.group_size = group_size
 
@@ -134,7 +134,7 @@ class LinearizationLayer(ProcessingLayer):
                 data_split[i] = tf.nn.softmax(
                     data_split[i])[:, 0:self.group_size]
             data = tf.concat(1, data_split,)
-            output = tf.reshape(data, shape, LinearizationLayer.NAME)
+            output = tf.reshape(data, shape, GroupSoftmaxLayer.NAME)
 
         self._data = output
 

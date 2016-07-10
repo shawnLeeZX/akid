@@ -121,7 +121,7 @@ class Survivor(object):
         """
         log.info('Validation Data Eval:')
         # Run one epoch of eval.
-        true_count = 0  # Counts the number of correct predictions.
+        eval_metric_values = [0] * len(self.val_brain.eval_graph_list)
         loss = 0
         steps_per_epoch = self.sensor.num_batches_per_epoch_val
         num_examples = steps_per_epoch * self.sensor.val_batch_size
@@ -130,31 +130,38 @@ class Survivor(object):
                 feed_dict = self.sensor.fill_feed_dict(get_val=True)
             else:
                 feed_dict = None
-            result = sess.run(
-                [self.val_brain.eval_graph, self.val_brain.loss_graph],
-                feed_dict=feed_dict)
-            true_count += result[0]
-            loss += result[1]
+            fetch = [self.val_brain.loss_graph]
+            fetch.extend(self.val_brain.eval_graph_list)
+            result = sess.run(fetch, feed_dict=feed_dict)
+            loss += result[0]
+            for i, v in enumerate(result[1:]):
+                eval_metric_values[i] += v
         loss /= steps_per_epoch
-        precision = true_count / num_examples
+        for i, v in enumerate(eval_metric_values):
+            eval_metric_values[i] = v / steps_per_epoch
 
         current_step = tf.train.global_step(sess, self.global_step_tensor)
         if self.do_summary:
             # Add summary.
             summary = tf.Summary()
-            summary.value.add(tag=VALIDATION_ACCURACY_TAG,
-                              simple_value=precision)
             summary.value.add(tag="Validation Loss", simple_value=loss)
+            for i, v in enumerate(eval_metric_values):
+                summary.value.add(
+                    tag=self.val_brain.eval_graph_list[i].op.name,
+                    simple_value=v)
             summary.value.add(
                 tag=LEARNING_RATE_TAG,
                 simple_value=float(self.kongfu.learning_rate.eval()))
             self.summary_writer.add_summary(summary, current_step)
         # Log.
-        log.info('  Num examples: %d  Num correct: %d  Precision @ 1: %0.04f'
-                 % (num_examples, true_count, precision))
+        name_to_print = [g.op.name for g in self.val_brain.eval_graph_list]
+        eval_value_to_print = ["%0.04f" % v for v in eval_metric_values]
+        eval_to_print = dict(zip(name_to_print, eval_value_to_print))
+        log.info('  Num examples: {}  Evals : {}'.format(
+            num_examples, eval_to_print))
         log.info('  Step %d: Validation loss = %.2f' % (current_step, loss))
 
-        return precision
+        return loss
 
     def setup(self):
         """
@@ -209,9 +216,10 @@ class Survivor(object):
             else:
                 feed_dict = None
 
-            loss_value, true_count = sess.run([self.brain.loss_graph,
-                                               self.brain.eval_graph],
-                                              feed_dict=feed_dict)
+            fetch = [self.brain.loss_graph]
+            fetch.extend(self.brain.eval_graph_list)
+            result = sess.run(fetch, feed_dict=feed_dict)
+            loss_value = result[0]
             if self.do_summary:
                 summary = tf.Summary()
                 summary.value.add(tag="Training Loss",
@@ -224,8 +232,11 @@ class Survivor(object):
                 summary_str = sess.run(self.summary_op, feed_dict=feed_dict)
                 self.summary_writer.add_summary(summary_str, previous_step)
 
-            log.info("Step {}: loss = {:.5f} acc = {:.2f}".format(
-                previous_step, loss_value, true_count/self.sensor.batch_size))
+            name_to_print = [g.op.name for g in self.brain.eval_graph_list]
+            eval_value_to_print = ["%0.04f" % v for v in result[1:]]
+            eval_to_print = dict(zip(name_to_print, eval_value_to_print))
+            log.info("Step {}: loss = {:.5f} eval = {}".format(
+                previous_step, loss_value, eval_to_print))
 
             for step in xrange(previous_step + 1, self.max_steps + 1):
                 self._step(sess, step)
@@ -284,13 +295,27 @@ class Survivor(object):
                 shape=[],
                 initializer=tf.constant_initializer(0),
                 trainable=False)
-        self.brain.setup(self.sensor.data(), self.sensor.labels())
+        # TODO(Shuai): here is a temporary solution. Since sensor is actually
+        # just a system with two outputs, `GraphSystem` could handle it, but it
+        # would make many changes, for now, I just settle with the not-so
+        # elegant solution here. Note that if here is going to be changed,
+        # `_setup_val_brain` should also be changed.
+        data = self.sensor.data()
+        label = self.sensor.labels()
+        system_in = [data]
+        system_in.extend(label) if type(label) is list \
+            else system_in.append(label)
+        self.brain.setup(system_in)
         self.kongfu.setup(self)
 
     def _setup_val_brain(self):
         self.val_brain = self.brain.get_val_copy()
-        self.val_brain.setup(self.sensor.data(get_val=True),
-                             self.sensor.labels(get_val=True))
+        data = self.sensor.data(get_val=True)
+        label = self.sensor.labels(get_val=True)
+        system_in = [data]
+        system_in.extend(label) if type(label) is list \
+            else system_in.append(label)
+        self.val_brain.setup(system_in)
 
     def _init(self, sess, continue_from_chk_point=None):
         """
@@ -370,29 +395,32 @@ class Survivor(object):
             feed_dict = None
 
         # Run one step.
+        fetch = [self.kongfu.train_op, self.brain.loss_graph]
+        fetch.extend(self.brain.eval_graph_list)
         start_time = time.time()
-        _, loss_value, true_count = sess.run(
-            [self.kongfu.train_op,
-             self.brain.loss_graph,
-             self.brain.eval_graph],
-            feed_dict=feed_dict)
+        result = sess.run(fetch, feed_dict=feed_dict)
         if self.brain.max_norm_clip_op:
             sess.run([self.brain.max_norm_clip_op])
         duration = time.time() - start_time
+        loss_value = result[1]
 
         # Write the summaries and print an overview fairly often.
         # TODO(Shuai): Logging step should be customizable.
         if step % 100 == 0:
+            name_to_print = [g.op.name for g in self.brain.eval_graph_list]
+            eval_value_to_print = ["%0.04f" % v for v in result[2:]]
+            eval_to_print = dict(zip(name_to_print, eval_value_to_print))
+
             num_examples_per_step = self.sensor.batch_size
             examples_per_sec = num_examples_per_step / duration
             sec_per_batch = float(duration)
 
-            log.info("Step {}: loss = {:.5f} lr = {:.8f} acc = {:.4f} ({:.1f}"
+            log.info("Step {}: loss = {:.5f} lr = {:.8f} acc = {} ({:.1f}"
                      " examples/sec {:.3f} sec/batch)".format(
                          step,
                          loss_value,
                          self.kongfu.learning_rate.eval(),
-                         true_count / self.sensor.batch_size,
+                         eval_to_print,
                          examples_per_sec,
                          sec_per_batch))
 

@@ -11,12 +11,12 @@ import tensorflow as tf
 from ..layers.loss_layers import LossLayer
 from ..layers.synapse_layers import SynapseLayer
 from .blocks import ProcessingLayer
-from .systems import LinkedSystem
+from .systems import GraphSystem
 
 from ..utils import glog as log
 
 
-class Brain(LinkedSystem, ProcessingLayer):
+class Brain(GraphSystem, ProcessingLayer):
     """
     Class `Brain` is the data processing engine to process data supplied by
     `Sensor` to fulfill certain tasks. More specifically,
@@ -50,9 +50,6 @@ class Brain(LinkedSystem, ProcessingLayer):
         self.blocks = []
         self.do_stat_on_norm = do_stat_on_norm
 
-        self.loss_layer = None
-        self.eval_graph = None
-
     def attach(self, block_in):
         """
         Attach a layer or a block to the brain.
@@ -77,20 +74,12 @@ class Brain(LinkedSystem, ProcessingLayer):
             # A brain should only contain data processing layers.
             assert issubclass(type(block_in), ProcessingLayer), \
                 "A `Brain` should only contain `ProcessingLayer`s."
-            if issubclass(type(block_in), LossLayer):
-                self.loss_layer = block_in
-            else:
-                super(Brain, self).attach(block_in)
-                # Pass options down.
-                if self.moving_average_decay:
-                    # Only pass it down when it is not None.
-                    block_in.moving_average_decay = self.moving_average_decay
-                block_in.do_stat_on_norm = self.do_stat_on_norm
-
-    def get_copy(self):
-        copy_brain = super(Brain, self).get_copy()
-        copy_brain.loss_layer = copy.copy(self.loss_layer)
-        return copy_brain
+            super(Brain, self).attach(block_in)
+            # Pass options down.
+            if self.moving_average_decay:
+                # Only pass it down when it is not None.
+                block_in.moving_average_decay = self.moving_average_decay
+            block_in.do_stat_on_norm = self.do_stat_on_norm
 
     def get_val_copy(self):
         """
@@ -107,7 +96,6 @@ class Brain(LinkedSystem, ProcessingLayer):
         self.is_val = True
         for b in self.blocks:
             b.is_val = True
-        self.loss_layer.is_val = True
 
     def get_filters(self):
         """
@@ -124,38 +112,33 @@ class Brain(LinkedSystem, ProcessingLayer):
 
         return filter_list
 
-    def _setup(self, data_in, labels):
+    def _setup(self, data_in):
         """
         Set up the computational graph.
 
         Args:
-            data_in: tensor or placeholder
-                Data supplied by `Sensor`.
-            labels: tensor or placeholder
-                Labels supplied by `Sensor`.
+            data_in: a list of tensors or placeholders
+                Data supplied by `Sensor`, including labels.
         """
         if self.is_val:
             log.info("Setting up val brain {} ...".format(self.name))
         else:
             log.info("Setting up brain {} ...".format(self.name))
-        self._setup_infer_graph(data_in)
-        self._setup_loss_graph(labels)
-        self._setup_eval_graph(labels)
+        self._setup_graph(data_in)
+        self._gather_loss_graphs()
+        self._gather_eval_graphs()
 
-    def _setup_infer_graph(self, data_in):
+    def _setup_graph(self, data_in):
         """
         Build the net up to where it may be used for inference.
         """
         self._link_blocks(data_in)
 
-    def _setup_loss_graph(self, labels):
+    def _gather_loss_graphs(self):
         """
-        Build the loss layer into the graph.
+        Gather all losses in all blocks in this brain.
         """
-        self.loss_layer.do_summary = self.do_summary
-        self.loss_layer.setup(self.data, labels)
-
-        loss_list = [self.loss_layer.loss]
+        loss_list = []
         for b in self.blocks:
             if b.loss is not None:
                 loss_list.append(b.loss)
@@ -163,13 +146,19 @@ class Brain(LinkedSystem, ProcessingLayer):
         # weight decay terms (L2 loss).
         self.loss_graph = tf.add_n(loss_list, name='total_loss')
 
-    def _setup_eval_graph(self, labels):
-        # Though this is just classification inference, it could already handle
-        # many situations. Settle for this solution till more general solution
-        # is calling.
-        correct = tf.nn.in_top_k(self.data, labels, 1)
-        # Return the number of true entries.
-        self.eval_graph = tf.reduce_sum(tf.cast(correct, tf.int32))
+    def _gather_eval_graphs(self):
+        """
+        Gather all evaluation in all blocks in this brain.
+        """
+        eval_graph_list = []
+        for b in self.blocks:
+            if b.eval is not None:
+                if type(b.eval) is list:
+                    eval_graph_list.extend(b.eval)
+                else:
+                    eval_graph_list.append(b.eval)
+
+        self.eval_graph_list = eval_graph_list
 
     def _post_setup(self):
         if self.do_summary:
