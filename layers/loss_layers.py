@@ -52,7 +52,7 @@ class SoftmaxWithLossLayer(LossLayer):
         self._eval = tf.reduce_mean(tf.cast(correct, tf.float32), name="acc")
 
 
-class GroupSoftmaxWithLossLayer(GroupSoftmaxLayer, LossLayer):
+class GroupSoftmaxWithLossLayer(GroupSoftmaxLayer, SoftmaxWithLossLayer):
     """
     A loss layer that makes use of the group structure in the target classes.
     Group structure here means hidden units in a group is mutually exclusive
@@ -66,13 +66,17 @@ class GroupSoftmaxWithLossLayer(GroupSoftmaxLayer, LossLayer):
     with 0) corresponds to a vector `100001`, where the first 2 stands for
     non-existence of the first super class (so are two sub-classes in the
     group).
-
-    TODO(Shuai): Optionally, multi-hot label vector may not be used (using
-    one-hot label vector instead). This is a good control experiment to test
-    upon. In this case, passing label as an integer instead of a vector works,
-    so it needs some extra codes.
     """
     NAME = "GSMax_Loss"
+
+    def __init__(self, augment_label=False, **kwargs):
+        """
+        Args:
+            augment_label: bool
+                Augment label with non-existence label or not.
+        """
+        super(GroupSoftmaxWithLossLayer, self).__init__(**kwargs)
+        self.augment_label = augment_label
 
     def _setup(self, data_in):
         input = data_in[0]
@@ -113,39 +117,41 @@ class GroupSoftmaxWithLossLayer(GroupSoftmaxLayer, LossLayer):
             data_split[i] = tf.nn.softmax(
                 data_split[i])
 
-        # All labels eval graph.
-        # Note we need access to hidden units before augmented dimensions for
-        # non-existence have been dropped, so this eval graph constructor has
-        # not been put in the end.
-        group_label_vectors = tf.split(1, num_split, label_vectors)
-        group_label_vectors = list(group_label_vectors)
+        if self.augment_label:
+            # All labels eval graph.
+            # Note we need access to hidden units before augmented dimensions
+            # for non-existence have been dropped, so this eval graph
+            # constructor has not been put in the end.
+            group_label_vectors = tf.split(1, num_split, label_vectors)
+            group_label_vectors = list(group_label_vectors)
 
-        group_label_argmax_idx = []
-        for group_label_vector in group_label_vectors:
-            group_label_argmax_idx.append(tf.argmax(group_label_vector, 1))
-        label_argmax_idx = tf.pack(group_label_argmax_idx)
+            group_label_argmax_idx = []
+            for group_label_vector in group_label_vectors:
+                group_label_argmax_idx.append(tf.argmax(group_label_vector, 1))
+            label_argmax_idx = tf.pack(group_label_argmax_idx)
 
-        group_data_argmax_idx = []
-        for group_data_vector in data_split:
-            group_data_argmax_idx.append(tf.argmax(group_data_vector, 1))
-        data_argmax_idx = tf.pack(group_data_argmax_idx)
+            group_data_argmax_idx = []
+            for group_data_vector in data_split:
+                group_data_argmax_idx.append(tf.argmax(group_data_vector, 1))
+            data_argmax_idx = tf.pack(group_data_argmax_idx)
 
-        all_label_eval = tf.reduce_mean(
-            tf.cast(tf.equal(data_argmax_idx, label_argmax_idx), tf.float32),
-            name="augmented_acc")
+            all_label_eval = tf.reduce_mean(
+                tf.cast(tf.equal(data_argmax_idx, label_argmax_idx),
+                        tf.float32),
+                name="augmented_acc")
 
-        # Compute cross entropy with labels.
-        # I could choose to split label vector and do cross entropy one by one,
-        # or merge the splitted probability vectors and do cross entropy
-        # once. The latter was chosen.
-        data = tf.concat(1, data_split,)
-        aug_shape = list(shape)
-        aug_shape[-1] = (self.group_size + 1) * num_split
-        logits = tf.reshape(data, aug_shape, GroupSoftmaxWithLossLayer.NAME)
-        _ = - tf.cast(label_vectors, tf.float32) * tf.log(logits)
-        cross_entropy_mean = tf.reduce_mean(_, name='xentropy_mean')
-
-        self._loss = cross_entropy_mean
+            # Compute cross entropy with labels.
+            # I could choose to split label vector and do cross entropy one by
+            # one, or merge the splitted probability vectors and do cross
+            # entropy once. The latter was chosen.
+            data = tf.concat(1, data_split,)
+            aug_shape = list(shape)
+            aug_shape[-1] = (self.group_size + 1) * num_split
+            logits = tf.reshape(data,
+                                aug_shape,
+                                GroupSoftmaxWithLossLayer.NAME)
+            _ = - tf.cast(label_vectors, tf.float32) * tf.log(logits)
+            cross_entropy_mean = tf.reduce_mean(_, name='xentropy_mean')
 
         # Drop the augmented dimension.
         for i in xrange(0, len(data_split)):
@@ -154,6 +160,22 @@ class GroupSoftmaxWithLossLayer(GroupSoftmaxLayer, LossLayer):
         output = tf.reshape(data, shape, GroupSoftmaxWithLossLayer.NAME)
 
         self._data = output
+
+        if not self.augment_label:
+            batch_size = tf.size(labels)
+            _labels = tf.expand_dims(labels, 1)
+            indices = tf.expand_dims(tf.range(0, batch_size, 1), 1)
+            concated = tf.concat(1, [indices, _labels])
+            onehot_labels = tf.sparse_to_dense(
+                concated, tf.pack([batch_size, self.class_num]), 1.0, 0.0)
+            cross_entropy \
+                = tf.nn.softmax_cross_entropy_with_logits(output,
+                                                          onehot_labels,
+                                                          name='xentropy')
+            cross_entropy_mean = tf.reduce_mean(cross_entropy,
+                                                name='xentropy_mean')
+
+        self._loss = cross_entropy_mean
 
         # Real label eval graph.
         # We check the dimension of the real label has the largest value
@@ -164,10 +186,13 @@ class GroupSoftmaxWithLossLayer(GroupSoftmaxLayer, LossLayer):
             tf.cast(correct, tf.float32),
             name="real_acc")
 
-        # Since we have augmented labels, two eval graph have been created, one
-        # for the real label, and one for real and augmented labels. A list
-        # will be saved to `_eval`.
-        self._eval = [all_label_eval, real_label_eval]
+        if self.augment_label:
+            # Since we have augmented labels, two eval graph have been created,
+            # one for the real label, and one for real and augmented labels. A
+            # list will be saved to `_eval`.
+            self._eval = [all_label_eval, real_label_eval]
+        else:
+            self._eval = real_label_eval
 
 __all__ = [name for name, x in locals().items() if
            not inspect.ismodule(x) and not inspect.isabstract(x)]
