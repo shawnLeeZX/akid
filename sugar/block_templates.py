@@ -16,7 +16,7 @@ from akid.layers import (
     PoolingLayer,
     InnerProductLayer,
     DropoutLayer,
-    MaxoutLayer,
+    CollapseOutLayer,
     ReLULayer,
     SoftmaxNormalizationLayer,
     BatchNormalizationLayer,
@@ -89,7 +89,7 @@ def cnn_block(ksize=None,
             if activation_type == "relu":
                 layer = ReLULayer(name="relu{}".format(counter))
             elif activation_type == "maxout":
-                layer = MaxoutLayer(name="maxout{}".format(counter),
+                layer = CollapseOutLayer(name="maxout{}".format(counter),
                                     group_size=activation["group_size"])
             elif activation_type == "gsoftmax":
                 layer = SoftmaxNormalizationLayer(

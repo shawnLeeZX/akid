@@ -1,5 +1,7 @@
 import time
 
+import tensorflow as tf
+
 from akid.tests.test import TestCase, main, TestFactory
 from akid import Brain
 from akid.sugar import cnn_block
@@ -141,6 +143,27 @@ class TestActivationLayers(TestCase):
 
         loss = kid.practice()
         assert loss < 4
+
+    def test_reduce_out(self):
+        from akid.layers import CollapseOutLayer
+
+        input = tf.constant([1., 0.])
+
+        # Test Maxout
+        layer = CollapseOutLayer(group_size=2, type="maxout", name="maxout")
+        layer.setup(input)
+        with tf.Session():
+            output = layer.data.eval()
+            assert output == 1
+
+        # Test Average out
+        layer = CollapseOutLayer(group_size=2,
+                               type="average_out",
+                               name="average_out")
+        layer.setup(input)
+        with tf.Session():
+            output = layer.data.eval()
+            assert output == 0.5
 
 if __name__ == "__main__":
     main()

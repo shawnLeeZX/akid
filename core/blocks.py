@@ -65,7 +65,6 @@ class Block(object):
                 "{}'s `name` argument cannot be None! It serves as an"
                 " identifier, also is used in visualization and"
                 " summary etc.".format(type(self)))
-            sys.exit(1)
 
         self.name = name
         self.do_summary = do_summary

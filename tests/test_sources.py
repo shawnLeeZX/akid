@@ -138,7 +138,7 @@ class TestSource(TestCase):
         from akid import IntegratedSensor, Survivor, GradientDescentKongFu
         from akid.layers import (
             GroupSoftmaxWithLossLayer,
-            MaxoutLayer,
+            CollapseOutLayer,
             SoftmaxWithLossLayer
         )
         source = HCifar100TFSource(
@@ -162,7 +162,7 @@ class TestSource(TestCase):
                                         {"name": "system_in", "idxs": [2, 3]}]
                                     }),
                        name="VGGNet")
-        brain.attach(MaxoutLayer(group_size=5, name="maxout"))
+        brain.attach(CollapseOutLayer(group_size=5, name="maxout"))
         brain.attach(SoftmaxWithLossLayer(
             class_num=20,
             inputs=[

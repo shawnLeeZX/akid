@@ -9,7 +9,7 @@ from akid.layers import (
     InnerProductLayer,
     SoftmaxWithLossLayer,
     DropoutLayer,
-    MaxoutLayer
+    CollapseOutLayer
 )
 
 
@@ -31,7 +31,7 @@ def setup(graph, lr):
                               [1, 2, 2, 1],
                               'SAME',
                               name='pool1'))
-    brain.attach(MaxoutLayer(name='maxout1'))
+    brain.attach(CollapseOutLayer(name='maxout1'))
     brain.attach(DropoutLayer(keep_prob=0.8, name='dropout1'))
 
     brain.attach(ConvolutionLayer([8, 8],
@@ -47,7 +47,7 @@ def setup(graph, lr):
                               [1, 2, 2, 1],
                               'SAME',
                               name='pool2'))
-    brain.attach(MaxoutLayer(name='maxout2'))
+    brain.attach(CollapseOutLayer(name='maxout2'))
     brain.attach(DropoutLayer(keep_prob=0.5, name='dropout2'))
 
     brain.attach(ConvolutionLayer([5, 5],
@@ -63,7 +63,7 @@ def setup(graph, lr):
                               [1, 2, 2, 1],
                               'SAME',
                               name='pool3'))
-    brain.attach(MaxoutLayer(name='maxout3'))
+    brain.attach(CollapseOutLayer(name='maxout3'))
     brain.attach(DropoutLayer(keep_prob=0.5, name='dropout3'))
 
     brain.attach(InnerProductLayer(init_para={"name": "uniform",
@@ -71,7 +71,7 @@ def setup(graph, lr):
                                    wd={"type": "l2", "scale": 0.004},
                                    out_channel_num=2500,
                                    name='ip1'))
-    brain.attach(MaxoutLayer(group_size=5, name='maxout4'))
+    brain.attach(CollapseOutLayer(group_size=5, name='maxout4'))
     brain.attach(DropoutLayer(keep_prob=0.3, name='dropout3'))
 
     brain.attach(InnerProductLayer(init_para={"name": "uniform",
