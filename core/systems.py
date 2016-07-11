@@ -131,6 +131,10 @@ class GraphSystem(LinkedSystem):
     "conv2", "idxs": [0]}] should be passed in. Output of any blocks are a
     tuple (if there are multiple outputs). The list of indices means the
     indices of outputs of that layer to use.
+
+    NOTE: no matter how the inputs are specified (by `inputs` or not), in the
+    `_setup` method of a block, inputs feeds to a block is a tensor (if there
+    is only one input) or a list of tensors (if there are multiple inputs.)
     """
     def _link_blocks(self, data_in):
         """
@@ -164,7 +168,10 @@ class GraphSystem(LinkedSystem):
                             for i in input["idxs"]:
                                 inputs.append(b_data[i])
                             break
-                l.setup(inputs)
+                if len(inputs) is 1:
+                    l.setup(inputs[0])
+                else:
+                    l.setup(inputs)
             else:
                 l.setup(data[0])
 
@@ -179,8 +186,7 @@ class GraphSystem(LinkedSystem):
                     l.data.get_shape().as_list() if l.data is not tuple
                     else [d.get_shape().as_list() for d in l.data]))
             else:
-                log.info("{} is not connected to any block(s).".format(
-                    in_name))
+                log.info("Inputs: {}. No outputs.".format(in_name))
 
             data = l.data if type(l.data) is tuple else [l.data]
 
