@@ -263,6 +263,16 @@ class ProcessingLayer(Block):
                 tf.scalar_summary(self.loss.op.name,
                                   self.loss,
                                   collections=[collection_to_add])
+            if self.eval is not None:
+                if type(self.eval) is list:
+                    for e in self.eval:
+                        tf.scalar_summary(e.op.name,
+                                          e,
+                                          collections=[collection_to_add])
+                else:
+                    tf.scalar_summary(self.eval.op.name,
+                                      self.eval,
+                                      collections=[collection_to_add])
 
     def _data_summary(self, data, collection=TRAIN_SUMMARY_COLLECTION):
         """

@@ -298,6 +298,7 @@ class VGGNet(Brain):
 
         if loss_layer:
             self.attach(loss_layer[0](
+                class_num=class_num,
                 name="loss",
                 **loss_layer[1]))
         else:
