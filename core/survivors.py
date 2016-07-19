@@ -189,9 +189,9 @@ class Survivor(object):
             None
         """
         if not sess:
-            sess = tf.Session(
-                graph=self.graph,
-                config=tf.ConfigProto(allow_soft_placement=True))
+            config = tf.ConfigProto(allow_soft_placement=True)
+            config.gpu_options.allow_growth=True
+            sess = tf.Session(graph=self.graph, config=config)
             with sess:
                 return self._practice(sess, continue_from_chk_point)
         else:
