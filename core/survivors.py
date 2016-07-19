@@ -38,6 +38,8 @@ class Survivor(object):
                  log_dir=None,
                  log_to_file=True,
                  max_steps=20000,
+                 val_step=1000,
+                 train_step=100,
                  graph=None,
                  do_summary=True,
                  summary_on_val=False):
@@ -61,6 +63,11 @@ class Survivor(object):
             graph: tf.Graph()
                 The computational graph this survivor is in. If not given, a
                 new graph will be created.
+            val_step: int
+                After how many steps evaluation on the validation dataset
+                should be taken.
+            train_step: int
+                After how many steps training statistics should be logged.
             do_summary: Boolean
                 If False, no tensorboard summaries will be saved at all. Note
                 that if `Brain` or `Sensor`'s `do_summary` option is True, they
@@ -98,6 +105,8 @@ class Survivor(object):
         self.log_to_file = log_to_file
 
         self.max_steps = max_steps
+        self.train_step = train_step
+        self.val_step = val_step
         self.summary_on_val = summary_on_val
         self.do_summary = do_summary
 
@@ -240,8 +249,7 @@ class Survivor(object):
             for step in xrange(previous_step + 1, self.max_steps + 1):
                 self._step(sess, step)
 
-                # TODO(Shuai): Checkpoint step should be customizable.
-                if step % 1000 == 0 or step == self.max_steps:
+                if step % self.val_step == 0 or step == self.max_steps:
                     self.save_to_ckpt(sess)
                     precision = self.validate(sess)
 
@@ -404,8 +412,7 @@ class Survivor(object):
         loss_value = result[1]
 
         # Write the summaries and print an overview fairly often.
-        # TODO(Shuai): Logging step should be customizable.
-        if step % 100 == 0:
+        if step % self.train_step == 0:
             name_to_print = [g.op.name for g in self.brain.eval_graph_list]
             eval_value_to_print = ["%0.04f" % v for v in result[2:]]
             eval_to_print = dict(zip(name_to_print, eval_value_to_print))
