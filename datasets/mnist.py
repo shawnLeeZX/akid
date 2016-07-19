@@ -1,6 +1,7 @@
 import os
 import urllib
 import gzip
+import zipfile
 
 import numpy as np
 
@@ -124,3 +125,66 @@ class MNISTFeedSource(InMemoryFeedSouce, SupervisedSource):
             if one_hot:
                 return self._dense_to_one_hot(labels)
             return labels
+
+
+class RotatedMNISTFeedSource(InMemoryFeedSouce, SupervisedSource):
+    """
+    A concrete `Source` for rotated MNIST dataset.
+    """
+    @property
+    def shape(self):
+        return [28, 28, 1]
+
+    @property
+    def label_shape(self):
+        return [1]
+
+    def _maybe_download_and_extract(self, filename):
+        """
+        Download the data from Yann's website, unless it's already here.
+
+        File contents will be extracted in the `self.work_dir`.
+        """
+        if not os.path.exists(self.work_dir):
+            os.mkdir(self.work_dir)
+        filepath = os.path.join(self.work_dir, filename)
+        if not os.path.exists(filepath):
+            filepath, _ = urllib.urlretrieve(self.url + filename, filepath)
+            statinfo = os.stat(filepath)
+            log.info('Successfully downloaded', filename, statinfo.st_size,
+                     'bytes.')
+            log.info('Extracting zip file ... ')
+            f = zipfile.ZipFile(filepath)
+            f.extractall(path=self.work_dir)
+            log.info('Extraction finished ... ')
+
+    def _load(self, fake_data=False, one_hot=False):
+        filename = self.url.split('/')[-1]
+        filepath = os.path.join(self.work_dir, filename)
+        if not os.path.exists(filepath):
+            self._maybe_download_and_extract(filename)
+
+        TRAIN_DATA_PATH = os.path.join(
+            self.work_dir,
+            'mnist_all_rotation_normalized_float_train_valid.amat')
+        TEST_DATA_PATH = os.path.join(
+            self.work_dir,
+            'mnist_all_rotation_normalized_float_test.amat')
+
+        train_data = np.loadtxt(TRAIN_DATA_PATH)
+        test_data = np.loadtxt(TEST_DATA_PATH)
+        training_images = np.reshape(train_data[:, 0:-1], [-1, 28, 28, 1])
+        training_labels = train_data[:, -1]
+        test_images = np.reshape(test_data[:, 0:-1], [-1, 28, 28, 1])
+        test_labels = test_data[:, -1]
+
+        training_dataset = DataSet(training_images,
+                                   training_labels,
+                                   center=self.center,
+                                   scale=self.scale)
+        test_dataset = DataSet(test_images,
+                               test_labels,
+                               center=self.center,
+                               scale=self.scale)
+
+        return DataSets(training_dataset, test_dataset)

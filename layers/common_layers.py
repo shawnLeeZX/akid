@@ -22,7 +22,7 @@ class ReshapeLayer(ProcessingLayer):
     def _setup(self, input):
         batch_size = input.get_shape().as_list()[0]
         if self.intrinsic_shape:
-            shape = self.intrinsic_shape
+            shape = list(self.intrinsic_shape)
         else:
             shape = [-1]
         shape.insert(0, batch_size)

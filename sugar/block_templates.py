@@ -30,6 +30,7 @@ counter = 0
 
 
 def cnn_block(ksize=None,
+              conv_padding="SAME",
               initial_bias_value=0.,
               init_para={"name": "truncated_normal",
                          "stddev": 0.1},
@@ -49,7 +50,7 @@ def cnn_block(ksize=None,
     if ksize:
         block.append(ConvolutionLayer(ksize=ksize,
                                       strides=[1, 1, 1, 1],
-                                      padding="SAME",
+                                      padding=conv_padding,
                                       initial_bias_value=initial_bias_value,
                                       init_para=init_para,
                                       wd=wd,
@@ -71,46 +72,52 @@ def cnn_block(ksize=None,
                                        init_para=init_para,
                                        wd=wd,
                                        name="ip{}".format(counter)))
-    try:
-        if bn:
-            bn_layer = BatchNormalizationLayer(
-                name="bn{}".format(counter), **bn)
 
-        activation_type = activation["type"]
-        if activation_type == "relu":
-            layer = ReLULayer(name="relu{}".format(counter))
-        elif activation_type == "maxout":
-            layer = MaxoutLayer(name="maxout{}".format(counter),
-                                group_size=activation["group_size"])
-        elif activation_type == "gsoftmax":
-            layer = SoftmaxNormalizationLayer(
-                name="gsoftmax{}".format(counter),
-                group_size=activation["group_size"])
-        elif activation_type == "softmax":
-            layer = SoftmaxWithLossLayer(name="loss")
-        elif activation_type == "linearize":
-            layer = LinearizationLayer(name="linearize{}".format(counter),
-                                       group_size=activation["group_size"])
-        else:
-            log.error("{} activation type has not been supported"
-                      " yet.".format(activation_type))
-            sys.exit(0)
-    except KeyError as e:
-        log.error("{} not found. You perhaps have a typo or miss a"
-                  " parameter.".format(e))
-        sys.exit(0)
+    if bn:
+        bn_layer = BatchNormalizationLayer(
+            name="bn{}".format(counter), **bn)
+
+    if activation:
+        try:
+            activation_type = activation["type"]
+            if activation_type == "relu":
+                layer = ReLULayer(name="relu{}".format(counter))
+            elif activation_type == "maxout":
+                layer = MaxoutLayer(name="maxout{}".format(counter),
+                                    group_size=activation["group_size"])
+            elif activation_type == "gsoftmax":
+                layer = SoftmaxNormalizationLayer(
+                    name="gsoftmax{}".format(counter),
+                    group_size=activation["group_size"])
+            elif activation_type == "softmax":
+                layer = SoftmaxWithLossLayer(name="loss")
+            elif activation_type == "linearize":
+                layer = LinearizationLayer(name="linearize{}".format(counter),
+                                           group_size=activation["group_size"])
+            else:
+                log.error("{} activation type has not been supported"
+                          " yet.".format(activation_type))
+                sys.exit(0)
+        except KeyError as e:
+                log.error("{} not found. You perhaps have a typo or miss a"
+                          " parameter.".format(e))
+                sys.exit(0)
+    else:
+        layer = None
 
     if activation_before_pooling:
         for i, b in enumerate(block):
             if type(b) is PoolingLayer:
-                block.insert(i, layer)
+                if layer:
+                    block.insert(i, layer)
                 if bn:
                     block.insert(i, bn_layer)
                 break
     else:
         if bn:
             block.append(bn_layer)
-        block.append(layer)
+        if layer:
+            block.append(layer)
 
     if keep_prob:
         block.append(DropoutLayer(keep_prob=keep_prob,
