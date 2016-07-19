@@ -92,7 +92,7 @@ def cnn_block(ksize=None,
             elif activation_type == "maxout":
                 layer = CollapseOutLayer(name="maxout{}".format(counter),
                                     group_size=activation["group_size"])
-            elif activation_type == "gsoftmax":
+            elif activation_type == "gsmax":
                 layer = SoftmaxNormalizationLayer(
                     name="gsoftmax{}".format(counter),
                     group_size=activation["group_size"])
@@ -100,12 +100,12 @@ def cnn_block(ksize=None,
                 layer = GroupSoftmaxLayer(name="gsmax{}".format(counter),
                                           group_size=activation["group_size"])
             else:
-                log.error("{} activation type has not been supported"
-                          " yet.".format(activation_type))
+                print ("{} activation type has not been supported"
+                       " yet.".format(activation_type))
                 sys.exit(0)
         except KeyError as e:
-                log.error("{} not found. You perhaps have a typo or miss a"
-                          " parameter.".format(e))
+                print ("{} not found. You perhaps have a typo or miss a"
+                       " parameter.".format(e))
                 sys.exit(0)
     else:
         layer = None
