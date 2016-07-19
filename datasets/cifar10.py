@@ -94,14 +94,17 @@ class Cifar10FeedSource(Cifar10Source, InMemoryFeedSource):
                                         "train.npy"))
             imgs = imgs.reshape([sample_num, 3, 32, 32])
             imgs = np.einsum("nchw->nhwc", imgs)
-            training_dataset = DataSet(imgs, training_dataset.labels)
+            training_dataset = DataSet(
+                imgs[0:self.num_train, ...],
+                training_dataset.labels[0:self.num_train])
 
             imgs = np.load(os.path.join(self.work_dir,
                                         "pylearn2_gcn_whitened",
                                         "test.npy"))
             imgs = imgs.reshape([10000, 3, 32, 32])
             imgs = np.einsum("nchw->nhwc", imgs)
-            test_dataset = DataSet(imgs, test_dataset.labels)
+            test_dataset = DataSet(imgs[0:self.num_val, ...],
+                                   test_dataset.labels[0:self.num_val])
 
         return DataSets(training_dataset, test_dataset)
 
