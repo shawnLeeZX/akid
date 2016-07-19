@@ -33,7 +33,6 @@ AUXILLIARY_STAT_COLLECTION = "auxiliary_stat"
 # Shared seed for all involved randomness.
 SEED = 66478  # Set to None for random seed.
 # Manually named tag names.
-VALIDATION_ACCURACY_TAG = "Validation Accuracy"
 LEARNING_RATE_TAG = "Learning Rate"
 # tag suffixes
 SPARSITY_SUMMARY_SUFFIX = "sparsity"

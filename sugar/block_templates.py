@@ -15,18 +15,26 @@ from akid.layers import (
     ConvolutionLayer,
     PoolingLayer,
     InnerProductLayer,
-    SoftmaxWithLossLayer,
     DropoutLayer,
-    MaxoutLayer,
+    CollapseOutLayer,
     ReLULayer,
     SoftmaxNormalizationLayer,
     BatchNormalizationLayer,
-    LinearizationLayer
+    GroupSoftmaxLayer
 )
 
 
 # A counter to give number count to layer names
 counter = 0
+
+
+def init():
+    """
+    Call this to reset counter value if more than one networks are being built
+    in a running instance.
+    """
+    global counter
+    counter = 0
 
 
 def cnn_block(ksize=None,
@@ -72,7 +80,6 @@ def cnn_block(ksize=None,
                                        init_para=init_para,
                                        wd=wd,
                                        name="ip{}".format(counter)))
-
     if bn:
         bn_layer = BatchNormalizationLayer(
             name="bn{}".format(counter), **bn)
@@ -83,17 +90,15 @@ def cnn_block(ksize=None,
             if activation_type == "relu":
                 layer = ReLULayer(name="relu{}".format(counter))
             elif activation_type == "maxout":
-                layer = MaxoutLayer(name="maxout{}".format(counter),
+                layer = CollapseOutLayer(name="maxout{}".format(counter),
                                     group_size=activation["group_size"])
             elif activation_type == "gsoftmax":
                 layer = SoftmaxNormalizationLayer(
                     name="gsoftmax{}".format(counter),
                     group_size=activation["group_size"])
-            elif activation_type == "softmax":
-                layer = SoftmaxWithLossLayer(name="loss")
             elif activation_type == "linearize":
-                layer = LinearizationLayer(name="linearize{}".format(counter),
-                                           group_size=activation["group_size"])
+                layer = GroupSoftmaxLayer(name="gsmax{}".format(counter),
+                                          group_size=activation["group_size"])
             else:
                 log.error("{} activation type has not been supported"
                           " yet.".format(activation_type))
@@ -114,6 +119,8 @@ def cnn_block(ksize=None,
                     block.insert(i, bn_layer)
                 break
     else:
+        # Even if there is no activation layer, which happens at the last
+        # readout layer, BN may still be needed.
         if bn:
             block.append(bn_layer)
         if layer:

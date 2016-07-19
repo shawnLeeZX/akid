@@ -8,8 +8,8 @@ class TestBrain(TestCase):
         kid = TestFactory.get_test_survivor(source, brain)
         kid.setup()
 
-        precision = kid.practice()
-        assert precision >= 0.95
+        loss = kid.practice()
+        assert loss < 0.2
 
     def assert_diff(self, brain_a, brain_b):
         """
@@ -17,8 +17,6 @@ class TestBrain(TestCase):
         """
         for block_a, block_b in zip(brain_a.blocks, brain_b.blocks):
             assert block_a != block_b
-        # Now loss layer is treated specially, so we need to test it specially.
-        assert brain_a.loss_layer != brain_b.loss_layer
 
     def test_copy(self):
         brain = TestFactory.get_test_brain(using_moving_average=True)
@@ -31,7 +29,6 @@ class TestBrain(TestCase):
         self.assert_diff(brain, val_brain)
         for b in val_brain.blocks:
             assert b.is_val is True
-        assert val_brain.loss_layer.is_val is True
 
 if __name__ == "__main__":
     main()

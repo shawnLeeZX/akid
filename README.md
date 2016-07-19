@@ -71,7 +71,8 @@ To use most classes, its `setup` method should be called before anything
 else. This is tied with Tensorflow's two-stage execution mechanism: first build
 the computational graph in python, then run the graph in the back end. The
 `setup` of most classes build and do necessary initialization for the first
-stage of the computation.
+stage of the computation. The caller is responsible for passing in the right
+data for `setup`.
 
 `setup` should be called under a `tf.Graph()` umbrella, which is in the
 simplest case is a context manager that open a default graph:
@@ -96,7 +97,6 @@ session does not exist, a default one will be created for the execution for
 convenience.
 
 This allows a model to be deployed on various execution environment.
-
 
 ## Design Principles
 

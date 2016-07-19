@@ -74,7 +74,11 @@ class AlexNet(Brain):
                                       out_channel_num=10,
                                       name='softmax_linear'))
 
-        self.attach(SoftmaxWithLossLayer(name='loss'))
+        self.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[{"name": "softmax_linear", "idxs": [0]},
+                    {"name": "system_in", "idxs": [1]}],
+            name="loss"))
 
 
 class OneLayerBrain(Brain):
@@ -95,11 +99,13 @@ class OneLayerBrain(Brain):
                          name="pool1")
         )
 
-        self.attach(
-            InnerProductLayer(out_channel_num=10, name="ip1"))
-
-        self.attach(
-            SoftmaxWithLossLayer(name="loss"))
+        self.attach(InnerProductLayer(out_channel_num=10, name="ip1"))
+        self.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[
+                {"name": "ip1", "idxs": [0]},
+                {"name": "system_in", "idxs": [1]}],
+            name="loss"))
 
 
 class LeNet(Brain):
@@ -136,7 +142,11 @@ class LeNet(Brain):
 
         self.attach(InnerProductLayer(out_channel_num=10, name="ip2"))
 
-        self.attach(SoftmaxWithLossLayer(name="loss"))
+        self.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[{"name": "ip2", "idxs": [0]},
+                    {"name": "system_in", "idxs": [1]}],
+            name="loss"))
 
 
 class MnistTfTutorialNet(Brain):
@@ -192,11 +202,27 @@ class MnistTfTutorialNet(Brain):
                                       wd={"type": "l2", "scale": 5e-4},
                                       name="ip2"))
 
-        self.attach(SoftmaxWithLossLayer(name="loss"))
+        self.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[{"name": "ip2", "idxs": [0]},
+                    {"name": "system_in", "idxs": [1]}],
+            name="loss"))
 
 
 class VGGNet(Brain):
-    def __init__(self, padding, **kwargs):
+    def __init__(self,
+                 class_num=10,
+                 padding="SAME",
+                 loss_layer=None,
+                 **kwargs):
+        """
+        Args:
+            loss_layer: A tuple of (A python Class, A dict).
+                The type of loss layer to use in this net. The first item is
+                the class of the loss layer, and the second is extra parameters
+                of this layer, besides `name`. If None, a softmax cross_entropy
+                loss will be used.
+        """
         super(VGGNet, self).__init__(**kwargs)
         self.padding = padding
 
@@ -261,12 +287,26 @@ class VGGNet(Brain):
         self.top_layer_No += 1
         self.attach(DropoutLayer(keep_prob=0.5,
                                  name="dropout{}".format(self.top_layer_No)))
-        self.attach(InnerProductLayer(out_channel_num=10,
+
+        self.attach(InnerProductLayer(out_channel_num=class_num,
                                       init_para={
                                           "name": "truncated_normal",
                                           "stddev": 1e-4},
                                       name="ip2"))
-        self.attach(SoftmaxWithLossLayer(name="loss"))
+        self.attach(
+            BatchNormalizationLayer(name="bn{}".format(self.top_layer_No)))
+
+        if loss_layer:
+            self.attach(loss_layer[0](
+                class_num=class_num,
+                name="loss",
+                **loss_layer[1]))
+        else:
+            self.attach(SoftmaxWithLossLayer(
+                class_num=class_num,
+                inputs=[{"name": "ip2", "idxs": [0]},
+                        {"name": "system_in", "idxs": [1]}],
+                name="loss"))
 
     def attach_conv_bn_relu(self, out_channel_num):
         """

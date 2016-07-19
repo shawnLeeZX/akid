@@ -88,12 +88,12 @@ class SoftmaxNormalizationLayer(ProcessingLayer):
         self._data = output
 
 
-class LinearizationLayer(ProcessingLayer):
+class GroupSoftmaxLayer(ProcessingLayer):
     # A default name for the tensor returned by the layer.
-    NAME = "Linearization"
+    NAME = "GSMax"
 
     def __init__(self, use_temperature=False, group_size=4, **kwargs):
-        super(LinearizationLayer, self).__init__(**kwargs)
+        super(GroupSoftmaxLayer, self).__init__(**kwargs)
         self.use_temperature = use_temperature
         self.group_size = group_size
 
@@ -134,25 +134,29 @@ class LinearizationLayer(ProcessingLayer):
                 data_split[i] = tf.nn.softmax(
                     data_split[i])[:, 0:self.group_size]
             data = tf.concat(1, data_split,)
-            output = tf.reshape(data, shape, LinearizationLayer.NAME)
+            output = tf.reshape(data, shape, GroupSoftmaxLayer.NAME)
 
         self._data = output
 
 
-class MaxoutLayer(ProcessingLayer):
+class CollapseOutLayer(ProcessingLayer):
     """
-    Maxout layer.
+    `CollapseOutLayer` is to collapse the a subspace into a one-dimensional
+    space. It could be Maxout or AverageOut. To ensure backward compatibility,
+    by default, Maxout is the choice.
 
-    It is not merged into PoolingLayer is because MaxoutLayer should strictly
-    use `VALID` padding so to decouple these two type of padding, these two
-    layers are separated.
+    It is not merged into PoolingLayer is because CollapseOutLayer should
+    strictly use `VALID` padding so to decouple these two type of padding,
+    these two layers are separated.
     """
     # A default name for the tensor returned by the layer.
-    NAME = "MAXOUT"
+    MAXOUT_NAME = "MaxOut"
+    AVEOUT_NAME = "AverageOut"
 
-    def __init__(self, group_size=2, **kwargs):
-        super(MaxoutLayer, self).__init__(**kwargs)
+    def __init__(self, group_size=2, type="maxout", **kwargs):
+        super(CollapseOutLayer, self).__init__(**kwargs)
         self.group_size = group_size
+        self.type = type
 
     def _setup(self, input):
         shape = input.get_shape().as_list()
@@ -167,9 +171,18 @@ class MaxoutLayer(ProcessingLayer):
         shape[-1] = num_split
         shape.append(self.group_size)
         buff_tensor = tf.reshape(input, shape)
-        output = tf.reduce_max(buff_tensor,
-                               reduction_indices=len(shape)-1,
-                               name=MaxoutLayer.NAME)
+
+        if self.type is "maxout":
+            output = tf.reduce_max(buff_tensor,
+                                   reduction_indices=len(shape)-1,
+                                   name=CollapseOutLayer.MAXOUT_NAME)
+        elif self.type is "average_out":
+            output = tf.reduce_mean(buff_tensor,
+                                    reduction_indices=len(shape)-1,
+                                    name=CollapseOutLayer.AVEOUT_NAME)
+        else:
+            raise Exception("Type of `CollapseOutLayer` should be 'maxout' or"
+                            "'average_out'! {} is given.".format(self.type))
 
         self._data = output
 

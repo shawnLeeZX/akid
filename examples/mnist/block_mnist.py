@@ -1,6 +1,7 @@
 from akid.sugar.block_templates import cnn_block
 from akid import AKID_DATA_PATH
 from akid import Brain, MNISTFeedSource, FeedSensor, Survivor, MomentumKongFu
+from akid.layers import SoftmaxWithLossLayer
 
 
 def setup(bn=None, activation_before_pooling=False):
@@ -47,7 +48,13 @@ def setup(bn=None, activation_before_pooling=False):
                            wd={"type": "l2", "scale": 5e-4},
                            out_channel_num=10,
                            bn=bn,
-                           activation={"type": "softmax"}))
+                           activation=None))
+
+    brain.attach(SoftmaxWithLossLayer(
+        class_num=10,
+        inputs=[{"name": "ip4", "idxs": [0]},
+                {"name": "system_in", "idxs": [1]}],
+        name="loss"))
 
     source = MNISTFeedSource(name="MNIST",
                              url='http://yann.lecun.com/exdb/mnist/',

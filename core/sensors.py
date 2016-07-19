@@ -208,13 +208,14 @@ class IntegratedSensor(ShuffleQueueSensor):
         min_queue_examples = int(self.source.num_train *
                                  self.min_fraction_of_examples_in_queue)
 
-        training_data, training_labels \
-            = self._generate_image_and_label_batch(
-                self.batch_size,
-                augmented_training_datum,
-                self.source.training_label,
-                min_queue_examples,
-                "train_data")
+        batch_list = self._generate_image_and_label_batch(
+            self.batch_size,
+            augmented_training_datum,
+            self.source.training_label,
+            min_queue_examples,
+            "train_data")
+        training_data = batch_list[0]
+        training_labels = batch_list[1:]
 
         return training_data, training_labels
 
@@ -225,12 +226,14 @@ class IntegratedSensor(ShuffleQueueSensor):
         min_queue_examples = int(self.source.num_val *
                                  self.min_fraction_of_examples_in_queue)
 
-        val_data, val_labels = self._generate_image_and_label_batch(
+        batch_list = self._generate_image_and_label_batch(
             self.val_batch_size,
             processed_val_datum,
             self.source.val_label,
             min_queue_examples,
             "val_data")
+        val_data = batch_list[0]
+        val_labels = batch_list[1:]
 
         return val_data, val_labels
 
@@ -274,29 +277,33 @@ class IntegratedSensor(ShuffleQueueSensor):
         Args:
             batch_size: An integer.
             image: 3-D Tensor of [IMAGE_SIZE, IMAGE_SIZE, 3] of type.float32.
-            label: 1-D Tensor of type.int32
+            label: 1-D Tensor of type.int32 or a list of them.
             min_queue_examples: int32, minimum number of samples to retain
             in the queue that provides of batches of examples.
 
         Returns:
-            images: Images. 4D tensor of [batch_size, IMAGE_SIZE, IMAGE_SIZE,
-                3] size.
-            labels: Labels. 1D tensor of [batch_size] size.
+            batch_list: a list
+                A list of batched tensors of passed in `image` and `label`. The
+                order how they are passed in is preserved in the list.
         """
-        # Create a queue that shuffles the examples, and then
-
         # Having errors when thread number is too high.
         # num_preprocess_threads = 16
         num_preprocess_threads = 4
-        images, label_batch = tf.train.shuffle_batch(
-            [image, label],
+        input_list = [image]
+        input_list.extend(label) if type(label) is list \
+            else input_list.append(label)
+        batch_list = tf.train.shuffle_batch(
+            input_list,
             batch_size=batch_size,
             num_threads=num_preprocess_threads,
             capacity=min_queue_examples + 3 * batch_size,
             min_after_dequeue=min_queue_examples,
             name=name)
 
-        return images, tf.reshape(label_batch, [batch_size])
+        for i, b in enumerate(batch_list):
+            batch_list[i] = tf.squeeze(b)
+
+        return batch_list
 
 
 class FeedSensor(Sensor):

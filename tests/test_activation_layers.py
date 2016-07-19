@@ -1,16 +1,19 @@
 import time
 
+import tensorflow as tf
+
 from akid.tests.test import TestCase, main, TestFactory
 from akid import Brain
 from akid.sugar import cnn_block
+from akid import sugar
+from akid.layers import SoftmaxWithLossLayer
 
 
 class TestActivationLayers(TestCase):
+    def setUp(self):
+        sugar.init()
+
     def test_group_softmax(self):
-        """
-        This is to test initialization could be properly set up. It does not
-        involve run time things.
-        """
         brain = Brain(name="test_brain")
         brain.attach(cnn_block(ksize=[5, 5],
                                initial_bias_value=0.,
@@ -38,20 +41,21 @@ class TestActivationLayers(TestCase):
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
                                out_channel_num=10,
-                               activation={"type": "softmax"}))
+                               activation=None))
+        brain.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[{"name": "ip3", "idxs": [0]},
+                    {"name": "system_in", "idxs": [1]}],
+            name="loss"))
 
         source = TestFactory.get_test_feed_source()
         kid = TestFactory.get_test_survivor(source, brain)
         kid.setup()
 
-        precision = kid.practice()
-        assert precision > 0.9
+        loss = kid.practice()
+        assert loss < 1.5
 
     def test_linearization(self):
-        """
-        This is to test initialization could be properly set up. It does not
-        involve run time things.
-        """
         brain = Brain(name="test_brain")
         brain.attach(cnn_block(ksize=[5, 5],
                                initial_bias_value=0.,
@@ -79,16 +83,21 @@ class TestActivationLayers(TestCase):
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
                                out_channel_num=10,
-                               activation={"type": "softmax"}))
+                               activation=None))
+        brain.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[{"name": "ip3", "idxs": [0]},
+                    {"name": "system_in", "idxs": [1]}],
+            name="loss"))
 
         source = TestFactory.get_test_feed_source()
         kid = TestFactory.get_test_survivor(source, brain)
         kid.setup()
 
         start_time = time.time()
-        precision = kid.practice()
+        loss = kid.practice()
         end_time = time.time()
-        assert precision > 0.9
+        assert loss < 2
         assert end_time - start_time < 60
 
     def test_bn(self):
@@ -119,15 +128,42 @@ class TestActivationLayers(TestCase):
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
                                out_channel_num=10,
-                               activation={"type": "softmax"},
+                               activation=None,
                                bn={"gamma_init": 1., "share_gamma": True}))
+
+        brain.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[{"name": "ip3", "idxs": [0]},
+                    {"name": "system_in", "idxs": [1]}],
+            name="loss"))
 
         source = TestFactory.get_test_feed_source()
         kid = TestFactory.get_test_survivor(source, brain)
         kid.setup()
 
-        precision = kid.practice()
-        assert precision > 0.7
+        loss = kid.practice()
+        assert loss < 4
+
+    def test_reduce_out(self):
+        from akid.layers import CollapseOutLayer
+
+        input = tf.constant([1., 0.])
+
+        # Test Maxout
+        layer = CollapseOutLayer(group_size=2, type="maxout", name="maxout")
+        layer.setup(input)
+        with tf.Session():
+            output = layer.data.eval()
+            assert output == 1
+
+        # Test Average out
+        layer = CollapseOutLayer(group_size=2,
+                               type="average_out",
+                               name="average_out")
+        layer.setup(input)
+        with tf.Session():
+            output = layer.data.eval()
+            assert output == 0.5
 
 if __name__ == "__main__":
     main()

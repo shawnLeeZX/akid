@@ -1,20 +1,33 @@
+"""
+This module holds sources (feed source and tfrecord source) for CIFAR10
+dataset. It supports using raw CIFAR10 images as input, as well as global
+contrasted normalized, and ZCA whitened images (the common pre-processing done
+on CIFAR dataset, starting from the Maxout paper).
+"""
+
+
 import os
-import sys
-import tarfile
-import urllib
 import cPickle as pickle
 
 import numpy as np
 import tensorflow as tf
 
-from ..core.sources import InMemoryFeedSouce, SupervisedSource, TFSource
+from ..core.sources import (
+    InMemoryFeedSource,
+    SupervisedSource,
+    ClassificationTFSource
+)
 from .datasets import DataSet, DataSets
 
 
-class Cifar10FeedSource(InMemoryFeedSouce, SupervisedSource):
+class Cifar10Source(SupervisedSource):
     """
-    A concrete `FeedSource` for Cifar10 dataset.
+    A shared ancestor for different CIFAR10 sources. It is still an abstract
+    class.
     """
+    IMAGE_SIZE = 32
+    SAMPLE_NUM = 50000
+
     def __init__(self, use_zca=False, **kwargs):
         """
         Args:
@@ -22,9 +35,37 @@ class Cifar10FeedSource(InMemoryFeedSouce, SupervisedSource):
                 Use ZCA whitened data or not. If this is specified, the ZCA
                 whitened data has to be in `work_dir` already.
         """
-        super(Cifar10FeedSource, self).__init__(**kwargs)
+        super(Cifar10Source, self).__init__(**kwargs)
         self.use_zca = use_zca
 
+    def _load_cifar10_python(self, filenames):
+        """
+        Load python version of Cifar10 dataset.
+        """
+        # Load the first batch of data to get shape info.
+        filename = filenames[0]
+        with open(filename, "rb") as f:
+            tmp = pickle.load(f)
+            data = tmp["data"]
+            labels = np.array(tmp["labels"])
+
+        # Load the rest.
+        for filename in filenames[1:]:
+            with open(filename, "rb") as f:
+                tmp = pickle.load(f)
+                data = np.append(data, tmp["data"], 1)
+                labels = np.append(labels, tmp["labels"])
+
+        data = np.reshape(data, [-1, 3, 32, 32])
+        data = np.einsum("nchw->nhwc", data)
+
+        return DataSet(data, labels)
+
+
+class Cifar10FeedSource(Cifar10Source, InMemoryFeedSource):
+    """
+    A concrete `FeedSource` for Cifar10 dataset.
+    """
     @property
     def shape(self):
         return [32, 32, 3]
@@ -34,7 +75,7 @@ class Cifar10FeedSource(InMemoryFeedSouce, SupervisedSource):
         return [1]
 
     def _load(self):
-        self._maybe_download_and_extract()
+        self._get_raw_data_if_not_yet()
 
         # Load training set into memory.
         train_filenames = [os.path.join(self.work_dir, 'cifar-10-batches-py',
@@ -64,83 +105,110 @@ class Cifar10FeedSource(InMemoryFeedSouce, SupervisedSource):
 
         return DataSets(training_dataset, test_dataset)
 
-    def _load_cifar10_python(self, filenames):
-        """
-        Load python version of Cifar10 dataset.
-        """
-        # Load the first batch of data to get shape info.
-        filename = filenames[0]
-        with open(filename, "rb") as f:
-            tmp = pickle.load(f)
-            data = tmp["data"]
-            labels = np.array(tmp["labels"])
 
-        # Load the rest.
-        for filename in filenames[1:]:
-            with open(filename, "rb") as f:
-                tmp = pickle.load(f)
-                data = np.append(data, tmp["data"], 1)
-                labels = np.append(labels, tmp["labels"])
-
-        data = np.reshape(data, [-1, 3, 32, 32])
-        data = np.einsum("nchw->nhwc", data)
-
-        return DataSet(data, labels)
-
-    def _maybe_download_and_extract(self):
-        """Download and extract the tarball from Alex's website."""
-        # TODO(Shuai) this download piece does not work at all here. It is
-        # copied from the tf tutorial directly and only checks the existence of
-        # binary version of cifar10.
-        dest_directory = self.work_dir
-        if not os.path.exists(dest_directory):
-            os.makedirs(dest_directory)
-            filename = self.url.split('/')[-1]
-            filepath = os.path.join(dest_directory, filename)
-            if not os.path.exists(filepath):
-                def _progress(count, block_size, total_size):
-                    sys.stdout.write(
-                        '\r>> Downloading %s %.1f%%' %
-                        (filename,
-                         float(count * block_size) /
-                         float(total_size) * 100.0))
-                    sys.stdout.flush()
-                filepath, _ = urllib.urlretrieve(
-                    self.url, filepath, reporthook=_progress)
-                print()
-                statinfo = os.stat(filepath)
-                print('Succesfully downloaded',
-                      filename, statinfo.st_size, 'bytes.')
-                tarfile.open(filepath, 'r:gz').extractall(dest_directory)
-
-
-class Cifar10TFSource(TFSource, SupervisedSource):
+class Cifar10TFSource(Cifar10Source, ClassificationTFSource):
     """
     A concrete `Source` for Cifar10 dataset.
     """
-    IMAGE_SIZE = 24
-
-    @property
-    def training_datum(self):
-        return self._training_datum
-
-    @property
-    def val_datum(self):
-        return self._val_datum
-
-    @property
-    def training_label(self):
-        return self._training_label
-
-    @property
-    def val_label(self):
-        return self._val_label
-
     def _read(self):
         """
         Construct input for CIFAR evaluation using the Reader ops.
         """
-        self._maybe_download_and_extract()
+        if self.use_zca:
+            self._read_from_tfrecord()
+        else:
+            self._read_from_bin()
+
+    def _read_from_tfrecord(self):
+        self._maybe_convert_to_tf()
+
+        # Read and set up data tensors.
+        filename = os.path.join(self.work_dir, 'cifar10_training.tfrecords')
+        with tf.name_scope('input'):
+            filename_queue = tf.train.string_input_producer([filename])
+        self._training_datum, self._training_label \
+            = self._get_sample_tensors_from_tfrecords(filename_queue)
+
+        filename = os.path.join(self.work_dir, 'cifar10_test.tfrecords')
+        with tf.name_scope('input'):
+            filename_queue = tf.train.string_input_producer([filename])
+        self._val_datum, self._val_label \
+            = self._get_sample_tensors_from_tfrecords(filename_queue)
+
+    def _maybe_convert_to_tf(self):
+        """
+        If tfrecords data are not available, convert it from the ZCA whitened
+        data and downloaded labels.
+
+        TODO: write the data pre-processing code so I won't need to rely on
+        pylearn2.
+        """
+        TRAINING_TF_FILENAME = "cifar10_training"
+        if not os.path.exists(
+                os.path.join(self.work_dir,
+                             TRAINING_TF_FILENAME + ".tfrecords")):
+            # Read the numpy data in and convert it to TFRecord.
+            imgs = np.load(os.path.join(self.work_dir,
+                                        "pylearn2_gcn_whitened",
+                                        "train.npy"))
+            imgs = imgs.reshape([Cifar10Source.SAMPLE_NUM, 3, 32, 32])
+            imgs = np.einsum("nchw->nhwc", imgs)
+
+            # Load training set into memory.
+            train_filenames = [os.path.join(self.work_dir,
+                                            'cifar-10-batches-py',
+                                            'data_batch_%d' % i)
+                               for i in xrange(1, 6)]
+            training_labels = self._load_cifar10_python(train_filenames).labels
+            self._convert_to_tf(imgs, training_labels, TRAINING_TF_FILENAME)
+
+        TEST_TF_FILENAME = "cifar10_test"
+        if not os.path.exists(
+                os.path.join(self.work_dir, TEST_TF_FILENAME + ".tfrecords")):
+            imgs = np.load(os.path.join(self.work_dir,
+                                        "pylearn2_gcn_whitened",
+                                        "test.npy"))
+            imgs = imgs.reshape([10000, 3, 32, 32])
+            imgs = np.einsum("nchw->nhwc", imgs)
+            test_filenames = [os.path.join(self.work_dir,
+                                           'cifar-10-batches-py',
+                                           'test_batch')]
+            test_labels = self._load_cifar10_python(test_filenames).labels
+            self._convert_to_tf(imgs, test_labels, TEST_TF_FILENAME)
+
+    def _get_sample_tensors_from_tfrecords(self, filename_queue):
+        """
+        Read from tfrecord file and return data tensors.
+
+        Args:
+            filename_queue: tf.train.string_input_producer
+                A file name queue that gives string tensor for tfrecord names.
+
+        Returns:
+            (image, label): tuple of (rank-4 tf.float32 tensor and rank-1
+                            tf.int32 tensor)
+                individual sample that may be later put into a batch.
+        """
+        reader = tf.TFRecordReader()
+        _, serialized_example = reader.read(filename_queue)
+        features = tf.parse_single_example(
+            serialized_example,
+            # Defaults are not specified since both keys are required.
+            features={
+                'image_raw': tf.FixedLenFeature(
+                    [Cifar10Source.IMAGE_SIZE, Cifar10Source.IMAGE_SIZE, 3],
+                    tf.float32),
+                'label': tf.FixedLenFeature([], tf.int64),
+            })
+
+        # Convert label from a scalar uint8 tensor to an int32 scalar.
+        label = tf.cast(features['label'], tf.int32)
+        image = features["image_raw"]
+
+        return image, label
+
+    def _read_from_bin(self):
+        self._get_raw_data_if_not_yet()
 
         filenames = [os.path.join(self.work_dir, 'cifar-10-batches-bin',
                                   'data_batch_%d.bin' % i)
@@ -231,25 +299,3 @@ class Cifar10TFSource(TFSource, SupervisedSource):
         result.uint8image = tf.transpose(depth_major, [1, 2, 0])
 
         return result
-
-    def _maybe_download_and_extract(self):
-        """Download and extract the tarball from Alex's website."""
-        dest_directory = self.work_dir
-        if not os.path.exists(dest_directory):
-            os.makedirs(dest_directory)
-        filename = self.url.split('/')[-1]
-        filepath = os.path.join(dest_directory, filename)
-        if not os.path.exists(filepath):
-            def _progress(count, block_size, total_size):
-                sys.stdout.write(
-                    '\r>> Downloading %s %.1f%%' %
-                    (filename,
-                     float(count * block_size) / float(total_size) * 100.0))
-                sys.stdout.flush()
-            filepath, _ = urllib.urlretrieve(
-                self.url, filepath, reporthook=_progress)
-            print()
-            statinfo = os.stat(filepath)
-            print('Succesfully downloaded',
-                  filename, statinfo.st_size, 'bytes.')
-            tarfile.open(filepath, 'r:gz').extractall(dest_directory)

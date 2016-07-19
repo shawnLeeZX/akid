@@ -63,6 +63,16 @@
 *** DONE Let tuner.py to handle arbitrary file path.
     CLOSED: [2016-03-25 Fri 16:34]
     - State "DONE"       from "TODO"       [2016-03-25 Fri 16:34]
+*** DONE Consider adding a common super class for FeedSource and TFSource for Cifar10.
+    CLOSED: [2016-07-03 Sun 13:28]
+    - State "DONE"       from "TODO"       [2016-07-03 Sun 13:28]
+*** CANCELLED Make system exit more informative instead of just 1 or 0.
+    CLOSED: [2016-07-10 Sun 15:10]
+    - State "CANCELLED"  from "TODO"       [2016-07-10 Sun 15:10] \\
+      An exception should be raised instead.
+*** TODO Think how to place PaddingLayer and Jokers into the right place
+    Currently, PaddingLayer is Child of both ProcessingLayer and
+    Joker. Essentially, it should be the child of certain general block.
 *** TODO Add option and flag to tuner to continue training from checkpoint.
 *** TODO Write a better test for layers.
 *** TODO Handle the epoch completed exception of tensorflow, so if things go wrong, it would fail loudly.
@@ -72,11 +82,10 @@
 *** TODO Visual a batch
     Visualize more than one sample a time.
 *** TODO Check whether scalar parameter summary is right
-*** TODO Consider adding a common super class for FeedSource and TFSource for Cifar10.
 *** TODO The interface of Source and Sensor should be reconsidered.
      1. Maybe Source and Sensor could be merged.
      2. They should have similar abstract property like data of Block.
-*** TODO Make system exit more informative instead of just 1 or 0.
+*** TODO Change all system exit to exception raising.
 *** TODO Parameter saving should be an iteration over layers of a brain
      instead of all the syntax sugar of tensorflow that saves all trainable
      variables.

@@ -86,12 +86,15 @@ class Observer(object):
                     feed_dict = None
 
                 for block in self.kid.brain.blocks:
+                    if block.data is None:
+                        continue
                     log.info("Drawing activation of layer {}.".format(
                         block.name))
                     batch_activation = block.data.eval(feed_dict=feed_dict)
                     # For now we only visualize the first idx.
                     activation = batch_activation[0]
-                    sess.run(self.kid.brain.eval_graph, feed_dict=feed_dict)
+                    sess.run(self.kid.brain.eval_graph_list,
+                             feed_dict=feed_dict)
                     activations_img = self._tile_to_one_square(activation)
                     title = "{} Layer".format(block.name)
                     # Visualization will be saved to an sub-folder of

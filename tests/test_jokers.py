@@ -32,8 +32,8 @@ class TestJoker(TestCase):
             max_steps=2000)
         kid.setup()
 
-        precision = kid.practice()
-        assert precision >= 0.2
+        loss = kid.practice()
+        assert loss < 3
 
 
 if __name__ == "__main__":
