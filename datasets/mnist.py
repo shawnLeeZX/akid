@@ -173,10 +173,12 @@ class RotatedMNISTFeedSource(InMemoryFeedSource, SupervisedSource):
 
         train_data = np.loadtxt(TRAIN_DATA_PATH)
         test_data = np.loadtxt(TEST_DATA_PATH)
-        training_images = np.reshape(train_data[:, 0:-1], [-1, 28, 28, 1])
-        training_labels = train_data[:, -1]
-        test_images = np.reshape(test_data[:, 0:-1], [-1, 28, 28, 1])
-        test_labels = test_data[:, -1]
+        training_images = np.reshape(train_data[:self.num_train, 0:-1],
+                                     [-1, 28, 28, 1])
+        training_labels = train_data[:self.num_train, -1]
+        test_images = np.reshape(test_data[:self.num_val, 0:-1],
+                                 [-1, 28, 28, 1])
+        test_labels = test_data[:self.num_val, -1]
 
         training_dataset = DataSet(training_images,
                                    training_labels,
