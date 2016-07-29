@@ -24,12 +24,15 @@ class TestObserver(TestCase):
         # Do not train the model again if it is already there.
         checkpoint = tf.train.get_checkpoint_state(kid.model_dir)
         if not checkpoint:
-            precision = kid.practice()
-            assert precision >= 0.96
+            loss = kid.practice()
+            assert loss < 0.2
 
         # Since it is the methods that we want to test and the `__init__` of
         # `Observer` is trivial, we set it up here.
         self.observer = Observer(kid)
+
+    def test_visualize_classifying(self):
+        self.observer.visualize_classifying(name="ip1")
 
     def test_visualize_filters(self):
         self.observer.visualize_filters()

@@ -62,6 +62,104 @@ class Observer(object):
         """
         self.kid = kid
 
+    def visualize_classifying(self, name, idxs=None):
+        """
+        Visualize the prediction of a batch of samples from validation set.
+
+        Args:
+            name: str
+                The name of the layer that whose `data` property holds the
+                desired prediction, which could be logit or prediction
+                probability.
+            idxs: list
+                Indices of images to be displayed. If not given, plot all
+                images in the batch.
+
+        """
+        try:
+            self._maybe_setup_kid()
+
+            with tf.Session(graph=self.kid.graph) as sess:
+                # Find the layer for logit or probability by name
+                self.kid.restore_from_ckpt(sess)
+                feed_dict = self._feed_data(sess, get_val=True)
+                layer = None
+                for b in self.kid.val_brain.blocks:
+                    if b.name == name:
+                        layer = b
+                        break
+                if layer is None:
+                    log.error("Layer {} is not found.".format(name))
+                    sys.exit(0)
+
+                # Get the prediction for a batch.
+                if type(self.kid.sensor) is FeedSensor:
+                    _pred = layer.data.eval(feed_dict=feed_dict)
+                    data = feed_dict[self.kid.sensor.data(get_val=True)]
+                    _ = feed_dict[self.kid.sensor.labels(get_val=True)]
+                    if type(_) is list:
+                        labels = _[0]
+                    else:
+                        labels = _
+                else:
+                    _pred, data, labels = sess.run([
+                        layer.data,
+                        self.kid.sensor.data(get_val=True),
+                        self.kid.sensor.labels(get_val=True)[0]])
+                assert (len(_pred.shape) is 2,
+                        """
+                        Prediction result should be of shape (N, P), while
+                        being {}, where N is the batch size, P the logit or
+                        probability.
+                        """.format(_pred.shape))
+                pred = np.argmax(_pred, 1)
+
+                # Plot images alongside labels.
+                batch_size = pred.shape[0]
+                is_color = data.shape[-1] == 3
+                if is_color:
+                    cmap = "cubehelix"
+                else:
+                    cmap = "gray"
+
+                if idxs is None:
+                    log.info("No indices of images are given. Will use the"
+                             " all batch")
+                    idxs = range(0, batch_size)
+
+                # Initialize canvas.
+                # Arrange image in a grid form as square as possible.
+                img_num = len(idxs)
+                cols = np.ceil(np.sqrt(img_num))
+                rows = np.ceil(img_num / cols)
+                log.info("Rows: {}; Cols: {};".format(rows, cols))
+                fig = plt.figure()
+
+                # Squeeze if grey image so it could be plotted.
+                if data.shape[-1] is 1:
+                    data = np.squeeze(data)
+                # Plot images.
+                log.info("Data will be display in {} row X {} col.".format(
+                    rows, cols))
+                for idx in idxs:
+                    (img, label, pred_label) \
+                        = (data[idx], labels[idx], pred[idx])
+                    # Subplot No starts at 1. We add one to the idx.
+                    axe = fig.add_subplot(rows, cols, idx+1)
+                    axe.axis("off")
+                    axe.set_title("Label: {}; PL: {}.".format(
+                        label, pred_label))
+                    axe.imshow(img, cmap=cmap)
+
+                # Configure and show images.
+                # Use plt.show() so that even in command line it could display
+                # images.
+                plt.show()
+
+        except tf.OpError as e:
+            log.info("Tensorflow error when running: {}".format(e.message))
+            sys.exit(0)
+
     def visualize_activation(self):
         """
         Load trained net, do one forward propagation, and save activations.
@@ -70,20 +168,11 @@ class Observer(object):
         """
         log.info("Begin to draw activation of {}".format(self.kid.brain.name))
         try:
-            if not self.kid.brain.is_setup:
-                # Do not do summary during visualization so we do not need to
-                # create useless event files.
-                self.kid.do_summary = False
-                self.kid.setup()
+            self._maybe_setup_kid()
 
             with tf.Session(graph=self.kid.graph) as sess:
                 self.kid.restore_from_ckpt(sess)
-
-                if type(self.kid.sensor) is FeedSensor:
-                    # Placeholder of `FeedSensor` should be filled.
-                    feed_dict = self.kid.sensor.fill_feed_dict()
-                else:
-                    feed_dict = None
+                feed_dict = self._feed_data(sess)
 
                 for block in self.kid.brain.blocks:
                     if block.data is None:
@@ -151,11 +240,7 @@ class Observer(object):
         """
         log.info("Begin to draw filters of {}".format(self.kid.brain.name))
         try:
-            if not self.kid.brain.is_setup:
-                # Do not do summary during visualization so we do not need to
-                # create useless event files.
-                self.kid.do_summary = False
-                self.kid.setup()
+            self._maybe_setup_kid()
 
             with tf.Session(graph=self.kid.graph) as sess:
                 self.kid.restore_from_ckpt(sess)
@@ -195,11 +280,7 @@ class Observer(object):
         log.info("Begin to do stat on filters of {}".format(
             self.kid.brain.name))
         try:
-            if not self.kid.brain.is_setup:
-                # Do not do summary during visualization so we do not need to
-                # create useless event files.
-                self.kid.do_summary = False
-                self.kid.setup()
+            self._maybe_setup_kid()
 
             with tf.Session(graph=self.kid.graph) as sess:
                 self.kid.restore_from_ckpt(sess)
@@ -260,6 +341,23 @@ class Observer(object):
         except tf.OpError as e:
             log.info("Tensorflow error when running: {}".format(e.message))
             sys.exit(0)
+
+    def _maybe_setup_kid(self):
+        if not self.kid.brain.is_setup:
+            # Do not do summary during visualization so we do not need to
+            # create useless event files.
+            self.kid.do_summary = False
+            self.kid.setup()
+
+    def _feed_data(self, sess, get_val=False):
+        if type(self.kid.sensor) is FeedSensor:
+            # Placeholder of `FeedSensor` should be filled.
+            feed_dict = self.kid.sensor.fill_feed_dict(get_val=get_val)
+        else:
+            feed_dict = None
+            tf.train.start_queue_runners(sess=sess)
+
+        return feed_dict
 
     def _heatmap_to_file(self, img,  title, filename, fig_size=None):
         """
