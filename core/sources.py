@@ -379,7 +379,6 @@ class ClassificationTFSource(TFSource, SupervisedSource):
         """
         raise NotImplementedError("Each sub-class of TFSource needs to"
                                   " implement this method to read data!")
-        sys.exit()
 
     @property
     def training_datum(self):

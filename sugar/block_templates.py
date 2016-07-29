@@ -91,12 +91,12 @@ def cnn_block(ksize=None,
                 layer = ReLULayer(name="relu{}".format(counter))
             elif activation_type == "maxout":
                 layer = CollapseOutLayer(name="maxout{}".format(counter),
-                                    group_size=activation["group_size"])
-            elif activation_type == "gsmax":
+                                         group_size=activation["group_size"])
+            elif activation_type == "ngsmax":
                 layer = SoftmaxNormalizationLayer(
-                    name="gsoftmax{}".format(counter),
+                    name="ngsoftmax{}".format(counter),
                     group_size=activation["group_size"])
-            elif activation_type == "linearize":
+            elif activation_type == "gsmax":
                 layer = GroupSoftmaxLayer(name="gsmax{}".format(counter),
                                           group_size=activation["group_size"])
             else:

@@ -23,7 +23,7 @@ class TestActivationLayers(TestCase):
                                out_channel_num=32,
                                pool_size=[5, 5],
                                pool_stride=[5, 5],
-                               activation={"type": "gsoftmax",
+                               activation={"type": "ngsmax",
                                            "group_size": 2}))
 
         brain.attach(cnn_block(ksize=None,
@@ -32,7 +32,7 @@ class TestActivationLayers(TestCase):
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
                                out_channel_num=512,
-                               activation={"type": "gsoftmax",
+                               activation={"type": "ngsmax",
                                            "group_size": 8}))
 
         brain.attach(cnn_block(ksize=None,
@@ -44,7 +44,7 @@ class TestActivationLayers(TestCase):
                                activation=None))
         brain.attach(SoftmaxWithLossLayer(
             class_num=10,
-            inputs=[{"name": "ip3", "idxs": [0]},
+            inputs=[{"name": "ip3"},
                     {"name": "system_in", "idxs": [1]}],
             name="loss"))
 
@@ -65,7 +65,7 @@ class TestActivationLayers(TestCase):
                                out_channel_num=32,
                                pool_size=[5, 5],
                                pool_stride=[5, 5],
-                               activation={"type": "linearize",
+                               activation={"type": "gsmax",
                                            "group_size": 2}))
 
         brain.attach(cnn_block(ksize=None,
@@ -74,7 +74,7 @@ class TestActivationLayers(TestCase):
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
                                out_channel_num=512,
-                               activation={"type": "linearize",
+                               activation={"type": "gsmax",
                                            "group_size": 8}))
 
         brain.attach(cnn_block(ksize=None,
@@ -86,7 +86,7 @@ class TestActivationLayers(TestCase):
                                activation=None))
         brain.attach(SoftmaxWithLossLayer(
             class_num=10,
-            inputs=[{"name": "ip3", "idxs": [0]},
+            inputs=[{"name": "ip3"},
                     {"name": "system_in", "idxs": [1]}],
             name="loss"))
 

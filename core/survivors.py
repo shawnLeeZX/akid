@@ -117,7 +117,12 @@ class Survivor(object):
         else:
             self.graph = graph
 
-    def validate(self, sess):
+        # Flag to indicate the input queue runner has been started or not,
+        # since both training and validation may start this, while it should
+        # only be started once.
+        self.initialized = False
+
+    def validate(self, sess=None):
         """Evaluating on validation set.
 
         Args:
@@ -127,7 +132,21 @@ class Survivor(object):
             precision: float
                 The prediction accuracy.
         """
+        if not sess:
+            sess = tf.Session(
+                graph=self.graph,
+                config=tf.ConfigProto(allow_soft_placement=True))
+            with sess:
+                return self._validate(sess)
+        else:
+            return self._validate(sess)
+
+    def _validate(self, sess):
         log.info('Validation Data Eval:')
+
+        if not self.initialized:
+            self._init(sess, continue_from_chk_point=True)
+
         # Run one epoch of eval.
         eval_metric_values = [0] * len(self.val_brain.eval_graph_list)
         loss = 0
@@ -347,7 +366,10 @@ class Survivor(object):
 
         # Start queue runner if needed.
         if type(self.sensor) is sensors.IntegratedSensor:
-            tf.train.start_queue_runners(sess=sess)
+            if not self.initialized:
+                tf.train.start_queue_runners(sess=sess)
+
+        self.initialized = True
 
     def save_to_ckpt(self, sess):
         step = tf.train.global_step(sess, self.global_step_tensor)

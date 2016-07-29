@@ -161,12 +161,14 @@ class GraphSystem(LinkedSystem):
                     # Then look through outputs of setup layers.
                     for b in self.blocks:
                         if b.is_setup and b.name == input["name"]:
+                            # If a layer has only one output, directly put that
+                            # data in the input since otherwise, this layer
+                            # won't be listed at all.
                             if type(b.data) is not list:
-                                b_data = [b.data]
+                                inputs.append(b.data)
                             else:
-                                b_data = b.data
-                            for i in input["idxs"]:
-                                inputs.append(b_data[i])
+                                for i in input["idxs"]:
+                                    inputs.append(b.data[i])
                             break
                 if len(inputs) is 1:
                     l.setup(inputs[0])
