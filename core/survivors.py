@@ -41,6 +41,7 @@ class Survivor(object):
                  val_step=1000,
                  train_step=100,
                  graph=None,
+                 save_chk_point=True,
                  do_summary=True,
                  summary_on_val=False):
         """
@@ -109,6 +110,7 @@ class Survivor(object):
         self.val_step = val_step
         self.summary_on_val = summary_on_val
         self.do_summary = do_summary
+        self.save_chk_point = save_chk_point
 
         # A tensorflow computational graph to hold training and validating
         # graphs.
@@ -129,8 +131,8 @@ class Survivor(object):
             sess: The session where validation graph has been built.
 
         Return:
-            precision: float
-                The prediction accuracy.
+            loss: float
+                The validation loss.
         """
         if not sess:
             sess = tf.Session(
@@ -233,7 +235,8 @@ class Survivor(object):
             previous_step = tf.train.global_step(sess,
                                                  self.global_step_tensor)
             # Do one validation before beginning.
-            self.save_to_ckpt(sess)
+            if self.save_chk_point:
+                self.save_to_ckpt(sess)
             self.validate(sess)
             # Run ops once to show initial training loss and save initial
             # summaries.
@@ -269,10 +272,11 @@ class Survivor(object):
                 self._step(sess, step)
 
                 if step % self.val_step == 0 or step == self.max_steps:
-                    self.save_to_ckpt(sess)
-                    precision = self.validate(sess)
+                    if self.save_chk_point:
+                        self.save_to_ckpt(sess)
+                    loss = self.validate(sess)
 
-            return precision
+            return loss
         except tf.OpError as e:
             log.info("Tensorflow error when running: {}".format(e.message))
             sys.exit(0)
