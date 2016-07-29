@@ -9,18 +9,35 @@ from ..core.common import SEED
 
 
 class PoolingLayer(ProcessingLayer):
-    def __init__(self, ksize, strides, padding, **kwargs):
+    def __init__(self, ksize, strides, padding="VALID", type="max", **kwargs):
+        """
+        Args:
+            type: str
+                Use max or average pooling. 'max' for max pooling, and 'avg'
+                for average pooling.
+        """
         super(PoolingLayer, self).__init__(**kwargs)
         self.ksize = ksize
         self.strides = strides
         self.padding = padding
+        self.type = type
 
     def _setup(self, input):
         log.debug("Padding method {}.".format(self.padding))
-        self._data = tf.nn.max_pool(input,
-                                    self.ksize,
-                                    self.strides,
-                                    self.padding)
+        log.debug("Pooling method {}.".format(self.type))
+        if self.type == "max":
+            self._data = tf.nn.max_pool(input,
+                                        self.ksize,
+                                        self.strides,
+                                        self.padding)
+        elif self.type == "avg":
+            self._data = tf.nn.avg_pool(input,
+                                        self.ksize,
+                                        self.strides,
+                                        self.padding)
+        else:
+            log.error("Type `{}` pooling is not supported.".format(
+                self.type))
 
 
 class ReLULayer(ProcessingLayer):

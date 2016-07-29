@@ -72,13 +72,14 @@ class SynapseLayer(ProcessingLayer):
         """
         super(SynapseLayer, self).__init__(**kwargs)
         self.out_channel_num = out_channel_num
-        # Only do float conversion if not None.
-        self.initial_bias_value = float(initial_bias_value) \
-                                  if initial_bias_value is not None else None
         self.init_para = init_para
         self.wd = wd
         self.max_norm = max_norm
         self.do_stat_on_norm = do_stat_on_norm
+
+        # Only do float conversion if not None.
+        self.initial_bias_value = float(initial_bias_value) \
+            if initial_bias_value is not None else None
 
     @abc.abstractmethod
     def _para_init(self, input):
@@ -102,6 +103,12 @@ class SynapseLayer(ProcessingLayer):
                                   " this method to allocate and init"
                                   " parameters!")
         sys.exit()
+
+    def _pre_setup(self):
+        super(SynapseLayer, self)._pre_setup()
+
+        if not self.initial_bias_value:
+            log.info("Bias is disabled.")
 
     def _post_setup_shared(self):
         super(SynapseLayer, self)._post_setup_shared()

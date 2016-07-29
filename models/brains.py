@@ -7,7 +7,9 @@ from akid.layers import (
     SoftmaxWithLossLayer,
     LRNLayer,
     BatchNormalizationLayer,
-    DropoutLayer
+    DropoutLayer,
+    MergeLayer,
+    ReshapeLayer
 )
 
 
@@ -327,3 +329,129 @@ class VGGNet(Brain):
         self.attach(BatchNormalizationLayer(
             name="bn{}".format(self.top_layer_No)))
         self.attach(ReLULayer(name="relu{}".format(self.top_layer_No)))
+
+
+class ResNet(Brain):
+    def __init__(self, depth=28, width=2, dropout_prob=None, **kwargs):
+        super(ResNet, self).__init__(**kwargs)
+
+        self.residual_block_No = 0
+        self.dropout_prob = dropout_prob
+        self.wd = {"type": "l2", "scale": 5e-4}
+        self.use_bias = None
+
+        assert((depth - 4) % 6 == 0)
+        k = width
+        n_stages = [16, 16*k, 32*k, 64*k]
+        assert (depth - 4) % 6 is 0
+        n = (depth - 4) / 6
+
+        self.attach(ConvolutionLayer([3, 3],
+                                     [1, 1, 1, 1],
+                                     padding="SAME",
+                                     init_para={"name": "msra_init"},
+                                     wd=self.wd,
+                                     out_channel_num=16,
+                                     initial_bias_value=self.use_bias,
+                                     name="conv0"))
+
+        self._attach_stack(n_input_plane=n_stages[0],
+                           n_output_plane=n_stages[1],
+                           count=n,
+                           stride=(1, 1))
+        self._attach_stack(n_input_plane=n_stages[1],
+                           n_output_plane=n_stages[2],
+                           count=n,
+                           stride=(2, 2))
+        self._attach_stack(n_input_plane=n_stages[2],
+                           n_output_plane=n_stages[3],
+                           count=n,
+                           stride=(2, 2))
+        self.attach(BatchNormalizationLayer(name="bn_out"))
+        self.attach(ReLULayer(name="relu_out"))
+        self.attach(PoolingLayer(ksize=[1, 8, 8, 1],
+                                 strides=[1, 1, 1, 1],
+                                 padding="SAME",
+                                 type="avg",
+                                 name="global_pool"))
+        self.attach(ReshapeLayer(name="reshape"))
+        self.attach(InnerProductLayer(initial_bias_value=self.use_bias,
+                                      init_para={"name": "msra_init"},
+                                      wd=self.wd,
+                                      out_channel_num=10,
+                                      name='ip'))
+        self.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[{"name": "ip"},
+                    {"name": "system_in", "idxs": [1]}],
+            name="softmax"))
+
+    def _attach_stack(self, n_input_plane, n_output_plane, count, stride):
+        self._attach_block(n_input_plane, n_output_plane, stride)
+        for i in xrange(2, count+1):
+            self._attach_block(n_output_plane, n_output_plane, stride=(1, 1))
+
+    def _attach_block(self, n_input_plane, n_output_plane, stride):
+        self.residual_block_No += 1
+
+        conv_params = [[3, 3, stride, "SAME"],
+                       [3, 3, (1, 1), "SAME"]]
+
+        identity_layer_name = self.blocks[-1].name
+
+        for i, v in enumerate(conv_params):
+            if i == 0:
+                self.attach(BatchNormalizationLayer(
+                    name="bn_{}_{}".format(self.residual_block_No, i)))
+                self.attach(ReLULayer(name="relu_{}_{}".format(
+                    self.residual_block_No, i)))
+                self.attach(ConvolutionLayer([3, 3],
+                                             [1, v[2][0], v[2][1], 1],
+                                             padding="SAME",
+                                             init_para={"name": "msra_init"},
+                                             initial_bias_value=self.use_bias,
+                                             wd=self.wd,
+                                             out_channel_num=n_output_plane,
+                                             name="conv_{}_{}".format(
+                                                 self.residual_block_No, i)))
+            else:
+                self.attach(BatchNormalizationLayer(
+                    name="bn_{}_{}".format(self.residual_block_No, i)))
+                self.attach(ReLULayer(name="relu_{}_{}".format(
+                    self.residual_block_No, i)))
+                if self.dropout_prob:
+                    self.attach(DropoutLayer(
+                        keep_prob=1-self.dropout_prob,
+                        name="dropout_{}_{}".format(self.residual_block_No,
+                                                    i)))
+                self.attach(ConvolutionLayer([3, 3],
+                                             [1, v[2][0], v[2][1], 1],
+                                             padding="SAME",
+                                             init_para={"name": "msra_init"},
+                                             initial_bias_value=self.use_bias,
+                                             wd=self.wd,
+                                             out_channel_num=n_output_plane,
+                                             name="conv_{}_{}".format(
+                                                 self.residual_block_No, i)))
+
+        last_residual_layer_name = self.blocks[-1].name
+
+        if n_input_plane != n_output_plane:
+            self.attach(ConvolutionLayer(
+                [3, 3],
+                [1, stride[0], stride[1], 1],
+                inputs=[{"name": identity_layer_name}],
+                padding="SAME",
+                init_para={"name": "msra_init"},
+                initial_bias_value=self.use_bias,
+                wd=self.wd,
+                out_channel_num=n_output_plane,
+                name="conv_{}_shortcut".format(self.residual_block_No)))
+
+            shortcut_layer_name = self.blocks[-1].name
+        else:
+            shortcut_layer_name = identity_layer_name
+
+        self.attach(MergeLayer(inputs=[{"name": last_residual_layer_name},
+                                       {"name": shortcut_layer_name}],
+                               name="merge_{}".format(self.residual_block_No)))

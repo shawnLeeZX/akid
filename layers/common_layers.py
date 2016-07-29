@@ -69,4 +69,20 @@ class PaddingLayer(ProcessingLayer, Joker):
         self._data = tf.pad(input, paddings=_padding)
 
 
+class MergeLayer(ProcessingLayer):
+    """
+    Merge layers with the same shape by element-wise addition.
+    """
+    def _setup(self, inputs):
+        print inputs
+        shape = inputs[0].get_shape().as_list()
+        for t in inputs:
+            assert t.get_shape().as_list() == shape
+
+        sum = inputs[0]
+        for t in inputs[1:]:
+            sum += t
+
+        self._data = sum
+
 __all__ = [name for name, x in locals().items() if not inspect.ismodule(x)]

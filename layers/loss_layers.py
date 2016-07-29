@@ -47,6 +47,9 @@ class SoftmaxWithLossLayer(LossLayer):
         self._loss = cross_entropy_mean
 
         # Set up eval graph.
+        # NOTE: this approach has a bug. If the classifier is so weak, it gives
+        # all equal probability for all classes, then the final accuracy would
+        # be 1, since obviously the desired class is in the top k.
         correct = tf.nn.in_top_k(logits, labels, 1)
         # Return the number of true entries.
         self._eval = tf.reduce_mean(tf.cast(correct, tf.float32), name="acc")
