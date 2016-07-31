@@ -220,7 +220,7 @@ class Survivor(object):
         """
         if not sess:
             config = tf.ConfigProto(allow_soft_placement=True)
-            config.gpu_options.allow_growth=True
+            config.gpu_options.allow_growth = True
             sess = tf.Session(graph=self.graph, config=config)
             with sess:
                 return self._practice(sess, continue_from_chk_point)

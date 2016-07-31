@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from ..utils import glog as log
 from ..core.blocks import ProcessingLayer
-from ..core.common import SEED
+from ..core.common import SEED, GLOBAL_STEP, global_var_scope
 
 
 class PoolingLayer(ProcessingLayer):
@@ -251,9 +251,22 @@ class BatchNormalizationLayer(ProcessingLayer):
                 initializer=tf.constant_initializer(self.gamma_init))
 
         # Bookkeeping a moving average for inference.
-        ema = tf.train.ExponentialMovingAverage(decay=0.99)
+
+        # Since the initial mean and average are not accurate, we should use a
+        # lower lower momentum. This is particularly important for ResNet since
+        # the initial activation could be very large due to the exponential
+        # accumulation effect of merge layers, though it does not work not well
+        # to remove the effect for ResNet. To achieve this, we use the
+        # mechanism provided by tensorflow, by passing current step in.
+        with tf.variable_scope(global_var_scope, reuse=True):
+            step = tf.get_variable(GLOBAL_STEP)
+        ema = tf.train.ExponentialMovingAverage(0.99, step)
+
         ema_apply_op = ema.apply([mean, variance])
         ema_mean, ema_var = ema.average(mean), ema.average(variance)
+        # Add the moving average to var list, for purposes such as
+        # visualization.
+        self.var_list.extend([ema_mean, ema_var])
 
         with tf.control_dependencies(
                 [ema_apply_op]):
