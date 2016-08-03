@@ -39,22 +39,22 @@ class KongFu(object):
         self.decay_rate = decay_rate
         self.decay_epoch_num = decay_epoch_num
 
-    def setup(self, survivor):
+    def setup(self, engine):
         """
         Build and return training ops.
 
         Args:
-            survivor: Survivor
+            engine: Engine
                 A KongFu needs to know who is using it to suit its taste. A
-                survivor is passed to provide necessary information such as how
-                many batches are there in a epoch of survivor's sensor, and
+                engine is passed to provide necessary information such as how
+                many batches are there in a epoch of engine's sensor, and
                 also take away anything that should be held.
         """
         decay_steps = int(
-            survivor.sensor.num_batches_per_epoch_train * self.decay_epoch_num)
+            engine.sensor.num_batches_per_epoch_train * self.decay_epoch_num)
         learning_rate = tf.train.exponential_decay(
             self.base_lr,
-            survivor.global_step_tensor,
+            engine.global_step_tensor,
             decay_steps,          # Decay step.
             self.decay_rate,                # Decay rate.
             staircase=True)
@@ -63,18 +63,7 @@ class KongFu(object):
                           learning_rate,
                           collections=[TRAINING_DYNAMICS_COLLECTION])
         # Use simple momentum for the optimization.
-        optimizer = self._get_optimizer(learning_rate)
-        grads = optimizer.compute_gradients(survivor.brain.loss_graph)
-        # Add histograms for gradients.
-        for grad, var in grads:
-            if grad is not None:
-                tf.histogram_summary(
-                    var.op.name + '/gradients',
-                    grad,
-                    collections=[TRAINING_DYNAMICS_COLLECTION])
-
-        self.train_op = optimizer.apply_gradients(
-            grads, global_step=survivor.global_step_tensor)
+        self.opt = self._get_optimizer(learning_rate)
 
     @abc.abstractmethod
     def _get_optimizer(self, lr):

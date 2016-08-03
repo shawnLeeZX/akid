@@ -12,7 +12,7 @@ import tensorflow as tf
 
 from ..utils import glog as log
 from . import sensors
-from .common import GLOBAL_STEP, global_var_scope
+from . import engines
 from .common import (
     TRAIN_SUMMARY_COLLECTION,
     VALID_SUMMARY_COLLECTION,
@@ -26,15 +26,12 @@ class Survivor(object):
     Survivor is a class to assemble a `Sensor`, for supplying data, a
     `Brain`, for data processing, and a genre of `KongFu`, for algorithms or
     polices to train.
-
-    # TODO(Shuai): I guess when the time comes to run on multiple GPUs or
-    # machines, an class need to be abstracted out to deal with the
-    # computational unit, compared with `Block`. `Survivor` is the start point.
     """
     def __init__(self,
                  sensor_in,
                  brain_in,
                  kongfu_in,
+                 engine="single",
                  log_dir=None,
                  log_to_file=True,
                  max_steps=20000,
@@ -50,10 +47,13 @@ class Survivor(object):
         Args:
             sensor: Sensor
                 A `Sensor` class to supply data.
-            brain: Brain
+            brain_in: Brain
                 A `Brain` class to process data.
-            kongfu: KongFu
+            kongfu_in: KongFu
                 A `KongFu` class for training.
+            engine: str
+                The name of the `Engine` class to use, which implements
+                parallel scheme.
             log_dir: str
                 The folder to hold tensorboard event, training logs and trained
                 models. If not given, first a folder named `log` will be
@@ -91,6 +91,7 @@ class Survivor(object):
         self.sensor = sensor_in
         self.brain = brain_in
         self.kongfu = kongfu_in
+        self.engine_name = engine
 
         # Set up logging facilities.
         if log_dir is None:
@@ -150,7 +151,7 @@ class Survivor(object):
             self._init(sess, continue_from_chk_point=True)
 
         # Run one epoch of eval.
-        eval_metric_values = [0] * len(self.val_brain.eval_graph_list)
+        eval_metric_values = [0] * len(self.engine.eval(get_val=True))
         loss = 0
         steps_per_epoch = self.sensor.num_batches_per_epoch_val
         num_examples = steps_per_epoch * self.sensor.val_batch_size
@@ -159,8 +160,8 @@ class Survivor(object):
                 feed_dict = self.sensor.fill_feed_dict(get_val=True)
             else:
                 feed_dict = None
-            fetch = [self.val_brain.loss_graph]
-            fetch.extend(self.val_brain.eval_graph_list)
+            fetch = [self.engine.loss(get_val=True)]
+            fetch.extend(self.engine.eval(get_val=True))
             result = sess.run(fetch, feed_dict=feed_dict)
             loss += result[0]
             for i, v in enumerate(result[1:]):
@@ -176,14 +177,14 @@ class Survivor(object):
             summary.value.add(tag="Validation Loss", simple_value=loss)
             for i, v in enumerate(eval_metric_values):
                 summary.value.add(
-                    tag=self.val_brain.eval_graph_list[i].op.name,
+                    tag=self.engine.eval(get_val=True)[i].op.name,
                     simple_value=v)
             summary.value.add(
                 tag=LEARNING_RATE_TAG,
                 simple_value=float(self.kongfu.learning_rate.eval()))
             self.summary_writer.add_summary(summary, current_step)
         # Log.
-        name_to_print = [g.op.name for g in self.val_brain.eval_graph_list]
+        name_to_print = [g.op.name for g in self.engine.eval(get_val=True)]
         eval_value_to_print = ["%0.04f" % v for v in eval_metric_values]
         eval_to_print = dict(zip(name_to_print, eval_value_to_print))
         log.info('  Num examples: {}  Evals : {}'.format(
@@ -199,8 +200,7 @@ class Survivor(object):
         with self.graph.as_default():
             self._setup_log()
             self._setup_sensor()
-            self._setup_brain()
-            self._setup_val_brain()
+            self._setup_engine()
             self._setup_summary()
             self.saver = tf.train.Saver(tf.all_variables())
 
@@ -317,35 +317,16 @@ class Survivor(object):
         log.info("Setting up sensor ...")
         self.sensor.setup()
 
-    def _setup_brain(self):
-        # A tensor to track training step.
-        with tf.variable_scope(global_var_scope):
-            self.global_step_tensor = tf.get_variable(
-                name=GLOBAL_STEP,
-                shape=[],
-                initializer=tf.constant_initializer(0),
-                trainable=False)
-        # TODO(Shuai): here is a temporary solution. Since sensor is actually
-        # just a system with two outputs, `GraphSystem` could handle it, but it
-        # would make many changes, for now, I just settle with the not-so
-        # elegant solution here. Note that if here is going to be changed,
-        # `_setup_val_brain` should also be changed.
-        data = self.sensor.data()
-        label = self.sensor.labels()
-        system_in = [data]
-        system_in.extend(label) if type(label) is list \
-            else system_in.append(label)
-        self.brain.setup(system_in)
-        self.kongfu.setup(self)
-
-    def _setup_val_brain(self):
-        self.val_brain = self.brain.get_val_copy()
-        data = self.sensor.data(get_val=True)
-        label = self.sensor.labels(get_val=True)
-        system_in = [data]
-        system_in.extend(label) if type(label) is list \
-            else system_in.append(label)
-        self.val_brain.setup(system_in)
+    def _setup_engine(self):
+        if self.engine_name == "single":
+            self.engine = engines.SingleGPUEngine(self.sensor,
+                                                  self.brain,
+                                                  self.kongfu)
+        elif self.engine_name == "data_parallel":
+            self.engine = engines.DataParallelEngine(self.sensor,
+                                                     self.brain,
+                                                     self.kongfu)
+        self.engine.setup()
 
     def _init(self, sess, continue_from_chk_point=None):
         """
@@ -359,6 +340,7 @@ class Survivor(object):
                 folder named `model` must exist under `Survivor`'s `log_dir`
                 with saved models.
         """
+        self.global_step_tensor = self.engine.global_step_tensor
 
         # Initialization.
         if continue_from_chk_point:
@@ -428,12 +410,10 @@ class Survivor(object):
             feed_dict = None
 
         # Run one step.
-        fetch = [self.kongfu.train_op, self.brain.loss_graph]
-        fetch.extend(self.brain.eval_graph_list)
+        fetch = [self.engine.train_op, self.engine.loss()]
+        fetch.extend(self.engine.eval())
         start_time = time.time()
         result = sess.run(fetch, feed_dict=feed_dict)
-        if self.brain.max_norm_clip_op:
-            sess.run([self.brain.max_norm_clip_op])
         duration = time.time() - start_time
         loss_value = result[1]
 

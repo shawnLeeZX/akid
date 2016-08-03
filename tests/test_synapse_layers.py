@@ -19,7 +19,7 @@ class TestSynapseLayers(TestCase):
                                out_channel_num=32,
                                pool_size=[5, 5],
                                pool_stride=[5, 5],
-                               activation={"type": "linearize",
+                               activation={"type": "gsmax",
                                            "group_size": 2}))
 
         brain.attach(cnn_block(ksize=None,
@@ -28,7 +28,7 @@ class TestSynapseLayers(TestCase):
                                           "stddev": 0.1},
                                wd={"type": "l1", "scale": 0.0005},
                                out_channel_num=512,
-                               activation={"type": "linearize",
+                               activation={"type": "gsmax",
                                            "group_size": 8}))
 
         brain.attach(cnn_block(ksize=None,

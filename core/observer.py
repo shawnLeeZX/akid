@@ -83,18 +83,11 @@ class Observer(object):
                 # Find the layer for logit or probability by name
                 self.kid.restore_from_ckpt(sess)
                 feed_dict = self._feed_data(sess, get_val=True)
-                layer = None
-                for b in self.kid.val_brain.blocks:
-                    if b.name == name:
-                        layer = b
-                        break
-                if layer is None:
-                    log.error("Layer {} is not found.".format(name))
-                    sys.exit(0)
+                data = self.kid.engine.get_layer_data(name, get_val=True)
 
                 # Get the prediction for a batch.
                 if type(self.kid.sensor) is FeedSensor:
-                    _pred = layer.data.eval(feed_dict=feed_dict)
+                    _pred = data.eval(feed_dict=feed_dict)
                     data = feed_dict[self.kid.sensor.data(get_val=True)]
                     _ = feed_dict[self.kid.sensor.labels(get_val=True)]
                     if type(_) is list:
@@ -103,7 +96,7 @@ class Observer(object):
                         labels = _
                 else:
                     _pred, data, labels = sess.run([
-                        layer.data,
+                        data,
                         self.kid.sensor.data(get_val=True),
                         self.kid.sensor.labels(get_val=True)[0]])
                 assert (len(_pred.shape) is 2,

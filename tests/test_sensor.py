@@ -103,9 +103,11 @@ class TestIntegratedSensor(TestCase):
             GradientDescentKongFu(base_lr=0.1,
                                   decay_rate=0.1,
                                   decay_epoch_num=350),
-            max_steps=1000,
+            max_steps=200,
             summary_on_val=True)
         kid.setup()
+
+        kid.practice()
 
 if __name__ == "__main__":
     main()

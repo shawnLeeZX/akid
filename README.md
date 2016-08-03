@@ -6,8 +6,8 @@ The name comes from the Kid saved by Neo in *Matrix*.
 
 It is designed by analogy to a living being. A living being needs to use all
 kinds of *sensors* it equipped to sense a *source*, parts of the world, by a
-certain *method*, to accumulate experience and summarize knowledge in ones
-*brain* to fulfill a basic purpose, to *survive*.
+certain *way*, to accumulate experience and summarize knowledge in ones *brain*
+to fulfill a basic purpose, to *survive*.
 
 The data supplier, such as the data generator in `keras`, or data layer in
 `Caffe`, is abstracted as a class `Sensor`. It takes a `Source` which either
@@ -24,7 +24,9 @@ defined in module `systems`.
 
 The network training methods, which are first order iterative optimization
 methods, is abstracted as a class `KongFu`. A living being needs to keep
-practicing Kong Fu to get better at tasks needed to survive.
+practicing Kong Fu to get better at tasks needed to survive. The actual
+computation is done by a class `Engine`, which implement a parallel scheme (or
+one lack of parallelism) to actually do the computation.
 
 A living being is abstracted as a `Survivor` class, which assemblies all above
 classes together to play the survival game. The metaphor means by sensing more
@@ -82,6 +84,9 @@ with self.graph.as_default():
     # Graph building codes here
 ```
 
+That is to say if you are going to use certain class standalone, a graph
+context manager is needed.
+
 Each `System` takes a `graph` argument on construction. If no one is given, it
 will create one internally. So no explicit graph umbrella is needed.
 
@@ -97,6 +102,13 @@ session does not exist, a default one will be created for the execution for
 convenience.
 
 This allows a model to be deployed on various execution environment.
+
+### Parallelism
+
+`akid` offers built-in data parallel scheme in form of class `Engine`, which
+could be used with `Survivor`. Just specify the engine at the construction of
+the survivor.
+
 
 ## Design Principles
 

@@ -164,7 +164,7 @@ class Brain(GraphSystem, ProcessingLayer):
         if self.do_summary:
             tf.scalar_summary(self.loss_graph.op.name, self.loss_graph)
 
-    def _post_setup_shared(self):
+    def on_batch_finishes(self):
         # Max norm constrain.
         clipped_filters = []
         for b in self.blocks:
