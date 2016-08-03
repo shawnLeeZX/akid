@@ -92,12 +92,15 @@ class KongFu(object):
 
 
 class MomentumKongFu(KongFu):
-    def __init__(self, momentum=0.9, **kwargs):
+    def __init__(self, momentum=0.9, use_nesterov=False, **kwargs):
         super(MomentumKongFu, self).__init__(**kwargs)
         self.momentum = momentum
+        self.use_nesterov = use_nesterov
 
     def _get_optimizer(self, lr):
-        return tf.train.MomentumOptimizer(lr, self.momentum)
+        return tf.train.MomentumOptimizer(lr,
+                                          self.momentum,
+                                          use_nesterov=self.use_nesterov)
 
 
 class GradientDescentKongFu(KongFu):
