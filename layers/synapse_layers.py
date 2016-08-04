@@ -189,21 +189,26 @@ class SynapseLayer(ProcessingLayer):
 
         return var, weight_decay
 
+    def _get_default_initializer(self):
+        # By default, we use the most preliminary initialization (for
+        # conforming with torch).
+        log.info("Weights of {} uses default initialization.".format(
+            self.name))
+        # The strange factor here is to make variance `1/sqrt(dim)`. For
+        # the meaning of `dim`, see the doc of
+        # `tf.uniform_unit_scaling_initializer`.
+        return tf.uniform_unit_scaling_initializer(factor=1.0/(3)**0.5,
+                                                   seed=SEED)
+
     def _get_initializer(self):
         if not self.init_para:
-            # By default, we use the most preliminary initialization (for
-            # conforming with torch).
-            log.info("Weights of {} uses default initialization.".format(
-                self.name))
-            # The strange factor here is to make variance `1/sqrt(dim)`. For
-            # the meaning of `dim`, see the doc of
-            # `tf.uniform_unit_scaling_initializer`.
-            return tf.uniform_unit_scaling_initializer(factor=1.0/(3)**0.5,
-                                                       seed=SEED)
+            return self._get_default_initializer()
         else:
             try:
                 name = self.init_para["name"]
-                if name is "truncated_normal":
+                if name is "default":
+                    return self._get_default_initializer()
+                elif name is "truncated_normal":
                     log.info("Weights of {} uses truncated normal initializer"
                              " with stddev {}".format(
                                  self.name, self.init_para["stddev"]))

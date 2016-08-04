@@ -376,6 +376,7 @@ class ResNet(Brain):
                                  name="global_pool"))
         self.attach(ReshapeLayer(name="reshape"))
         self.attach(InnerProductLayer(initial_bias_value=0,
+                                      init_para={"name": "default"},
                                       wd=self.wd,
                                       out_channel_num=10,
                                       name='ip'))
