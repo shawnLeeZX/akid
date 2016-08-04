@@ -190,46 +190,64 @@ class SynapseLayer(ProcessingLayer):
         return var, weight_decay
 
     def _get_initializer(self):
-        try:
-            name = self.init_para["name"]
-            if name is "truncated_normal":
-                log.info("Weights of {} uses truncated normal initializer with"
-                         " stddev {}".format(self.name,
-                                             self.init_para["stddev"]))
-                return tf.truncated_normal_initializer(
-                    stddev=self.init_para["stddev"],
-                    seed=SEED)
-            elif name is "uniform":
-                range = self.init_para["range"]
-                log.info("Weights of {} uses uniform initializer with"
-                         " stddev {}".format(self.name, range))
-                return tf.random_uniform_initializer(minval=-range,
-                                                     maxval=range,
-                                                     seed=SEED)
-            elif name is "uniform_unit_scaling":
-                factor = self.init_para["factor"]
-                log.info("Weights of {} uses uniform unit scaling initializer"
-                         " with factor {}".format(self.name, factor))
-                return tf.uniform_unit_scaling_initializer(factor=factor,
-                                                           seed=SEED)
-            elif name is "msra_init":
-                try:
-                    factor = self.init_para["factor"]
-                except KeyError as e:
-                    log.info("Key factor is not found in `init_para`. Use 1")
-                    factor = 1
-                log.info("Weights of {} uses unit gradient(msra initializer)"
-                         "initializer with factor {}".format(
-                             self.name, factor))
-                return msra_initializer(factor=factor, seed=SEED)
-            else:
-                log.error("{} is not supported!".format(name))
-                sys.exit(0)
-        except KeyError as e:
-            log.error("`{}` not found in the provided initialization"
-                      " parameters, `init_para`. Perhaps you have some"
-                      " typos.".format(e.message))
-            sys.exit(1)
+        if not self.init_para:
+            # By default, we use the most preliminary initialization (for
+            # conforming with torch).
+            log.info("Weights of {} uses default initialization.".format(
+                self.name))
+            # The strange factor here is to make variance `1/sqrt(dim)`. For
+            # the meaning of `dim`, see the doc of
+            # `tf.uniform_unit_scaling_initializer`.
+            return tf.uniform_unit_scaling_initializer(factor=1.0/(3)**0.5,
+                                                       seed=SEED)
+        else:
+            try:
+                name = self.init_para["name"]
+                if name is "truncated_normal":
+                    log.info("Weights of {} uses truncated normal initializer"
+                             " with stddev {}".format(
+                                 self.name, self.init_para["stddev"]))
+                    return tf.truncated_normal_initializer(
+                        stddev=self.init_para["stddev"],
+                        seed=SEED)
+                elif name is "uniform":
+                    range = self.init_para["range"]
+                    log.info("Weights of {} uses uniform initializer with"
+                             " stddev {}".format(self.name, range))
+                    return tf.random_uniform_initializer(minval=-range,
+                                                         maxval=range,
+                                                         seed=SEED)
+                elif name is "uniform_unit_scaling":
+                    try:
+                        factor = self.init_para["factor"]
+                    except KeyError as e:
+                        log.info("Key factor is not found in `init_para`. Use"
+                                 " 1")
+                        factor = 1
+                    log.info("Weights of {} uses uniform unit scaling"
+                             " initializer of factor {}".format(
+                                 self.name, factor))
+                    return tf.uniform_unit_scaling_initializer(factor=factor,
+                                                               seed=SEED)
+                elif name is "msra_init":
+                    try:
+                        factor = self.init_para["factor"]
+                    except KeyError as e:
+                        log.info("Key factor is not found in `init_para`. Use"
+                                 " 1")
+                        factor = 1
+                    log.info("Weights of {} uses unit gradient (msra"
+                             " initializer) initializer with factor {}".format(
+                                 self.name, factor))
+                    return msra_initializer(factor=factor, seed=SEED)
+                else:
+                    log.error("{} is not supported!".format(name))
+                    sys.exit(0)
+            except KeyError as e:
+                log.error("`{}` not found in the provided initialization"
+                          " parameters, `init_para`. Perhaps you have some"
+                          " typos.".format(e.message))
+                sys.exit(1)
 
 
 class ConvolutionLayer(SynapseLayer):

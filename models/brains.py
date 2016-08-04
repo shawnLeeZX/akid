@@ -371,12 +371,11 @@ class ResNet(Brain):
         self.attach(ReLULayer(name="relu_out"))
         self.attach(PoolingLayer(ksize=[1, 8, 8, 1],
                                  strides=[1, 1, 1, 1],
-                                 padding="SAME",
+                                 padding="VALID",
                                  type="avg",
                                  name="global_pool"))
         self.attach(ReshapeLayer(name="reshape"))
-        self.attach(InnerProductLayer(initial_bias_value=self.use_bias,
-                                      init_para={"name": "msra_init"},
+        self.attach(InnerProductLayer(initial_bias_value=0,
                                       wd=self.wd,
                                       out_channel_num=10,
                                       name='ip'))

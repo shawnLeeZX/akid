@@ -260,7 +260,7 @@ class BatchNormalizationLayer(ProcessingLayer):
         # mechanism provided by tensorflow, by passing current step in.
         with tf.variable_scope(global_var_scope, reuse=True):
             step = tf.get_variable(GLOBAL_STEP)
-        ema = tf.train.ExponentialMovingAverage(0.99, step)
+        ema = tf.train.ExponentialMovingAverage(0.9, step)
 
         ema_apply_op = ema.apply([mean, variance])
         ema_mean, ema_var = ema.average(mean), ema.average(variance)
