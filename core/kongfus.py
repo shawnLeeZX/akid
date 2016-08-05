@@ -2,16 +2,16 @@
 This module contains different genres of Kong Fu to a `Survivor` to practice,
 aka different training algorithms and policies to train a network.
 """
-import sys
 import abc
 import inspect
 
 import tensorflow as tf
 
 from .common import TRAINING_DYNAMICS_COLLECTION, LEARNING_RATE_TAG
+from .blocks import ShadowableBlock
 
 
-class KongFu(object):
+class KongFu(ShadowableBlock):
     """
     An top level abstract class to create and hold a training op for a
     `Survivor` to train a network. It uses first order stochastic gradient
@@ -20,12 +20,11 @@ class KongFu(object):
     Any concrete `KongFu` should implement `_get_optimizer` to provide a
     concrete optimizer.
     """
-    __metaclass__ = abc.ABCMeta
-
     def __init__(self,
                  base_lr=0.01,
                  decay_rate=0.95,
-                 decay_epoch_num=1):
+                 decay_epoch_num=1,
+                 **kwargs):
         """
         Only exponential decay policy is supported now. Learning rate decays to
         `decay_rate` of current value after `decay_epoch_num` number of epochs
@@ -35,11 +34,17 @@ class KongFu(object):
                 Configure when to decay learning rate.
             Others are self-evident.
         """
+        # Since normally we do not care what the name of an optimizer is, just
+        # give it a default name.
+        if "name" not in kwargs:
+            kwargs["name"] = "opt"
+
+        super(KongFu, self).__init__(**kwargs)
         self.base_lr = float(base_lr)
         self.decay_rate = decay_rate
         self.decay_epoch_num = decay_epoch_num
 
-    def setup(self, engine):
+    def _setup(self, engine, loss):
         """
         Build and return training ops.
 
@@ -59,11 +64,18 @@ class KongFu(object):
             self.decay_rate,                # Decay rate.
             staircase=True)
         self.learning_rate = learning_rate
-        tf.scalar_summary(LEARNING_RATE_TAG,
-                          learning_rate,
-                          collections=[TRAINING_DYNAMICS_COLLECTION])
-        # Use simple momentum for the optimization.
         self.opt = self._get_optimizer(learning_rate)
+        self._data = self.opt.compute_gradients(loss)
+
+    def _post_setup(self):
+        if self.do_summary:
+            tf.scalar_summary(LEARNING_RATE_TAG,
+                              self.learning_rate,
+                              collections=[TRAINING_DYNAMICS_COLLECTION])
+
+    @property
+    def data(self):
+        return self._data
 
     @abc.abstractmethod
     def _get_optimizer(self, lr):
@@ -77,7 +89,6 @@ class KongFu(object):
         """
         raise NotImplementedError('Each sub-kongfu needs to implement this'
                                   'method to provide an optimizer!')
-        sys.exit()
 
 
 class MomentumKongFu(KongFu):

@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import os
 import sys
+import inspect
 
 from akid.ops import image_ops as image
 
@@ -25,3 +26,6 @@ AKID_DATA_PATH = os.getenv("AKID_DATA_PATH")
 if not AKID_DATA_PATH:
     print("Environment variable AKID_DATA_PATH is not defined. It is needed to"
           " run examples.", file=sys.stderr)
+
+__all__ = [name for name, x in locals().items() if
+           not inspect.ismodule(x) and not inspect.isabstract(x)]

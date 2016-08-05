@@ -51,9 +51,23 @@ class Survivor(object):
                 A `Brain` class to process data.
             kongfu_in: KongFu
                 A `KongFu` class for training.
-            engine: str
-                The name of the `Engine` class to use, which implements
-                parallel scheme.
+            engine: a str or a dict
+                When it is a str, it should be the name of the `Engine` class
+                to use, which implements parallel scheme. Available engines
+                are:
+
+                    'single', 'data_parallel'
+
+                Default parameters of that scheme will be used.
+
+                When it is a dict, it should be of the form:
+
+                    {"name": "single"}
+                    {"name": "data_parallel", "num_gpu": 2}
+
+               where the `name` key indicates the parallel scheme while other
+               keys are parameters of that scheme. If parameters are not
+               provided, again default ones will be used.
             log_dir: str
                 The folder to hold tensorboard event, training logs and trained
                 models. If not given, first a folder named `log` will be
@@ -91,7 +105,7 @@ class Survivor(object):
         self.sensor = sensor_in
         self.brain = brain_in
         self.kongfu = kongfu_in
-        self.engine_name = engine
+        self.engine_para = engine
 
         # Set up logging facilities.
         if log_dir is None:
@@ -179,9 +193,6 @@ class Survivor(object):
                 summary.value.add(
                     tag=self.engine.eval(get_val=True)[i].op.name,
                     simple_value=v)
-            summary.value.add(
-                tag=LEARNING_RATE_TAG,
-                simple_value=float(self.kongfu.learning_rate.eval()))
             self.summary_writer.add_summary(summary, current_step)
         # Log.
         name_to_print = [g.op.name for g in self.engine.eval(get_val=True)]
@@ -246,8 +257,8 @@ class Survivor(object):
             else:
                 feed_dict = None
 
-            fetch = [self.brain.loss_graph]
-            fetch.extend(self.brain.eval_graph_list)
+            fetch = [self.engine.loss()]
+            fetch.extend(self.engine.eval())
             result = sess.run(fetch, feed_dict=feed_dict)
             loss_value = result[0]
             if self.do_summary:
@@ -262,7 +273,7 @@ class Survivor(object):
                 summary_str = sess.run(self.summary_op, feed_dict=feed_dict)
                 self.summary_writer.add_summary(summary_str, previous_step)
 
-            name_to_print = [g.op.name for g in self.brain.eval_graph_list]
+            name_to_print = [g.op.name for g in self.engine.eval()]
             eval_value_to_print = ["%0.04f" % v for v in result[1:]]
             eval_to_print = dict(zip(name_to_print, eval_value_to_print))
             log.info("Step {}: loss = {:.5f} eval = {}".format(
@@ -318,14 +329,33 @@ class Survivor(object):
         self.sensor.setup()
 
     def _setup_engine(self):
-        if self.engine_name == "single":
+        if type(self.engine_para) is str:
+            engine_name = self.engine_para
+        else:
+            try:
+                engine_name = self.engine_para["name"]
+            except KeyError as e:
+                e.message = "Engine {} name is not found.".format(engine_name)
+                raise e
+
+        if engine_name == "single":
             self.engine = engines.SingleGPUEngine(self.sensor,
                                                   self.brain,
                                                   self.kongfu)
-        elif self.engine_name == "data_parallel":
-            self.engine = engines.DataParallelEngine(self.sensor,
-                                                     self.brain,
-                                                     self.kongfu)
+        elif engine_name == "data_parallel":
+            if type(self.engine_para) is str:
+                # TODO: automatically use the maximal even number of gpus.
+                num_gpu = 2
+            else:
+                num_gpu = self.engine_para["num_gpu"]
+            self.engine = engines.DataParallelEngine(num_gpu,
+                                                     sensor=self.sensor,
+                                                     brain=self.brain,
+                                                     kongfu=self.kongfu)
+        else:
+            raise Exception('No engine "{}". Perhaps you have a typo.'.format(
+                engine_name))
+
         self.engine.setup()
 
     def _init(self, sess, continue_from_chk_point=None):
@@ -419,7 +449,7 @@ class Survivor(object):
 
         # Write the summaries and print an overview fairly often.
         if step % self.train_step == 0:
-            name_to_print = [g.op.name for g in self.brain.eval_graph_list]
+            name_to_print = [g.op.name for g in self.engine.eval()]
             eval_value_to_print = ["%0.04f" % v for v in result[2:]]
             eval_to_print = dict(zip(name_to_print, eval_value_to_print))
 

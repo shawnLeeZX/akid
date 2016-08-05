@@ -4,7 +4,6 @@ This module holds layers to build up a neural network.
 from __future__ import absolute_import, division, print_function
 
 import abc
-import sys
 import copy
 
 import tensorflow as tf
@@ -84,28 +83,10 @@ class Block(object):
         """
         An abstract method to enforce all sub-classes to provide their
         processed data through this interface.
-
-        A tentative design:
-
-            ## Single Output Block
-            If a block only has one output, the data method just returns the
-            data tensor, optionally makes the method a property;
-
-            ## Multiple Output Block
-            If a block has multiple outputs, a tentative design is to return a
-            dict or a list. The further usage of the outputs takes the output
-            as their input by the name of the tensor.
-
-            How the naming creation and lookup has not been figured out
-            yet. The name of the outputs should have the name of the block as
-            its prefix. So attention is needed to take care of the things that
-            added by tensorflow automatically. The retrieve of outputs could
-            make use of the collection mechanism provided by tensorflow.
         """
         raise NotImplementedError("Each concrete block needs to implement this"
                                   " method to provide an interface to offer"
                                   " data!")
-        sys.exit()
 
     def setup(self, *args, **kwargs):
         """
@@ -114,9 +95,8 @@ class Block(object):
         be returned.
 
         A `Block` could be set up any times one wants. Each time it would build
-        computational graph to process input offered this time, and any
-        variables are shared. For now, a second time setup only happens when
-        building validation brain.
+        computational graph to process input provided this time, and any
+        variables are shared.
 
         Args:
             All arguments will be passed to the actual `_setup` function.
@@ -171,10 +151,56 @@ class Block(object):
         """
         raise NotImplementedError('Each sub-layer needs to implement this'
                                   'method to process data!')
-        sys.exit()
+
+    def get_copy(self):
+        return copy.copy(self)
 
 
-class ProcessingLayer(Block):
+class ShadowableBlock(Block):
+    """
+    A block for creating shadow replicas for parallelism.
+
+    A shadow replica is a replica of the same parameter of the genuine one, but
+    be placed on different device for parallelism. An example would be data
+    parallelism in multiple GPU setting or distributed setting.
+    """
+    def __init__(self, **kwargs):
+        super(ShadowableBlock, self).__init__(**kwargs)
+
+        # Whether this processing block is a shallow replica.
+        self.is_shadow = False
+
+    def setup(self, *args, **kwargs):
+        """
+        Add logic to deal with shallow replica to `Block`' `setup`. Refer to it
+        for more explanation.
+        """
+        with tf.variable_scope(self.name, reuse=self.is_setup):
+            if not self.is_shadow:
+                self._pre_setup()
+            if not self.is_setup:
+                self._pre_setup_shared()
+            self._setup(*args, **kwargs)
+            if not self.is_shadow:
+                self._post_setup()
+            if not self.is_setup:
+                self._post_setup_shared()
+
+        self.is_setup = True
+
+    def set_shadow(self):
+        """
+        Set this block to a shadow replica.
+        """
+        self.is_shadow = True
+
+    def get_shadow_copy(self):
+        shadow_copy = self.get_copy()
+        shadow_copy.set_shadow()
+        return shadow_copy
+
+
+class ProcessingLayer(ShadowableBlock):
     """
     An abstract layer for data processing layer in the brain.
 
@@ -232,9 +258,6 @@ class ProcessingLayer(Block):
         val_copy = self.get_copy()
         val_copy.set_val()
         return val_copy
-
-    def get_copy(self):
-        return copy.copy(self)
 
     def set_val(self):
         self.is_val = True

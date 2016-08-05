@@ -89,6 +89,12 @@ class Brain(GraphSystem, ProcessingLayer):
         val_copy.set_val()
         return val_copy
 
+    def get_shadow_copy(self):
+        tower = self.get_copy()
+        tower.set_shadow()
+
+        return tower
+
     def set_val(self):
         """
         Change the state of the brain to validation.
@@ -96,6 +102,14 @@ class Brain(GraphSystem, ProcessingLayer):
         self.is_val = True
         for b in self.blocks:
             b.is_val = True
+
+    def set_shadow(self):
+        """
+        Change the state of the brain to shadow replica.
+        """
+        super(Brain, self).set_shadow()
+        for b in self.blocks:
+            b.set_shadow()
 
     def get_filters(self):
         """
@@ -144,11 +158,13 @@ class Brain(GraphSystem, ProcessingLayer):
                 loss_list.append(b.loss)
         # The total loss is defined as the cross entropy loss plus all of the
         # weight decay terms (L2 loss).
-        self.loss_graph = tf.add_n(loss_list, name='total_loss')
+        self._loss = tf.add_n(loss_list, name='total_loss')
 
     def _gather_eval_graphs(self):
         """
         Gather all evaluation in all blocks in this brain.
+
+        `self.eval` points to a list even there is only one evaluation metric.
         """
         eval_graph_list = []
         for b in self.blocks:
@@ -158,11 +174,11 @@ class Brain(GraphSystem, ProcessingLayer):
                 else:
                     eval_graph_list.append(b.eval)
 
-        self.eval_graph_list = eval_graph_list
+        self._eval = eval_graph_list
 
     def _post_setup(self):
         if self.do_summary:
-            tf.scalar_summary(self.loss_graph.op.name, self.loss_graph)
+            tf.scalar_summary(self.loss.op.name, self.loss)
 
     def on_batch_finishes(self):
         # Max norm constrain.
