@@ -397,7 +397,7 @@ class ResNet(Brain):
         conv_params = [[3, 3, stride, "SAME"],
                        [3, 3, (1, 1), "SAME"]]
 
-        identity_layer_name = self.blocks[-1].name
+        main_branch_layer_name = self.blocks[-1].name
 
         for i, v in enumerate(conv_params):
             if i == 0:
@@ -405,6 +405,10 @@ class ResNet(Brain):
                     name="bn_{}_{}".format(self.residual_block_No, i)))
                 self.attach(ReLULayer(name="relu_{}_{}".format(
                     self.residual_block_No, i)))
+
+                if n_input_plane != n_output_plane:
+                    main_branch_layer_name = self.blocks[-1].name
+
                 self.attach(ConvolutionLayer([3, 3],
                                              [1, v[2][0], v[2][1], 1],
                                              padding="SAME",
@@ -440,7 +444,7 @@ class ResNet(Brain):
             self.attach(ConvolutionLayer(
                 [3, 3],
                 [1, stride[0], stride[1], 1],
-                inputs=[{"name": identity_layer_name}],
+                inputs=[{"name": main_branch_layer_name}],
                 padding="SAME",
                 init_para={"name": "msra_init"},
                 initial_bias_value=self.use_bias,
@@ -450,7 +454,7 @@ class ResNet(Brain):
 
             shortcut_layer_name = self.blocks[-1].name
         else:
-            shortcut_layer_name = identity_layer_name
+            shortcut_layer_name = main_branch_layer_name
 
         self.attach(MergeLayer(inputs=[{"name": last_residual_layer_name},
                                        {"name": shortcut_layer_name}],
