@@ -442,7 +442,7 @@ class ResNet(Brain):
 
         if n_input_plane != n_output_plane:
             self.attach(ConvolutionLayer(
-                [3, 3],
+                [1, 1],
                 [1, stride[0], stride[1], 1],
                 inputs=[{"name": main_branch_layer_name}],
                 padding="SAME",
