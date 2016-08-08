@@ -9,7 +9,7 @@ from akid.ops import image_ops as image
 from akid.core.sources import *
 from akid.datasets import *
 from akid.core.kongfus import *
-from akid.core.survivors import *
+from akid.core.kids import *
 from akid.core.sensors import *
 from akid.core.jokers import *
 from akid.core.common import *

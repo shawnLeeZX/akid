@@ -45,7 +45,7 @@ class TestSynapseLayers(TestCase):
             name="loss"))
 
         source = TestFactory.get_test_feed_source()
-        kid = TestFactory.get_test_survivor(source, brain)
+        kid = TestFactory.get_test_kid(source, brain)
         kid.setup()
 
         loss = kid.practice()
@@ -85,7 +85,7 @@ class TestSynapseLayers(TestCase):
             name="loss"))
 
         source = TestFactory.get_test_feed_source()
-        kid = TestFactory.get_test_survivor(source, brain)
+        kid = TestFactory.get_test_kid(source, brain)
         kid.setup()
 
         loss = kid.practice()
@@ -122,7 +122,7 @@ class TestSynapseLayers(TestCase):
             name="loss"))
 
         source = TestFactory.get_test_feed_source()
-        kid = TestFactory.get_test_survivor(source, brain)
+        kid = TestFactory.get_test_kid(source, brain)
         kid.setup()
 
         loss = kid.practice()

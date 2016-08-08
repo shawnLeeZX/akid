@@ -1,6 +1,6 @@
 from akid.sugar.block_templates import cnn_block
 from akid import AKID_DATA_PATH
-from akid import Brain, MNISTFeedSource, FeedSensor, Survivor, MomentumKongFu
+from akid import Brain, MNISTFeedSource, FeedSensor, Kid, MomentumKongFu
 from akid.layers import SoftmaxWithLossLayer
 
 
@@ -64,7 +64,7 @@ def setup(bn=None, activation_before_pooling=False):
                              center=True,
                              scale=True)
 
-    kid = Survivor(FeedSensor(name='data',
+    kid = Kid(FeedSensor(name='data',
                               source_in=source,
                               batch_size=64,
                               val_batch_size=100),

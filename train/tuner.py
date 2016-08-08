@@ -8,7 +8,7 @@ content of the list items. It is up to the user to define template right, so
 parameters will be filled in the right place.
 
 The jinja2 template must be a function named `setup`, and return a set up
-`Survivor`. All necessary module imports should be put in the function instead
+`Kid`. All necessary module imports should be put in the function instead
 of module level import usually.
 
 The `tune` function would use all available GPUs to train networks with all

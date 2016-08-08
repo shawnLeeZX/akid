@@ -1,5 +1,5 @@
 from akid import AKID_DATA_PATH
-from akid.core import survivors, kongfus
+from akid.core import kids, kongfus
 from akid import Cifar10FeedSource, FeedSensor, Brain
 from akid.layers import (
     ConvolutionLayer,
@@ -98,7 +98,7 @@ def setup():
 
     # Summon a survivor.
     # #########################################################################
-    survivor = survivors.Survivor(
+    survivor = kids.Kid(
         sensor,
         brain,
         kongfus.MomentumKongFu(base_lr=0.025,

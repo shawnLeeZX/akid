@@ -1,5 +1,5 @@
 """
-This module contains `Survivor` class to play the survival game.
+This module contains `Kid` class to play the survival game.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -17,26 +17,52 @@ from .common import (
     TRAIN_SUMMARY_COLLECTION,
     VALID_SUMMARY_COLLECTION,
     TRAINING_DYNAMICS_COLLECTION,
-    LEARNING_RATE_TAG
 )
 
 
-class Survivor(object):
+class Kid(object):
     """
-    Survivor is a class to assemble a `Sensor`, for supplying data, a
+    Kid is a class to assemble a `Sensor`, for supplying data, a
     `Brain`, for data processing, and a genre of `KongFu`, for algorithms or
     polices to train.
+
+    It supports parallelism by specifying different engines.
+
+    It has the following hooks:
+
+        * `on_train_log_step`.
+        * `on_val_log_step`
+        * `on_train_begin`
+
+    Refer to function that calls functions on hooks for detailed explanation on
+    what does those hooks do. For example, to refer to method
+    `on_train_log_step` for more on the hook `on_train_log_step`.
+
+    To add a function to one of those hooks, append the function to
+    `hooks.hook_name`. For example, to add a hook to `on_train_log_step`, call
+
+    ```
+    def func(kid):
+        ...
+
+    hooks.on_train_log_step.append(func)
+    ```
+
+    where `func` is the function you want it to be called. Functions added to
+    hooks are supposed to take a `Kid` instance, which serves to provide
+    information needed. That is also to say, no more information is available.
     """
     def __init__(self,
                  sensor_in,
                  brain_in,
                  kongfu_in,
                  engine="single",
+                 sess=None,
                  log_dir=None,
                  log_to_file=True,
                  max_steps=20000,
-                 val_step=1000,
-                 train_step=100,
+                 val_log_step=1000,
+                 train_log_step=100,
                  graph=None,
                  save_chk_point=True,
                  do_summary=True,
@@ -68,6 +94,8 @@ class Survivor(object):
                where the `name` key indicates the parallel scheme while other
                keys are parameters of that scheme. If parameters are not
                provided, again default ones will be used.
+            sess: tf.Session
+                The session to use. If None, one will be created.
             log_dir: str
                 The folder to hold tensorboard event, training logs and trained
                 models. If not given, first a folder named `log` will be
@@ -76,18 +104,18 @@ class Survivor(object):
             log_to_file: Boolean
                 Whether to save log to file.
             graph: tf.Graph()
-                The computational graph this survivor is in. If not given, a
+                The computational graph this kid is in. If not given, a
                 new graph will be created.
-            val_step: int
+            val_log_step: int
                 After how many steps evaluation on the validation dataset
                 should be taken.
-            train_step: int
+            train_log_step: int
                 After how many steps training statistics should be logged.
             do_summary: Boolean
                 If False, no tensorboard summaries will be saved at all. Note
                 that if `Brain` or `Sensor`'s `do_summary` option is True, they
                 will not be unset. Though during training, they would not be
-                used. This makes possible that objects other than this survivor
+                used. This makes possible that objects other than this kid
                 could use the summary ops created by the brain or sensor.
             summary_on_val: Boolean
                 Whether to collect summary on the validation brain. This option
@@ -106,6 +134,7 @@ class Survivor(object):
         self.brain = brain_in
         self.kongfu = kongfu_in
         self.engine_para = engine
+        self.sess = sess
 
         # Set up logging facilities.
         if log_dir is None:
@@ -121,8 +150,8 @@ class Survivor(object):
         self.log_to_file = log_to_file
 
         self.max_steps = max_steps
-        self.train_step = train_step
-        self.val_step = val_step
+        self.train_log_step = train_log_step
+        self.val_log_step = val_log_step
         self.summary_on_val = summary_on_val
         self.do_summary = do_summary
         self.save_chk_point = save_chk_point
@@ -139,68 +168,67 @@ class Survivor(object):
         # only be started once.
         self.initialized = False
 
-    def validate(self, sess=None):
-        """Evaluating on validation set.
+        # Set up hooks.
+        class hooks(object):
+            def __init__(self):
+                self.on_training_log = []
+                self.on_val_log = []
+                self.on_train_begin = []
+                self.add_default_hooks()
 
-        Args:
-            sess: The session where validation graph has been built.
+            def add_default_hooks(self):
+                from .callbacks import on_train_log_step
+                self.on_training_log.append(on_train_log_step)
+
+                from .callbacks import on_val_log_step
+                self.on_val_log.append(on_val_log_step)
+
+                from .callbacks import on_train_begin
+                self.on_train_begin.append(on_train_begin)
+
+        self.hooks = hooks()
+
+        # Class members whose value depends on the state of the class.
+        self.feed_dict = None
+        self.loss_value = None
+        self.evals = None
+
+    def validate(self):
+        """Evaluating on validation set.
 
         Return:
             loss: float
                 The validation loss.
         """
-        if not sess:
-            sess = tf.Session(
-                graph=self.graph,
-                config=tf.ConfigProto(allow_soft_placement=True))
-            with sess:
-                return self._validate(sess)
-        else:
-            return self._validate(sess)
-
-    def _validate(self, sess):
         log.info('Validation Data Eval:')
 
         if not self.initialized:
-            self._init(sess, continue_from_chk_point=True)
+            self._init(continue_from_chk_point=True)
 
         # Run one epoch of eval.
         eval_metric_values = [0] * len(self.engine.eval(get_val=True))
         loss = 0
         steps_per_epoch = self.sensor.num_batches_per_epoch_val
-        num_examples = steps_per_epoch * self.sensor.val_batch_size
+
         for step in xrange(steps_per_epoch):
             if type(self.sensor) is sensors.FeedSensor:
-                feed_dict = self.sensor.fill_feed_dict(get_val=True)
-            else:
-                feed_dict = None
+                self.feed_dict = self.sensor.fill_feed_dict(get_val=True)
+
             fetch = [self.engine.loss(get_val=True)]
             fetch.extend(self.engine.eval(get_val=True))
-            result = sess.run(fetch, feed_dict=feed_dict)
+            result = self.sess.run(fetch, feed_dict=self.feed_dict)
+
             loss += result[0]
             for i, v in enumerate(result[1:]):
                 eval_metric_values[i] += v
+
         loss /= steps_per_epoch
         for i, v in enumerate(eval_metric_values):
             eval_metric_values[i] = v / steps_per_epoch
 
-        current_step = tf.train.global_step(sess, self.global_step_tensor)
-        if self.do_summary:
-            # Add summary.
-            summary = tf.Summary()
-            summary.value.add(tag="Validation Loss", simple_value=loss)
-            for i, v in enumerate(eval_metric_values):
-                summary.value.add(
-                    tag=self.engine.eval(get_val=True)[i].op.name,
-                    simple_value=v)
-            self.summary_writer.add_summary(summary, current_step)
-        # Log.
-        name_to_print = [g.op.name for g in self.engine.eval(get_val=True)]
-        eval_value_to_print = ["%0.04f" % v for v in eval_metric_values]
-        eval_to_print = dict(zip(name_to_print, eval_value_to_print))
-        log.info('  Num examples: {}  Evals : {}'.format(
-            num_examples, eval_to_print))
-        log.info('  Step %d: Validation loss = %.2f' % (current_step, loss))
+        self.loss_value = loss
+        self.evals = eval_metric_values
+        self.on_val_log_step()
 
         return loss
 
@@ -214,78 +242,64 @@ class Survivor(object):
             self._setup_engine()
             self._setup_summary()
             self.saver = tf.train.Saver(tf.all_variables())
+            if self.sess is None:
+                config = tf.ConfigProto(allow_soft_placement=True)
+                config.gpu_options.allow_growth = True
+                self.sess = tf.Session(graph=self.graph, config=config)
 
-    def practice(self, sess=None, continue_from_chk_point=False):
+    def teardown(self):
         """
-        Improve the performance of the survivor's brain by practicing, aka
+        Close sessions.
+
+        This method has not been tested whether it works or not. It stays here
+        to remind that any session created by kid may cause memory leak.
+        """
+        self.sess.close()
+        self.sess.reset()
+
+    def practice(self, continue_from_chk_point=False):
+        """
+        Improve the performance of the kid's brain by practicing, aka
         applying back propagation to train neural network.
 
         Args:
-            sess: tf.Session()
-                A session to launch the training. If not given, a default one
-                will be created inside.
             continue_from_chk_point: Boolean
                 Setup configuration. Passed to `setup`
         Return:
             None
         """
-        if not sess:
-            config = tf.ConfigProto(allow_soft_placement=True)
-            config.gpu_options.allow_growth = True
-            sess = tf.Session(graph=self.graph, config=config)
-            with sess:
-                return self._practice(sess, continue_from_chk_point)
-        else:
-            return self._practice(sess, continue_from_chk_point)
-
-    def _practice(self, sess, continue_from_chk_point):
         try:
-            self._init(sess, continue_from_chk_point)
+            self._init(continue_from_chk_point)
             # And then after everything is built, start the training loop.
             log.info("Begin training brain: " + self.brain.name)
-            previous_step = tf.train.global_step(sess,
+            previous_step = tf.train.global_step(self.sess,
                                                  self.global_step_tensor)
+            self.step = previous_step
+
             # Do one validation before beginning.
             if self.save_chk_point:
-                self.save_to_ckpt(sess)
-            self.validate(sess)
+                self.save_to_ckpt()
+            self.validate()
+
             # Run ops once to show initial training loss and save initial
             # summaries.
-            if type(self.sensor) is sensors.FeedSensor:
-                # Placeholder of `FeedSensor` should be filled.
-                feed_dict = self.sensor.fill_feed_dict()
-            else:
-                feed_dict = None
-
+            self._fill_train_feed_dict()
             fetch = [self.engine.loss()]
             fetch.extend(self.engine.eval())
-            result = sess.run(fetch, feed_dict=feed_dict)
-            loss_value = result[0]
-            if self.do_summary:
-                summary = tf.Summary()
-                summary.value.add(tag="Training Loss",
-                                  simple_value=float(loss_value))
-                self.summary_writer.add_summary(summary, previous_step)
-                if type(self.sensor) is sensors.FeedSensor \
-                   and self.summary_on_val:
-                    val_feed_dict = self.sensor.fill_feed_dict(True)
-                    feed_dict.update(val_feed_dict)
-                summary_str = sess.run(self.summary_op, feed_dict=feed_dict)
-                self.summary_writer.add_summary(summary_str, previous_step)
+            result = self.sess.run(fetch, feed_dict=self.feed_dict)
+            self.loss_value = result[0]
+            self.evals = result[1:]
+            self.on_train_begin()
 
-            name_to_print = [g.op.name for g in self.engine.eval()]
-            eval_value_to_print = ["%0.04f" % v for v in result[1:]]
-            eval_to_print = dict(zip(name_to_print, eval_value_to_print))
-            log.info("Step {}: loss = {:.5f} eval = {}".format(
-                previous_step, loss_value, eval_to_print))
+            while self.step < self.max_steps + 1:
+                self.step += 1
+                self._step()
 
-            for step in xrange(previous_step + 1, self.max_steps + 1):
-                self._step(sess, step)
-
-                if step % self.val_step == 0 or step == self.max_steps:
+                if self.step % self.val_log_step == 0 or\
+                   self.step == self.max_steps:
                     if self.save_chk_point:
-                        self.save_to_ckpt(sess)
-                    loss = self.validate(sess)
+                        self.save_to_ckpt()
+                    loss = self.validate()
 
             return loss
         except tf.OpError as e:
@@ -321,7 +335,7 @@ class Survivor(object):
                 summary_ops.extend(val_summary_ops)
             self.summary_op = tf.merge_summary(summary_ops)
             # Write the brain to tensorflow event file.
-            self.summary_writer.add_graph(self.graph.as_graph_def())
+            self.summary_writer.add_graph(self.graph)
 
     def _setup_sensor(self):
         # Build training graph.
@@ -358,16 +372,15 @@ class Survivor(object):
 
         self.engine.setup()
 
-    def _init(self, sess, continue_from_chk_point=None):
+    def _init(self, continue_from_chk_point=None):
         """
         Initialize computational graph for training. It initializes or restores
         variables, starts queues and so on.
 
         Args:
-            sess: tf.Session
             continue_from_chk_point: Boolean
                 Continue from a previous training or not. If it is True, a
-                folder named `model` must exist under `Survivor`'s `log_dir`
+                folder named `model` must exist under `Kid`'s `log_dir`
                 with saved models.
         """
         self.global_step_tensor = self.engine.global_step_tensor
@@ -375,34 +388,31 @@ class Survivor(object):
         # Initialization.
         if continue_from_chk_point:
             # Train from pre-trained model.
-            self.restore_from_ckpt(sess)
+            self.restore_from_ckpt()
         else:
-            init = tf.initialize_all_variables()
-            sess.run(init)
+            with self.graph.as_default():
+                init = tf.initialize_all_variables()
+            self.sess.run(init)
 
         # Start queue runner if needed.
         if type(self.sensor) is sensors.IntegratedSensor:
             if not self.initialized:
-                tf.train.start_queue_runners(sess=sess)
+                tf.train.start_queue_runners(sess=self.sess)
 
         self.initialized = True
 
-    def save_to_ckpt(self, sess):
-        step = tf.train.global_step(sess, self.global_step_tensor)
-        self.saver.save(sess,
+    def save_to_ckpt(self):
+        step = tf.train.global_step(self.sess, self.global_step_tensor)
+        self.saver.save(self.sess,
                         self.model_dir + "/checkpoint",
                         global_step=step)
         log.info("Checkpoint at step {} saved to folder:"
                  " {}".format(step, self.model_dir))
 
-    def restore_from_ckpt(self, sess):
+    def restore_from_ckpt(self):
         """
         Restore variables of this net from the latest checkpoint of
         `model_dir`.
-
-        Args:
-            sess: tf.Session
-                Whatever session of the caller uses this net.
 
         Return:
             Training step of the checkpoint the net are recovering from.
@@ -411,7 +421,7 @@ class Survivor(object):
         if checkpoint and checkpoint.model_checkpoint_path:
             log.info("Recovering net from checkpoint %s."
                      % checkpoint.model_checkpoint_path)
-            self.saver.restore(sess, checkpoint.model_checkpoint_path)
+            self.saver.restore(self.sess, checkpoint.model_checkpoint_path)
             filename = checkpoint.model_checkpoint_path.split('/')[-1]
             step = int(filename.split('-')[-1])
             return step
@@ -419,70 +429,49 @@ class Survivor(object):
             log.error("No checkpoint found under %s!" % self.model_dir)
             sys.exit()
 
-    def _step(self, sess, step):
-        """
-        Train for one step.
-
-        Args:
-            sess: tf.Session
-            step: int
-
-        Current training step. It is used for logistics purpose, such
-                as display current step in logging.
-
-        Returns:
-            loss_value: a real number. The training loss of current step.
-        """
+    def _fill_train_feed_dict(self):
         if type(self.sensor) is sensors.FeedSensor:
             # Placeholder of `FeedSensor` should be filled.
-            feed_dict = self.sensor.fill_feed_dict()
-        else:
-            feed_dict = None
+            self.feed_dict = self.sensor.fill_feed_dict()
+            if self.summary_on_val:
+                # Validation data is also needed, so add them in.
+                val_feed_dict = self.sensor.fill_feed_dict(True)
+                self.feed_dict.update(val_feed_dict)
 
+    def _step(self):
+        """
+        Train for one step.
+        """
         # Run one step.
+        self._fill_train_feed_dict()
         fetch = [self.engine.train_op, self.engine.loss()]
         fetch.extend(self.engine.eval())
         start_time = time.time()
-        result = sess.run(fetch, feed_dict=feed_dict)
-        duration = time.time() - start_time
-        loss_value = result[1]
+        result = self.sess.run(fetch, feed_dict=self.feed_dict)
+        self.forward_backward_time = time.time() - start_time
+        self.loss_value = result[1]
+        self.evals = result[2:]
 
-        # Write the summaries and print an overview fairly often.
-        if step % self.train_step == 0:
-            name_to_print = [g.op.name for g in self.engine.eval()]
-            eval_value_to_print = ["%0.04f" % v for v in result[2:]]
-            eval_to_print = dict(zip(name_to_print, eval_value_to_print))
+        if self.step % self.train_log_step == 0:
+            self.on_train_log_step()
 
-            num_examples_per_step = self.sensor.batch_size
-            examples_per_sec = num_examples_per_step / duration
-            sec_per_batch = float(duration)
+    def on_train_log_step(self):
+        """
+        Call hooks at the time when the kid should do logging for training.
+        """
+        for func in self.hooks.on_training_log:
+            func(self)
 
-            log.info("Step {}: loss = {:.5f} lr = {:.8f} acc = {} ({:.1f}"
-                     " examples/sec {:.3f} sec/batch)".format(
-                         step,
-                         loss_value,
-                         self.kongfu.learning_rate.eval(),
-                         eval_to_print,
-                         examples_per_sec,
-                         sec_per_batch))
+    def on_val_log_step(self):
+        """
+        Call hooks at the time when the kid should do logging for validation.
+        """
+        for func in self.hooks.on_val_log:
+            func(self)
 
-            if self.do_summary:
-                # Update the events file.
-                summary = tf.Summary()
-                summary.value.add(tag="Training Loss",
-                                  simple_value=float(loss_value))
-                self.summary_writer.add_summary(summary, step)
-
-                if type(self.sensor) is sensors.FeedSensor \
-                   and self.summary_on_val:
-                    # Validation data is also needed, so add them in.
-                    val_feed_dict = self.sensor.fill_feed_dict(True)
-                    feed_dict.update(val_feed_dict)
-                summary_str = sess.run(self.summary_op, feed_dict=feed_dict)
-                self.summary_writer.add_summary(summary_str, step)
-
-        return loss_value
-
+    def on_train_begin(self):
+        for func in self.hooks.on_train_begin:
+            func(self)
 
 __all__ = [name for name, x in locals().items() if
            not inspect.ismodule(x) and not inspect.isabstract(x)]

@@ -49,7 +49,7 @@ class TestActivationLayers(TestCase):
             name="loss"))
 
         source = TestFactory.get_test_feed_source()
-        kid = TestFactory.get_test_survivor(source, brain)
+        kid = TestFactory.get_test_kid(source, brain)
         kid.setup()
 
         loss = kid.practice()
@@ -91,7 +91,7 @@ class TestActivationLayers(TestCase):
             name="loss"))
 
         source = TestFactory.get_test_feed_source()
-        kid = TestFactory.get_test_survivor(source, brain)
+        kid = TestFactory.get_test_kid(source, brain)
         kid.setup()
 
         start_time = time.time()
@@ -138,7 +138,7 @@ class TestActivationLayers(TestCase):
             name="loss"))
 
         source = TestFactory.get_test_feed_source()
-        kid = TestFactory.get_test_survivor(source, brain)
+        kid = TestFactory.get_test_kid(source, brain)
         kid.setup()
 
         loss = kid.practice()

@@ -8,7 +8,7 @@ from akid import AKID_DATA_PATH
 from akid import (
     MNISTFeedSource,
     Cifar10TFSource,
-    Survivor,
+    Kid,
     FeedSensor,
     MomentumKongFu
 )
@@ -55,11 +55,11 @@ class TestFactory(object):
             num_val=10000)
 
     @staticmethod
-    def get_test_survivor(source, brain):
+    def get_test_kid(source, brain):
         """
-        Return a default survivor given a source and a brain.
+        Return a default kid given a source and a brain.
         """
-        return Survivor(
+        return Kid(
             FeedSensor(source_in=source, name='data'),
             brain,
             MomentumKongFu(),

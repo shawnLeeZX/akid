@@ -1,5 +1,5 @@
 from akid import (
-    Survivor,
+    Kid,
     FeedSensor,
     MomentumKongFu,
     MNISTFeedSource,
@@ -20,7 +20,7 @@ class TestEngine(TestCase):
                                  scale=True,
                                  num_train=50000,
                                  num_val=10000)
-        kid = Survivor(
+        kid = Kid(
             FeedSensor(source_in=source, name='data'),
             brain,
             MomentumKongFu(name="opt"),

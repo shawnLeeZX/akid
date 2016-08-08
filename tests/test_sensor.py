@@ -2,7 +2,7 @@ from akid.tests.test import TestCase, TestFactory, main
 from akid import (
     IntegratedSensor,
     FeedSensor,
-    Survivor,
+    Kid,
     GradientDescentKongFu,
     MomentumKongFu
 )
@@ -28,11 +28,11 @@ class TestFeedSensor(TestCase):
     def test_core(self):
         """
         Test core functionality of feed sensor. More specifically, the
-        different between the core test in TestSurvivor and this test is a
+        different between the core test in `TestKid` and this test is a
         different validation batch size with training batch size, which needs
         more logic to handle.
         """
-        kid = Survivor(
+        kid = Kid(
             self.sensor,
             self.brain,
             MomentumKongFu(),
@@ -50,7 +50,7 @@ class TestFeedSensor(TestCase):
         may be upgraded to use the tensorflow read even file functionality in
         the future.
         """
-        kid = Survivor(
+        kid = Kid(
             self.sensor,
             self.brain,
             MomentumKongFu(),
@@ -84,7 +84,7 @@ class TestIntegratedSensor(TestCase):
         self.sensor = sensor
 
     def test_core(self):
-        kid = Survivor(
+        kid = Kid(
             self.sensor,
             self.brain,
             GradientDescentKongFu(base_lr=0.1,
@@ -97,7 +97,7 @@ class TestIntegratedSensor(TestCase):
         assert loss < 3.4
 
     def test_summary_on_val(self):
-        kid = Survivor(
+        kid = Kid(
             self.sensor,
             self.brain,
             GradientDescentKongFu(base_lr=0.1,

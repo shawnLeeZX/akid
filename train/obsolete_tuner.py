@@ -59,7 +59,7 @@ be put on different GPUs.
 Usage:
 # #########################################################################
 A trainee is a script with a function `setup` that would set up and return a
-Survivor, but not train it, which is to say, call the `practice` method.
+Kid, but not train it, which is to say, call the `practice` method.
 
 The `setup` function should expose the network parameter to be tuned as formal
 parameters.

@@ -25,7 +25,7 @@ opt_paras_list.append({"lr": 0.05})
 
 def setup(graph):
     from akid import AKID_DATA_PATH
-    from akid import Brain, MNISTFeedSource, FeedSensor, Survivor
+    from akid import Brain, MNISTFeedSource, FeedSensor, Kid
     from akid import MomentumKongFu
     from akid.layers import DropoutLayer
     from akid.sugar import cnn_block
@@ -66,7 +66,7 @@ def setup(graph):
                              center=True,
                              scale=True)
 
-    kid = Survivor(FeedSensor(name='data',
+    kid = Kid(FeedSensor(name='data',
                               source_in=source,
                               batch_size=64,
                               val_batch_size=100),

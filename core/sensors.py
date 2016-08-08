@@ -308,7 +308,7 @@ class IntegratedSensor(ShuffleQueueSensor):
 
 class FeedSensor(Sensor):
     """
-    Sense from a `FeedSource` to supply data to a `Survivor`.
+    Sense from a `FeedSource` to supply data to a `Kid`.
     """
     def _setup_training_data(self):
         return self._make_placeholder("train_data", self.batch_size)

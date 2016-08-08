@@ -1,6 +1,6 @@
 from akid.sugar.block_templates import cnn_block
 from akid import AKID_DATA_PATH
-from akid import Brain, MNISTFeedSource, FeedSensor, Survivor, MomentumKongFu
+from akid import Brain, MNISTFeedSource, FeedSensor, Kid, MomentumKongFu
 from akid.layers import DropoutLayer
 
 
@@ -64,16 +64,16 @@ def setup():
                              center=True,
                              scale=True)
 
-    kid = Survivor(FeedSensor(name='data',
-                              source_in=source,
-                              batch_size=128,
-                              val_batch_size=100),
-                   brain,
-                   MomentumKongFu(momentum=0.9,
-                                  base_lr=1,
-                                  decay_rate=0.95,
-                                  decay_epoch_num=1),
-                   max_steps=20000)
+    kid = Kid(FeedSensor(name='data',
+                         source_in=source,
+                         batch_size=128,
+                         val_batch_size=100),
+              brain,
+              MomentumKongFu(momentum=0.9,
+                             base_lr=1,
+                             decay_rate=0.95,
+                             decay_epoch_num=1),
+              max_steps=20000)
     kid.setup()
 
     return kid

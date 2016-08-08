@@ -3,7 +3,7 @@ def setup(graph=None):
     from akid import Brain
     from akid.sugar import cnn_block
     from akid import AKID_DATA_PATH
-    from akid import Cifar10FeedSource, FeedSensor, Survivor
+    from akid import Cifar10FeedSource, FeedSensor, Kid
     from akid import MomentumKongFu
 
     brain = Brain(name="spcnn")
@@ -50,7 +50,7 @@ def setup(graph=None):
 
     # Summon a survivor.
     # #########################################################################
-    survivor = Survivor(
+    survivor = Kid(
         sensor,
         brain,
         MomentumKongFu(base_lr=1.0,

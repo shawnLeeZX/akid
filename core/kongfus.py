@@ -1,5 +1,5 @@
 """
-This module contains different genres of Kong Fu to a `Survivor` to practice,
+This module contains different genres of Kong Fu to a `Kid` to practice,
 aka different training algorithms and policies to train a network.
 """
 import abc
@@ -14,7 +14,7 @@ from .blocks import ShadowableBlock
 class KongFu(ShadowableBlock):
     """
     An top level abstract class to create and hold a training op for a
-    `Survivor` to train a network. It uses first order stochastic gradient
+    `Kid` to train a network. It uses first order stochastic gradient
     descent optimization methods.
 
     Any concrete `KongFu` should implement `_get_optimizer` to provide a

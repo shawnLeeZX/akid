@@ -1,6 +1,6 @@
 from akid import AKID_DATA_PATH
 from akid import FeedSensor
-from akid import Survivor
+from akid import Kid
 from akid import MomentumKongFu
 from akid import MNISTFeedSource
 
@@ -15,7 +15,7 @@ source = MNISTFeedSource(name="MNIST",
                          num_train=50000,
                          num_val=10000)
 
-s = Survivor(FeedSensor(name='data', source_in=source),
+s = Kid(FeedSensor(name='data', source_in=source),
              brain,
              MomentumKongFu())
 s.setup()

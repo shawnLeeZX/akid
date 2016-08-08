@@ -1,5 +1,5 @@
 from akid import AKID_DATA_PATH
-from akid.core import survivors, kongfus
+from akid.core import kids, kongfus
 from akid.datasets import Cifar10FeedSource
 from akid.core.sensors import FeedSensor
 from akid.core.brains import Brain
@@ -97,7 +97,7 @@ def setup(graph, lr):
 
     # Summon a survivor.
     # #########################################################################
-    survivor = survivors.Survivor(
+    survivor = kids.Kid(
         sensor,
         brain,
         kongfus.MomentumKongFu(base_lr=lr,

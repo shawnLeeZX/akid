@@ -1,6 +1,6 @@
 from akid import AKID_DATA_PATH
 from akid import FeedSensor
-from akid import Survivor
+from akid import Kid
 from akid import MomentumKongFu
 from akid import MNISTFeedSource
 
@@ -17,7 +17,7 @@ def setup():
                              center=True,
                              scale=True)
 
-    kid = Survivor(FeedSensor(name='data',
+    kid = Kid(FeedSensor(name='data',
                               source_in=source,
                               batch_size=64,
                               val_batch_size=100),

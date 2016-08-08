@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from akid.tests.test import TestCase, TestFactory, main
-from akid import Brain, FeedSensor, MomentumKongFu, Survivor
+from akid import Brain, FeedSensor, MomentumKongFu, Kid
 from akid.layers import (
     ConvolutionLayer,
     PoolingLayer,
@@ -15,7 +15,7 @@ class TestBrain(TestCase):
     def test_moving_average(self):
         brain = TestFactory.get_test_brain(using_moving_average=True)
         source = TestFactory.get_test_feed_source()
-        kid = TestFactory.get_test_survivor(source, brain)
+        kid = TestFactory.get_test_kid(source, brain)
         kid.setup()
 
         loss = kid.practice()
@@ -72,7 +72,7 @@ class TestBrain(TestCase):
             name="loss"))
 
         source = TestFactory.get_test_feed_source()
-        kid = TestFactory.get_test_survivor(source, brain)
+        kid = TestFactory.get_test_kid(source, brain)
         kid.setup()
 
     def test_max_norm(self):
@@ -100,18 +100,19 @@ class TestBrain(TestCase):
         source = TestFactory.get_test_feed_source()
 
         graph = tf.Graph()
-        kid = Survivor(
-            FeedSensor(source_in=source, name='data'),
-            brain,
-            MomentumKongFu(),
-            log_dir="log",
-            max_steps=900,
-            graph=graph)
-        kid.setup()
-        W = kid.brain.get_filters()[0]
         with tf.Session(graph=graph) as sess:
-            kid.practice(sess)
-            W_norm = sess.run(tf.global_norm([W[:, :, :, 0]]))
+            kid = Kid(
+                FeedSensor(source_in=source, name='data'),
+                brain,
+                MomentumKongFu(),
+                sess=sess,
+                log_dir="log",
+                max_steps=900,
+                graph=graph)
+            kid.setup()
+            W = kid.brain.get_filters()[0]
+            kid.practice()
+            W_norm = kid.sess.run(tf.global_norm([W[:, :, :, 0]]))
             print(W_norm)
             assert W_norm <= 1
 

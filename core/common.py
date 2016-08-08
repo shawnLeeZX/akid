@@ -8,7 +8,7 @@ import inspect
 # universal access to current training step. This is similar to clock in a
 # computer, but in distributed system, such synchronized clock should not
 # exist, but it could understand as physical time, meaning how long this
-# survivor has been trained or born.
+# kid has been trained or born.
 GLOBAL_STEP = "step"
 # The associated variable scope.
 with tf.variable_scope("global") as global_var_scope:

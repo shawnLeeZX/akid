@@ -3,7 +3,7 @@ import tensorflow as tf
 from akid import Observer
 from akid.tests.test import TestCase, TestFactory, main
 from akid.models.brains import OneLayerBrain
-from akid import FeedSensor, MomentumKongFu, Survivor
+from akid import FeedSensor, MomentumKongFu, Kid
 
 
 class TestObserver(TestCase):
@@ -11,12 +11,12 @@ class TestObserver(TestCase):
         brain = OneLayerBrain(do_stat_on_norm=True, name="test_brain")
         source = TestFactory.get_test_feed_source()
 
-        kid = Survivor(
+        kid = Kid(
             FeedSensor(source_in=source, name='data'),
             brain,
             MomentumKongFu(),
             # Fix log folder so we do not need to retrain each time.
-            log_dir="log_observer_test",
+            log_dir="log_test_observer",
             max_steps=900)
         kid.setup()
         self.kid = kid

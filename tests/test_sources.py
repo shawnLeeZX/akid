@@ -97,7 +97,7 @@ class TestSource(TestCase):
 
     def test_cifar10_zca_tf_source(self):
         from akid.models.brains import VGGNet
-        from akid import IntegratedSensor, Survivor, GradientDescentKongFu
+        from akid import IntegratedSensor, Kid, GradientDescentKongFu
         source = Cifar10TFSource(
             name="CIFAR10",
             url='http://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz',
@@ -112,7 +112,7 @@ class TestSource(TestCase):
                                   name='data')
 
         brain = VGGNet(padding="SAME", name="VGGNet")
-        kid = Survivor(
+        kid = Kid(
             sensor,
             brain,
             GradientDescentKongFu(base_lr=0.1,
@@ -127,7 +127,7 @@ class TestSource(TestCase):
 
     def test_cifar100_zca_tf_source(self):
         from akid.models.brains import VGGNet
-        from akid import IntegratedSensor, Survivor, GradientDescentKongFu
+        from akid import IntegratedSensor, Kid, GradientDescentKongFu
         source = Cifar100TFSource(
             name="CIFAR100",
             url='https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz',
@@ -141,7 +141,7 @@ class TestSource(TestCase):
                                   name='data')
 
         brain = VGGNet(class_num=100, name="VGGNet")
-        kid = Survivor(
+        kid = Kid(
             sensor,
             brain,
             GradientDescentKongFu(base_lr=0.1,
@@ -157,7 +157,7 @@ class TestSource(TestCase):
     def test_hcifar100_source(self):
         from akid import HCifar100TFSource
         from akid.models.brains import VGGNet
-        from akid import IntegratedSensor, Survivor, GradientDescentKongFu
+        from akid import IntegratedSensor, Kid, GradientDescentKongFu
         from akid.layers import (
             GroupSoftmaxWithLossLayer,
             CollapseOutLayer,
@@ -191,7 +191,7 @@ class TestSource(TestCase):
                 {"name": "maxout", "idxs": [0]},
                 {"name": "system_in", "idxs": [1]}],
             name="super_class_loss"))
-        kid = Survivor(
+        kid = Kid(
             sensor,
             brain,
             GradientDescentKongFu(base_lr=0.1,

@@ -2,7 +2,7 @@ from akid.tests.test import TestCase, TestFactory, main
 from akid import (
     IntegratedSensor,
     RescaleJoker,
-    Survivor,
+    Kid,
     GradientDescentKongFu
 )
 from akid.models.brains import AlexNet
@@ -23,7 +23,7 @@ class TestJoker(TestCase):
 
         sensor.attach(RescaleJoker(name="rescale"))
 
-        kid = Survivor(
+        kid = Kid(
             sensor,
             brain,
             GradientDescentKongFu(base_lr=0.1,

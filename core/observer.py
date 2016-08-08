@@ -48,7 +48,7 @@ class Observer(object):
     * statistical plotting on filters norm
 
     It also holds some general plotting routines which does not need a
-    `Survivor` to use. In that case, `kid` in the constructor could be None.
+    `Kid` to use. In that case, `kid` in the constructor could be None.
 
     Call APIs to draw any of those you want. Visualization will be saved at the
     model dir of the brain your has passed in.
@@ -57,8 +57,8 @@ class Observer(object):
     def __init__(self, kid=None):
         """
         Args:
-            kid: akid.core.survivors.Survivor
-                The survivor whose brain is going to be observed.
+            kid: akid.core.kids.kid
+                The kid whose brain is going to be observed.
         """
         self.kid = kid
 
@@ -79,9 +79,9 @@ class Observer(object):
         try:
             self._maybe_setup_kid()
 
-            with tf.Session(graph=self.kid.graph) as sess:
+            with self.kid.sess as sess:
                 # Find the layer for logit or probability by name
-                self.kid.restore_from_ckpt(sess)
+                self.kid.restore_from_ckpt()
                 feed_dict = self._feed_data(sess, get_val=True)
                 data = self.kid.engine.get_layer_data(name, get_val=True)
 
@@ -163,8 +163,8 @@ class Observer(object):
         try:
             self._maybe_setup_kid()
 
-            with tf.Session(graph=self.kid.graph) as sess:
-                self.kid.restore_from_ckpt(sess)
+            with self.kid.sess as sess:
+                self.kid.restore_from_ckpt()
                 feed_dict = self._feed_data(sess)
 
                 for block in self.kid.brain.blocks:
@@ -175,7 +175,7 @@ class Observer(object):
                     batch_activation = block.data.eval(feed_dict=feed_dict)
                     # For now we only visualize the first idx.
                     activation = batch_activation[0]
-                    sess.run(self.kid.brain.eval_graph_list,
+                    sess.run(self.kid.brain.eval,
                              feed_dict=feed_dict)
                     activations_img = self._tile_to_one_square(activation)
                     title = "{} Layer".format(block.name)
@@ -234,10 +234,9 @@ class Observer(object):
         log.info("Begin to draw filters of {}".format(self.kid.brain.name))
         try:
             self._maybe_setup_kid()
+            self.kid.restore_from_ckpt()
 
-            with tf.Session(graph=self.kid.graph) as sess:
-                self.kid.restore_from_ckpt(sess)
-
+            with self.kid.sess as sess:
                 for block in self.kid.brain.blocks:
                     if not issubclass(type(block), SynapseLayer):
                         continue
@@ -275,8 +274,8 @@ class Observer(object):
         try:
             self._maybe_setup_kid()
 
-            with tf.Session(graph=self.kid.graph) as sess:
-                self.kid.restore_from_ckpt(sess)
+            with self.kid.sess as sess:
+                self.kid.restore_from_ckpt()
 
                 stat_ops = tf.get_collection(AUXILLIARY_STAT_COLLECTION)
                 stats = sess.run(stat_ops)

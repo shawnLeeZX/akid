@@ -1,5 +1,5 @@
 from akid import AKID_DATA_PATH
-from akid.core import survivors, kongfus
+from akid.core import kids, kongfus
 from akid.datasets import Cifar10TFSource
 from akid.core.sensors import IntegratedSensor
 from akid.core.jokers import WhitenJoker
@@ -98,9 +98,9 @@ def setup(graph, lr):
     sensor.attach(WhitenJoker(name="per_image_whitening"), to_val=True)
     sensor.attach(WhitenJoker(name="per_image_whitening"))
 
-    # Summon a survivor.
+    # Summon a kid.
     # #########################################################################
-    survivor = survivors.Survivor(
+    survivor = kids.Kid(
         sensor,
         brain,
         kongfus.MomentumKongFu(base_lr=lr,

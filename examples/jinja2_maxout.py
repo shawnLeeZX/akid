@@ -31,7 +31,7 @@ opt_paras_list.append({"lr": 0.05})
 
 def setup(graph):
     from akid import AKID_DATA_PATH
-    from akid import Brain, Cifar10FeedSource, FeedSensor, Survivor
+    from akid import Brain, Cifar10FeedSource, FeedSensor, Kid
     from akid import MomentumKongFu
     from akid.layers import DropoutLayer
     from akid.sugar import cnn_block
@@ -114,7 +114,7 @@ def setup(graph):
 
     # Summon a survivor.
     # #########################################################################
-    survivor = Survivor(
+    survivor = Kid(
         sensor,
         brain,
         MomentumKongFu(base_lr={{ opt_paras["lr"] }},
