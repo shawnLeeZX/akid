@@ -4,6 +4,7 @@ import tensorflow as tf
 
 from ..core.blocks import ProcessingLayer
 from ..core.jokers import Joker
+from ..utils import glog as log
 
 
 class ReshapeLayer(ProcessingLayer):
@@ -39,33 +40,55 @@ class PaddingLayer(ProcessingLayer, Joker):
     def __init__(self, padding=[1, 1], **kwargs):
         """
         Args:
-            padding: a two-element list
+            padding: a two-element list or a list whose list is the same as the
+                     input data.
                 [H, W]. H holds how many padding will be added in height;
                 similar W is for width. Padding is added symmetrically for each
-                dimension.
+                dimension. If not a two-element list, a full length list is
+                needed.
         """
         # Do not do summary since we just pad the data.
         kwargs["do_summary"] = False
         if "name" not in kwargs:
-            kwargs["name"] = "reshape"
+            kwargs["name"] = "padding"
         super(PaddingLayer, self).__init__(**kwargs)
         self.padding = padding
 
     def _setup(self, input):
         shape = input.get_shape().as_list()
-        if len(shape) is 4:
-            _padding = [
-                [0, 0],
-                [self.padding[0], self.padding[0]],
-                [self.padding[1], self.padding[1]],
-                [0, 0]
-            ]
+        assert len(shape) is 4 or 3,\
+            "Shapes other than 4 or 3 are not supported."
+
+        if len(self.padding) is 2:
+            if len(shape) is 4:
+                _padding = [
+                    [0, 0],
+                    [self.padding[0], self.padding[0]],
+                    [self.padding[1], self.padding[1]],
+                    [0, 0]
+                ]
+            else:
+                _padding = [
+                    [self.padding[0], self.padding[0]],
+                    [self.padding[1], self.padding[1]],
+                    [0, 0]
+                ]
         else:
-            _padding = [
-                [self.padding[0], self.padding[0]],
-                [self.padding[1], self.padding[1]],
-                [0, 0]
-            ]
+            if len(shape) is 4:
+                _padding = [
+                    [self.padding[0], self.padding[0]],
+                    [self.padding[1], self.padding[1]],
+                    [self.padding[2], self.padding[2]],
+                    [self.padding[3], self.padding[3]]
+                ]
+            else:
+                _padding = [
+                    [self.padding[0], self.padding[0]],
+                    [self.padding[1], self.padding[1]],
+                    [self.padding[2], self.padding[2]]
+                ]
+
+        log.info("Padding: {}".format(_padding))
         self._data = tf.pad(input, paddings=_padding)
 
 

@@ -9,7 +9,8 @@ from akid.layers import (
     BatchNormalizationLayer,
     DropoutLayer,
     MergeLayer,
-    ReshapeLayer
+    ReshapeLayer,
+    PaddingLayer
 )
 
 
@@ -332,11 +333,17 @@ class VGGNet(Brain):
 
 
 class ResNet(Brain):
-    def __init__(self, depth=28, width=2, dropout_prob=None, **kwargs):
+    def __init__(self,
+                 depth=28,
+                 width=2,
+                 dropout_prob=None,
+                 projection_shortcut=True,
+                 **kwargs):
         super(ResNet, self).__init__(**kwargs)
 
         self.residual_block_No = 0
         self.dropout_prob = dropout_prob
+        self.projection_shortcut = projection_shortcut
         self.wd = {"type": "l2", "scale": 5e-4}
         self.use_bias = None
 
@@ -345,6 +352,10 @@ class ResNet(Brain):
         n_stages = [16, 16*k, 32*k, 64*k]
         assert (depth - 4) % 6 is 0
         n = (depth - 4) / 6
+        if self.projection_shortcut:
+            act_before_residual = [True, True, True]
+        else:
+            act_before_residual = [True, False, False]
 
         self.attach(ConvolutionLayer([3, 3],
                                      [1, 1, 1, 1],
@@ -358,15 +369,18 @@ class ResNet(Brain):
         self._attach_stack(n_input_plane=n_stages[0],
                            n_output_plane=n_stages[1],
                            count=n,
-                           stride=(1, 1))
+                           stride=(1, 1),
+                           act_before_residual=act_before_residual[0])
         self._attach_stack(n_input_plane=n_stages[1],
                            n_output_plane=n_stages[2],
                            count=n,
-                           stride=(2, 2))
+                           stride=(2, 2),
+                           act_before_residual=act_before_residual[1])
         self._attach_stack(n_input_plane=n_stages[2],
                            n_output_plane=n_stages[3],
                            count=n,
-                           stride=(2, 2))
+                           stride=(2, 2),
+                           act_before_residual=act_before_residual[2])
         self.attach(BatchNormalizationLayer(name="bn_out"))
         self.attach(ReLULayer(name="relu_out"))
         self.attach(PoolingLayer(ksize=[1, 8, 8, 1],
@@ -386,12 +400,27 @@ class ResNet(Brain):
                     {"name": "system_in", "idxs": [1]}],
             name="softmax"))
 
-    def _attach_stack(self, n_input_plane, n_output_plane, count, stride):
-        self._attach_block(n_input_plane, n_output_plane, stride)
+    def _attach_stack(self,
+                      n_input_plane,
+                      n_output_plane,
+                      count,
+                      stride,
+                      act_before_residual):
+        self._attach_block(n_input_plane,
+                           n_output_plane,
+                           stride,
+                           act_before_residual)
         for i in xrange(2, count+1):
-            self._attach_block(n_output_plane, n_output_plane, stride=(1, 1))
+            self._attach_block(n_output_plane,
+                               n_output_plane,
+                               (1, 1),
+                               False)
 
-    def _attach_block(self, n_input_plane, n_output_plane, stride):
+    def _attach_block(self,
+                      n_input_plane,
+                      n_output_plane,
+                      stride,
+                      act_before_residual):
         self.residual_block_No += 1
 
         conv_params = [[3, 3, stride, "SAME"],
@@ -406,7 +435,7 @@ class ResNet(Brain):
                 self.attach(ReLULayer(name="relu_{}_{}".format(
                     self.residual_block_No, i)))
 
-                if n_input_plane != n_output_plane:
+                if n_input_plane != n_output_plane and act_before_residual:
                     main_branch_layer_name = self.blocks[-1].name
 
                 self.attach(ConvolutionLayer([3, 3],
@@ -441,16 +470,29 @@ class ResNet(Brain):
         last_residual_layer_name = self.blocks[-1].name
 
         if n_input_plane != n_output_plane:
-            self.attach(ConvolutionLayer(
-                [1, 1],
-                [1, stride[0], stride[1], 1],
-                inputs=[{"name": main_branch_layer_name}],
-                padding="SAME",
-                init_para={"name": "msra_init"},
-                initial_bias_value=self.use_bias,
-                wd=self.wd,
-                out_channel_num=n_output_plane,
-                name="conv_{}_shortcut".format(self.residual_block_No)))
+            if self.projection_shortcut:
+                self.attach(ConvolutionLayer(
+                    [1, 1],
+                    [1, stride[0], stride[1], 1],
+                    inputs=[{"name": main_branch_layer_name}],
+                    padding="SAME",
+                    init_para={"name": "msra_init"},
+                    initial_bias_value=self.use_bias,
+                    wd=self.wd,
+                    out_channel_num=n_output_plane,
+                    name="conv_{}_shortcut".format(self.residual_block_No)))
+            else:
+                _ = (1, stride[0], stride[1], 1)
+                self.attach(PoolingLayer(
+                    ksize=_,
+                    strides=_,
+                    inputs=[{"name": main_branch_layer_name}],
+                    padding="VALID",
+                    type="avg",
+                    name="pool_{}_shortcut".format(self.residual_block_No)))
+                self.attach(PaddingLayer(
+                    padding=[0, 0, 0, (n_output_plane - n_input_plane) // 2],
+                    name="pad_{}_shortcut".format(self.residual_block_No)))
 
             shortcut_layer_name = self.blocks[-1].name
         else:
