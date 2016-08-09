@@ -344,7 +344,6 @@ class ResNet(Brain):
         self.residual_block_No = 0
         self.dropout_prob = dropout_prob
         self.projection_shortcut = projection_shortcut
-        self.wd = {"type": "l2", "scale": 5e-4}
         self.use_bias = None
 
         assert((depth - 4) % 6 == 0)
@@ -354,8 +353,10 @@ class ResNet(Brain):
         n = (depth - 4) / 6
         if self.projection_shortcut:
             act_before_residual = [True, True, True]
+            self.wd = {"type": "l2", "scale": 5e-4}
         else:
             act_before_residual = [True, False, False]
+            self.wd = {"type": "l2", "scale": 0.002}
 
         self.attach(ConvolutionLayer([3, 3],
                                      [1, 1, 1, 1],
