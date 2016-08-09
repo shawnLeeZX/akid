@@ -13,6 +13,7 @@ import tensorflow as tf
 from ..utils import glog as log
 from . import sensors
 from . import engines
+from .kongfus import LearningRateScheme
 from .common import (
     TRAIN_SUMMARY_COLLECTION,
     VALID_SUMMARY_COLLECTION,
@@ -174,6 +175,7 @@ class Kid(object):
                 self.on_training_log = []
                 self.on_val_log = []
                 self.on_train_begin = []
+                self.on_batch_begin = []
                 self.add_default_hooks()
 
             def add_default_hooks(self):
@@ -185,6 +187,9 @@ class Kid(object):
 
                 from .callbacks import on_train_begin
                 self.on_train_begin.append(on_train_begin)
+
+                from .callbacks import on_batch_begin
+                self.on_batch_begin.append(on_batch_begin)
 
         self.hooks = hooks()
 
@@ -438,12 +443,22 @@ class Kid(object):
                 val_feed_dict = self.sensor.fill_feed_dict(True)
                 self.feed_dict.update(val_feed_dict)
 
+        if self.kongfu.lr_scheme["name"] is LearningRateScheme.placeholder:
+            lr_dict = {self.kongfu.learning_rate: self.kongfu.lr_value}
+            if self.feed_dict:
+                self.feed_dict.update(lr_dict)
+            else:
+                self.feed_dict = lr_dict
+
     def _step(self):
         """
         Train for one step.
         """
         # Run one step.
+        self.on_batch_begin()
+
         self._fill_train_feed_dict()
+
         fetch = [self.engine.train_op, self.engine.loss()]
         fetch.extend(self.engine.eval())
         start_time = time.time()
@@ -471,6 +486,10 @@ class Kid(object):
 
     def on_train_begin(self):
         for func in self.hooks.on_train_begin:
+            func(self)
+
+    def on_batch_begin(self):
+        for func in self.hooks.on_batch_begin:
             func(self)
 
 __all__ = [name for name, x in locals().items() if

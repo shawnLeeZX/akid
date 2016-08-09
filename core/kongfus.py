@@ -9,6 +9,12 @@ import tensorflow as tf
 
 from .common import TRAINING_DYNAMICS_COLLECTION, LEARNING_RATE_TAG
 from .blocks import ShadowableBlock
+from ..utils import glog as log
+
+
+class LearningRateScheme(object):
+    exp_decay = 1
+    placeholder = 2
 
 
 class KongFu(ShadowableBlock):
@@ -21,18 +27,28 @@ class KongFu(ShadowableBlock):
     concrete optimizer.
     """
     def __init__(self,
-                 base_lr=0.01,
-                 decay_rate=0.95,
-                 decay_epoch_num=1,
+                 lr_scheme={"name": LearningRateScheme.exp_decay,
+                            "base_lr": 0.01,
+                            "decay_rate": 0.95,
+                            "decay_epoch_num": 1},
                  **kwargs):
         """
         Only exponential decay policy is supported now. Learning rate decays to
         `decay_rate` of current value after `decay_epoch_num` number of epochs
         have passed.
         Args:
-            decay_epoch_num: a float number
-                Configure when to decay learning rate.
-            Others are self-evident.
+            lr_scheme: dict
+                 Learning rate scheme to use. Two types are supported for now:
+                     1. `exp_decay`: exponential decay. 'base_lr',
+                        'decay_rate', and 'decay_epoch_num' are required
+                        parameters.
+                     2. `placeholder`: a placeholder that is supposed to pass
+                        in by feed dict, so arbitrary hard coded learning rate
+                        decay could be used. To use this scheme, you should
+                        update `lr_value` of `KongFu` manually, which is
+                        normally done by assigning value in some callback
+                        functions.
+                 See the default value for an example usage.
         """
         # Since normally we do not care what the name of an optimizer is, just
         # give it a default name.
@@ -40,9 +56,7 @@ class KongFu(ShadowableBlock):
             kwargs["name"] = "opt"
 
         super(KongFu, self).__init__(**kwargs)
-        self.base_lr = float(base_lr)
-        self.decay_rate = decay_rate
-        self.decay_epoch_num = decay_epoch_num
+        self.lr_scheme = lr_scheme
 
     def _setup(self, engine, loss):
         """
@@ -55,14 +69,31 @@ class KongFu(ShadowableBlock):
                 many batches are there in a epoch of engine's sensor, and
                 also take away anything that should be held.
         """
-        decay_steps = int(
-            engine.sensor.num_batches_per_epoch_train * self.decay_epoch_num)
-        learning_rate = tf.train.exponential_decay(
-            self.base_lr,
-            engine.global_step_tensor,
-            decay_steps,          # Decay step.
-            self.decay_rate,                # Decay rate.
-            staircase=True)
+        try:
+            if self.lr_scheme["name"] is LearningRateScheme.exp_decay:
+                base_lr = self.lr_scheme["base_lr"],
+                decay_rate = self.lr_scheme["decay_rate"],
+                decay_epoch_num = self.lr_scheme["decay_epoch_num"],
+
+                decay_steps = int(engine.sensor.num_batches_per_epoch_train
+                                  * decay_epoch_num)
+                learning_rate = tf.train.exponential_decay(
+                    base_lr,
+                    engine.global_step_tensor,
+                    decay_steps,
+                    decay_rate,
+                    staircase=True)
+            elif self.lr_scheme["name"] is LearningRateScheme.placeholder:
+                learning_rate = tf.placeholder(tf.float32,
+                                               shape=[],
+                                               name='lrn')
+                self.lr_value = None
+            else:
+                raise Exception("Learning rate scheme is not supported. Please"
+                                " specify one from `LearningRateScheme`.")
+        except KeyError as e:
+            log.info(e.message)
+
         self.learning_rate = learning_rate
         self.opt = self._get_optimizer(learning_rate)
         self._data = self.opt.compute_gradients(loss)
