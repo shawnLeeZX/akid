@@ -64,6 +64,16 @@ def on_val_log_step(kid):
 
 
 def on_train_begin(kid):
+    with kid.graph.as_default():
+        total_parameters = 0
+        for variable in tf.trainable_variables():
+            shape = variable.get_shape()
+            variable_parametes = 1
+            for dim in shape:
+                variable_parametes *= dim.value
+            total_parameters += variable_parametes
+    log.info("Total parameters: {}".format(total_parameters))
+
     if kid.do_summary:
         summary = tf.Summary()
         summary.value.add(tag="Training Loss",
