@@ -59,9 +59,10 @@ class Kid(object):
                  kongfu_in,
                  engine="single",
                  sess=None,
+                 max_steps=None,
+                 max_epoch=None,
                  log_dir=None,
                  log_to_file=True,
-                 max_steps=20000,
                  val_log_step=1000,
                  train_log_step=100,
                  graph=None,
@@ -97,6 +98,10 @@ class Kid(object):
                provided, again default ones will be used.
             sess: tf.Session
                 The session to use. If None, one will be created.
+            max_steps: int
+            max_epoch: int
+                You can only specify either max epoch to train or max
+                steps. Not both.
             log_dir: str
                 The folder to hold tensorboard event, training logs and trained
                 models. If not given, first a folder named `log` will be
@@ -151,6 +156,12 @@ class Kid(object):
         self.log_to_file = log_to_file
 
         self.max_steps = max_steps
+        self.max_epoch = max_epoch
+        assert self.max_steps is None or self.max_epoch is None,\
+            "Only one of `max_steps` and `max_epoch` could be used."
+        assert self.max_steps is not None or self.max_epoch is not None,\
+            "At least one `max_step` and max_epoch is needed."
+
         self.train_log_step = train_log_step
         self.val_log_step = val_log_step
         self.summary_on_val = summary_on_val
@@ -176,6 +187,7 @@ class Kid(object):
                 self.on_val_log = []
                 self.on_train_begin = []
                 self.on_batch_begin = []
+                self.on_epoch_end = []
                 self.add_default_hooks()
 
             def add_default_hooks(self):
@@ -280,31 +292,30 @@ class Kid(object):
             previous_step = tf.train.global_step(self.sess,
                                                  self.global_step_tensor)
             self.step = previous_step
+            # Note the epoch estimation is not accurate if the batch size
+            # cannot divide total number of training samples.
+            self.epoch = previous_step \
+                // self.sensor.num_batches_per_epoch_train
 
-            # Do one validation before beginning.
-            if self.save_chk_point:
-                self.save_to_ckpt()
-            self.validate()
-
-            # Run ops once to show initial training loss and save initial
-            # summaries.
-            self._fill_train_feed_dict()
-            fetch = [self.engine.loss()]
-            fetch.extend(self.engine.eval())
-            result = self.sess.run(fetch, feed_dict=self.feed_dict)
-            self.loss_value = result[0]
-            self.evals = result[1:]
             self.on_train_begin()
 
             while self.step < self.max_steps + 1:
-                self.step += 1
-                self._step()
-
                 if self.step % self.val_log_step == 0 or\
                    self.step == self.max_steps:
                     if self.save_chk_point:
                         self.save_to_ckpt()
                     loss = self.validate()
+
+                self._step()
+
+                self.step += 1
+
+                if self.step % self.sensor.num_batches_per_epoch_train is 0:
+                    self.epoch += 1
+                    self.on_epoch_end()
+
+                if self.step % self.train_log_step == 0:
+                    self.on_train_log_step()
 
             return loss
         except tf.OpError as e:
@@ -406,6 +417,11 @@ class Kid(object):
 
         self.initialized = True
 
+        if self.max_epoch:
+            # Convert the max epoch number to max steps.
+            self.max_steps \
+                = self.sensor.num_batches_per_epoch_train * self.max_epoch
+
     def save_to_ckpt(self):
         step = tf.train.global_step(self.sess, self.global_step_tensor)
         self.saver.save(self.sess,
@@ -467,9 +483,6 @@ class Kid(object):
         self.loss_value = result[1]
         self.evals = result[2:]
 
-        if self.step % self.train_log_step == 0:
-            self.on_train_log_step()
-
     def on_train_log_step(self):
         """
         Call hooks at the time when the kid should do logging for training.
@@ -490,6 +503,10 @@ class Kid(object):
 
     def on_batch_begin(self):
         for func in self.hooks.on_batch_begin:
+            func(self)
+
+    def on_epoch_end(self):
+        for func in self.hooks.on_epoch_end:
             func(self)
 
 __all__ = [name for name, x in locals().items() if

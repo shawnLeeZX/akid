@@ -34,6 +34,25 @@ class TestKongFu(TestCase):
         kid.practice()
         assert kid.kongfu.lr_value == 0.0001
 
+    def test_exp_decay_lr_scheme(self):
+        from akid import LearningRateScheme
+        brain = TestFactory.get_test_brain()
+        source = TestFactory.get_test_feed_source()
+        kid = Kid(
+            FeedSensor(source_in=source, name='data'),
+            brain,
+            MomentumKongFu(lr_scheme={"name": LearningRateScheme.exp_decay,
+                                      "base_lr": 0.01,
+                                      "decay_rate": 0.95,
+                                      "decay_epoch_num": 1}),
+            max_steps=900)
+
+        kid.setup()
+        kid.practice()
+
+        with kid.sess as sess:
+            lr = sess.run(kid.kongfu.learning_rate)
+        assert abs(lr - 0.0095) <= 0.0001
 
 
 if __name__ == "__main__":

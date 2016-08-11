@@ -27,7 +27,7 @@ def on_train_log_step(kid):
 
     from akid import LearningRateScheme
     lr = kid.sess.run(kid.kongfu.learning_rate) \
-        if kid.kongfu.lr_scheme is LearningRateScheme.exp_decay\
+        if kid.kongfu.lr_scheme["name"] is LearningRateScheme.exp_decay\
         else kid.kongfu.lr_value
 
     log.info("Step {}: loss = {:.5f} lr = {:.8f} acc = {} ({:.1f}"
@@ -69,6 +69,7 @@ def on_val_log_step(kid):
 
 
 def on_train_begin(kid):
+    # Calculate and log total parameter number.
     with kid.graph.as_default():
         total_parameters = 0
         for variable in tf.trainable_variables():
@@ -78,6 +79,15 @@ def on_train_begin(kid):
                 variable_parametes *= dim.value
             total_parameters += variable_parametes
     log.info("Total parameters: {}".format(total_parameters))
+
+    # Run ops once to show initial training loss and save initial
+    # summaries.
+    kid._fill_train_feed_dict()
+    fetch = [kid.engine.loss()]
+    fetch.extend(kid.engine.eval())
+    result = kid.sess.run(fetch, feed_dict=kid.feed_dict)
+    kid.loss_value = result[0]
+    kid.evals = result[1:]
 
     if kid.do_summary:
         summary = tf.Summary()

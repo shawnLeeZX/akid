@@ -71,9 +71,9 @@ class KongFu(ShadowableBlock):
         """
         try:
             if self.lr_scheme["name"] is LearningRateScheme.exp_decay:
-                base_lr = self.lr_scheme["base_lr"],
-                decay_rate = self.lr_scheme["decay_rate"],
-                decay_epoch_num = self.lr_scheme["decay_epoch_num"],
+                base_lr = self.lr_scheme["base_lr"]
+                decay_rate = self.lr_scheme["decay_rate"]
+                decay_epoch_num = self.lr_scheme["decay_epoch_num"]
 
                 decay_steps = int(engine.sensor.num_batches_per_epoch_train
                                   * decay_epoch_num)

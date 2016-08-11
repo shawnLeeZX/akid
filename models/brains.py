@@ -336,6 +336,7 @@ class ResNet(Brain):
     def __init__(self,
                  depth=28,
                  width=2,
+                 class_num=10,
                  dropout_prob=None,
                  projection_shortcut=True,
                  **kwargs):
@@ -393,10 +394,10 @@ class ResNet(Brain):
         self.attach(InnerProductLayer(initial_bias_value=0,
                                       init_para={"name": "default"},
                                       wd=self.wd,
-                                      out_channel_num=10,
+                                      out_channel_num=class_num,
                                       name='ip'))
         self.attach(SoftmaxWithLossLayer(
-            class_num=10,
+            class_num=class_num,
             inputs=[{"name": "ip"},
                     {"name": "system_in", "idxs": [1]}],
             name="softmax"))
