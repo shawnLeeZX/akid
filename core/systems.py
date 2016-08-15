@@ -71,6 +71,13 @@ class LinkedSystem(System):
         """
         self.blocks.append(block_in)
 
+    def get_last_layer_name(self):
+        """
+        Return the name of the last layer that is attached to the system. It is
+        useful for getting the name and feed it to another layer as its input.
+        """
+        return self.blocks[-1].name
+
     @property
     def is_empty(self):
         if self.blocks:

@@ -19,16 +19,18 @@ net_paras_list.append({
     "bn": None})
 
 opt_paras_list = []
-opt_paras_list.append({"lr": 0.025})
-opt_paras_list.append({"lr": 0.05})
+opt_paras_list.append({"lr": 0.025, "engine": {"name": "single"}})
+opt_paras_list.append({"lr": 0.05, "engine": {"name": "data_parallel",
+                                              "num_gpu": 2}})
 
 
 def setup(graph):
     from akid import AKID_DATA_PATH
     from akid import Brain, MNISTFeedSource, FeedSensor, Kid
     from akid import MomentumKongFu
-    from akid.layers import DropoutLayer
+    from akid.layers import DropoutLayer, SoftmaxWithLossLayer
     from akid.sugar import cnn_block
+    from akid import LearningRateScheme
 
     brain = Brain(name="one-layer-mnist")
 
@@ -53,8 +55,15 @@ def setup(graph):
             "stddev": 0.1},
         wd={"type": "l2", "scale": 0.0005},
         out_channel_num=10,
-        activation={"type": "softmax"},
+        activation=None,
         bn={{ net_paras["bn"] }}))
+
+    brain.attach(SoftmaxWithLossLayer(
+        class_num=10,
+        inputs=[{"name": brain.get_last_layer_name()},
+                {"name": "system_in",
+                 "idxs": [1]}],
+        name="softmax"))
 
     # Set up a sensor.
     # #########################################################################
@@ -67,29 +76,30 @@ def setup(graph):
                              scale=True)
 
     kid = Kid(FeedSensor(name='data',
-                              source_in=source,
-                              batch_size=64,
-                              val_batch_size=100),
-                   brain,
-                   MomentumKongFu(momentum=0.9,
-                                  base_lr={{ opt_paras["lr"] }},
-                                  decay_rate=0.95,
-                                  decay_epoch_num=1),
-                   max_steps=1000,
-                   graph=graph)
+                         source_in=source,
+                         batch_size=64,
+                         val_batch_size=100),
+              brain,
+              MomentumKongFu(momentum=0.9,
+                             lr_scheme={
+                                 "name": LearningRateScheme.exp_decay,
+                                 "base_lr": {{ opt_paras["lr"] }},
+                                 "decay_rate": 0.95,
+                                 "decay_epoch_num": 1}),
+              engine={{ opt_paras["engine"] }},
+              max_steps=1000,
+              graph=graph)
     kid.setup()
     return kid
 
 
 class TestTuner(TestCase):
     def test_tuner(self):
-        precision_list = tune(setup, opt_paras_list, net_paras_list)
-        print precision_list
-        # TODO(Shuai): When one training instance fails and quit, its precision
-        # will not be added, so the test here cannot check out that
-        # case. Specifically, When memory exhausts, this test will still pass.
-        for precision in precision_list:
-            assert precision > 0.80
+        # NOTE: No assertion check. Have to read the log.
+        tune(setup,
+             opt_paras_list,
+             net_paras_list,
+             gpu_num_per_instance=[1, 1, 2, 2])
 
 
 if __name__ == "__main__":
