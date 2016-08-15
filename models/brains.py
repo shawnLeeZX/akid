@@ -10,7 +10,8 @@ from akid.layers import (
     DropoutLayer,
     MergeLayer,
     ReshapeLayer,
-    PaddingLayer
+    PaddingLayer,
+    CollapseOutLayer
 )
 
 
@@ -339,6 +340,7 @@ class ResNet(Brain):
                  class_num=10,
                  dropout_prob=None,
                  projection_shortcut=True,
+                 h_loss=False,
                  **kwargs):
         super(ResNet, self).__init__(**kwargs)
 
@@ -401,6 +403,19 @@ class ResNet(Brain):
             inputs=[{"name": "ip"},
                     {"name": "system_in", "idxs": [1]}],
             name="softmax"))
+        if h_loss:
+            self.attach(CollapseOutLayer(group_size=5,
+                type="average_out",
+                inputs=[
+                    {"name": "ip"}
+                ],
+                name="average_out"))
+            self.attach(SoftmaxWithLossLayer(
+                class_num=20,
+                inputs=[
+                    {"name": "average_out"},
+                    {"name": "system_in", "idxs": [1]}],
+                name="super_class_loss"))
 
     def _attach_stack(self,
                       n_input_plane,

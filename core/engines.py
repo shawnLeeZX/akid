@@ -200,8 +200,10 @@ class DataParallelEngine(Engine):
         with tf.variable_scope("eval_average"):
             eval_list = []
             for i in xrange(0, len(towers[0].eval)):
-                sum_of_eval = tf.add_n([t.eval[0] for t in towers])
-                eval = tf.div(sum_of_eval, self.num_gpu, name="avg")
+                sum_of_eval = tf.add_n([t.eval[i] for t in towers])
+                eval = tf.div(sum_of_eval,
+                        self.num_gpu,
+                        name="{}_avg".format(towers[0].eval[i].op.name))
                 eval_list.append(eval)
 
         return eval_list
