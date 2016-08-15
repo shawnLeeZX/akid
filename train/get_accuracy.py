@@ -32,16 +32,33 @@ parser.add_argument("eval_metric",
                     match will be used, which normally will not be the
                     desirable behavior).
                     """)
+parser.add_argument("-s", "--step",
+                    type=int,
+                    help="""
+                    The start step to check. The reason that this argument
+                    exists is, in certain situation, accuracy reported is wrong
+                    at the beginning of the training, thus should not be
+                    counted when trying to find the max ones.
+                    """)
 arguments = parser.parse_args()
 
 EVENT_FILE_PATH = arguments.EVENT_FILE
 eval_metric_name = arguments.eval_metric
+start_step = arguments.step
 
 # Gather the list of validation accuracy.
 val_acc_tuples = []
+previous_step = None
 for e in tf.train.summary_iterator(EVENT_FILE_PATH):
-    val_acc = None
-    lr = None
+    if e.step < start_step:
+        continue
+    # Since a step may be logged by multiple event files, state variables are
+    # only updated when we are switching steps.
+    if e.step != previous_step:
+        val_acc = None
+        lr = None
+        previous_step = e.step
+
     for v in e.summary.value:
         if v.tag.find(eval_metric_name) is not -1:
             val_acc = v.simple_value
