@@ -82,7 +82,7 @@ def on_train_begin(kid):
 
     # Run ops once to show initial training loss and save initial
     # summaries.
-    kid._fill_train_feed_dict()
+    kid.fill_train_feed_dict()
     fetch = [kid.engine.loss()]
     fetch.extend(kid.engine.eval())
     result = kid.sess.run(fetch, feed_dict=kid.feed_dict)

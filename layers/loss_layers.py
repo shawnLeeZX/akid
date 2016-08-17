@@ -22,6 +22,7 @@ class LossLayer(ProcessingLayer):
 
     def _setup(self, *args, **kwargs):
         self._loss_layer_setup(*args, **kwargs)
+        log.info("Using multiplier {}".format(self.multiplier))
         self._loss = self._loss * self.multiplier
 
     @abc.abstractmethod

@@ -42,7 +42,7 @@ def spawn_using_sub_shell(setup_func, work_dir, idxs):
     training_call = """
 
 
-kid = setup(None)
+kid = setup()
 import inspect
 from akid.utils import glog as log
 log.info("{}" + inspect.getsource(setup))

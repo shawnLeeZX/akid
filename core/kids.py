@@ -306,7 +306,7 @@ class Kid(object):
                         self.save_to_ckpt()
                     loss = self.validate()
 
-                self.step()
+                self.forward_backward()
 
                 self.step += 1
 
@@ -466,7 +466,7 @@ class Kid(object):
             else:
                 self.feed_dict = lr_dict
 
-    def step(self):
+    def forward_backward(self):
         """
         Train for one step.
         """
