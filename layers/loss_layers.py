@@ -1,5 +1,6 @@
 import inspect
 import sys
+import abc
 
 import tensorflow as tf
 
@@ -15,7 +16,17 @@ class LossLayer(ProcessingLayer):
     It is nothing here now. However, it has already been used to check whether
     a layer is a loss layer or not.
     """
-    pass
+    def __init__(self, multiplier=1, **kwargs):
+        super(LossLayer, self).__init__(**kwargs)
+        self.multiplier = multiplier
+
+    def _setup(self, *args, **kwargs):
+        self._loss_layer_setup(*args, **kwargs)
+        self._loss = self._loss * self.multiplier
+
+    @abc.abstractmethod
+    def _loss_layer_setup(self):
+        raise Exception("Every loss layer should implement this for setup.")
 
 
 class SoftmaxWithLossLayer(LossLayer):
@@ -23,7 +34,7 @@ class SoftmaxWithLossLayer(LossLayer):
         super(SoftmaxWithLossLayer, self).__init__(**kwargs)
         self.class_num = class_num
 
-    def _setup(self, data_in):
+    def _loss_layer_setup(self, data_in):
         logits = data_in[0]
         labels = data_in[1]
 
@@ -81,7 +92,7 @@ class GroupSoftmaxWithLossLayer(GroupSoftmaxLayer, SoftmaxWithLossLayer):
         super(GroupSoftmaxWithLossLayer, self).__init__(**kwargs)
         self.augment_label = augment_label
 
-    def _setup(self, data_in):
+    def _loss_layer_setup(self, data_in):
         input = data_in[0]
         labels = data_in[1]
         label_vectors = data_in[2]

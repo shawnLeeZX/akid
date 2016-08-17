@@ -123,8 +123,12 @@ class SingleGPUEngine(Engine):
         Given the `name` of the layer, return the tensor of the data of this
         layer. `get_val` has similar meaning with `loss`.
         """
+        if get_val:
+            brain = self.val_brain
+        else:
+            brain = self.brain
         layer = None
-        for b in self.val_brain.blocks:
+        for b in brain.blocks:
             if b.name == name:
                 layer = b
                 break
@@ -132,6 +136,26 @@ class SingleGPUEngine(Engine):
             raise Exception("Layer {} is not found.".format(name))
 
         return layer.data
+
+    def get_layer(self, name, get_val=False):
+        """
+        Given the `name` of the layer, return the tensor of the data of this
+        layer. `get_val` has similar meaning with `loss`.
+        """
+        if get_val:
+            brain = self.val_brain
+        else:
+            brain = self.brain
+
+        layer = None
+        for b in brain.blocks:
+            if b.name == name:
+                layer = b
+                break
+        if layer is None:
+            raise Exception("Layer {} is not found.".format(name))
+
+        return layer
 
 
 class DataParallelEngine(Engine):

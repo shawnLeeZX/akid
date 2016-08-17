@@ -220,7 +220,7 @@ class Kid(object):
         log.info('Validation Data Eval:')
 
         if not self.initialized:
-            self._init(continue_from_chk_point=True)
+            self.init(continue_from_chk_point=True)
 
         # Run one epoch of eval.
         eval_metric_values = [0] * len(self.engine.eval(get_val=True))
@@ -286,7 +286,7 @@ class Kid(object):
             None
         """
         try:
-            self._init(continue_from_chk_point)
+            self.init(continue_from_chk_point)
             # And then after everything is built, start the training loop.
             log.info("Begin training brain: " + self.brain.name)
             previous_step = tf.train.global_step(self.sess,
@@ -306,7 +306,7 @@ class Kid(object):
                         self.save_to_ckpt()
                     loss = self.validate()
 
-                self._step()
+                self.step()
 
                 self.step += 1
 
@@ -388,7 +388,7 @@ class Kid(object):
 
         self.engine.setup()
 
-    def _init(self, continue_from_chk_point=None):
+    def init(self, continue_from_chk_point=None):
         """
         Initialize computational graph for training. It initializes or restores
         variables, starts queues and so on.
@@ -450,7 +450,7 @@ class Kid(object):
             log.error("No checkpoint found under %s!" % self.model_dir)
             sys.exit()
 
-    def _fill_train_feed_dict(self):
+    def fill_train_feed_dict(self):
         if type(self.sensor) is sensors.FeedSensor:
             # Placeholder of `FeedSensor` should be filled.
             self.feed_dict = self.sensor.fill_feed_dict()
@@ -466,14 +466,14 @@ class Kid(object):
             else:
                 self.feed_dict = lr_dict
 
-    def _step(self):
+    def step(self):
         """
         Train for one step.
         """
         # Run one step.
         self.on_batch_begin()
 
-        self._fill_train_feed_dict()
+        self.fill_train_feed_dict()
 
         fetch = [self.engine.train_op, self.engine.loss()]
         fetch.extend(self.engine.eval())
