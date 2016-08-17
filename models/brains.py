@@ -11,7 +11,8 @@ from akid.layers import (
     MergeLayer,
     ReshapeLayer,
     PaddingLayer,
-    CollapseOutLayer
+    CollapseOutLayer,
+    GroupSoftmaxLayer
 )
 
 
@@ -342,6 +343,7 @@ class ResNet(Brain):
                  projection_shortcut=True,
                  sub_class_multiplier_ratio=0.5,
                  h_loss=False,
+                 use_gsmax=False,
                  **kwargs):
         super(ResNet, self).__init__(**kwargs)
 
@@ -349,6 +351,7 @@ class ResNet(Brain):
         self.dropout_prob = dropout_prob
         self.projection_shortcut = projection_shortcut
         self.use_bias = None
+        self.use_gsmax = use_gsmax
 
         assert((depth - 4) % 6 == 0)
         k = width
@@ -387,7 +390,12 @@ class ResNet(Brain):
                            stride=(2, 2),
                            act_before_residual=act_before_residual[2])
         self.attach(BatchNormalizationLayer(name="bn_out"))
-        self.attach(ReLULayer(name="relu_out"))
+        if self.use_gsmax:
+            self.attach(GroupSoftmaxLayer(
+                group_size=4*640/160,
+                name="gsmax_out"))
+        else:
+            self.attach(ReLULayer(name="relu_out"))
         self.attach(PoolingLayer(ksize=[1, 8, 8, 1],
                                  strides=[1, 1, 1, 1],
                                  padding="VALID",
@@ -399,13 +407,13 @@ class ResNet(Brain):
                                       wd=self.wd,
                                       out_channel_num=class_num,
                                       name='ip'))
-        self.attach(SoftmaxWithLossLayer(
-            class_num=class_num,
-            multiplier = sub_class_multiplier_ratio if h_loss else 1.,
-            inputs=[{"name": "ip"},
-                    {"name": "system_in", "idxs": [2]}],
-            name="softmax"))
         if h_loss:
+            self.attach(SoftmaxWithLossLayer(
+                class_num=class_num,
+                multiplier = sub_class_multiplier_ratio,
+                inputs=[{"name": "ip"},
+                        {"name": "system_in", "idxs": [2]}],
+                name="softmax"))
             self.attach(CollapseOutLayer(group_size=5,
                 type="average_out",
                 inputs=[
@@ -419,6 +427,12 @@ class ResNet(Brain):
                     {"name": "average_out"},
                     {"name": "system_in", "idxs": [1]}],
                 name="super_class_loss"))
+        else:
+            self.attach(SoftmaxWithLossLayer(
+                class_num=class_num,
+                inputs=[{"name": "ip"},
+                        {"name": "system_in", "idxs": [1]}],
+                name="softmax"))
 
     def _attach_stack(self,
                       n_input_plane,
@@ -452,8 +466,14 @@ class ResNet(Brain):
             if i == 0:
                 self.attach(BatchNormalizationLayer(
                     name="bn_{}_{}".format(self.residual_block_No, i)))
-                self.attach(ReLULayer(name="relu_{}_{}".format(
-                    self.residual_block_No, i)))
+
+                if self.use_gsmax and n_input_plane > 16:
+                    self.attach(GroupSoftmaxLayer(
+                        group_size=4*n_input_plane/160,
+                        name="gsmax_{}_{}".format(self.residual_block_No, i)))
+                else:
+                    self.attach(ReLULayer(name="relu_{}_{}".format(
+                        self.residual_block_No, i)))
 
                 if n_input_plane != n_output_plane and act_before_residual:
                     main_branch_layer_name = self.blocks[-1].name
@@ -470,8 +490,15 @@ class ResNet(Brain):
             else:
                 self.attach(BatchNormalizationLayer(
                     name="bn_{}_{}".format(self.residual_block_No, i)))
-                self.attach(ReLULayer(name="relu_{}_{}".format(
-                    self.residual_block_No, i)))
+
+                if self.use_gsmax and n_input_plane > 16:
+                    self.attach(GroupSoftmaxLayer(
+                        group_size=4*n_output_plane/160,
+                        name="gsmax_{}_{}".format(self.residual_block_No, i)))
+                else:
+                    self.attach(ReLULayer(name="relu_{}_{}".format(
+                        self.residual_block_No, i)))
+
                 if self.dropout_prob:
                     self.attach(DropoutLayer(
                         keep_prob=1-self.dropout_prob,

@@ -14,6 +14,7 @@ from akid.core.jokers import (
 )
 
 from akid.models.brains import AlexNet
+from akid import LearningRateScheme
 
 
 class TestFeedSensor(TestCase):
@@ -87,9 +88,11 @@ class TestIntegratedSensor(TestCase):
         kid = Kid(
             self.sensor,
             self.brain,
-            GradientDescentKongFu(base_lr=0.1,
-                                  decay_rate=0.1,
-                                  decay_epoch_num=350),
+            GradientDescentKongFu(
+                lr_scheme={"name": LearningRateScheme.exp_decay,
+                    "base_lr": 0.1,
+                    "decay_rate": 0.1,
+                    "decay_epoch_num": 350}),
             max_steps=1000)
         kid.setup()
 
@@ -100,9 +103,11 @@ class TestIntegratedSensor(TestCase):
         kid = Kid(
             self.sensor,
             self.brain,
-            GradientDescentKongFu(base_lr=0.1,
-                                  decay_rate=0.1,
-                                  decay_epoch_num=350),
+            GradientDescentKongFu(
+                lr_scheme={"name": LearningRateScheme.exp_decay,
+                    "base_lr": 0.1,
+                    "decay_rate": 0.1,
+                    "decay_epoch_num": 350}),
             max_steps=200,
             summary_on_val=True)
         kid.setup()
