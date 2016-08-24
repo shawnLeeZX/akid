@@ -71,7 +71,7 @@ class KongFu(ShadowableBlock):
         """
         try:
             if self.lr_scheme["name"] is LearningRateScheme.exp_decay:
-                base_lr = self.lr_scheme["base_lr"]
+                base_lr = float(self.lr_scheme["base_lr"])
                 decay_rate = self.lr_scheme["decay_rate"]
                 decay_epoch_num = self.lr_scheme["decay_epoch_num"]
 

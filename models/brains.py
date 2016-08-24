@@ -344,6 +344,7 @@ class ResNet(Brain):
                  sub_class_multiplier_ratio=0.5,
                  h_loss=False,
                  use_gsmax=False,
+                 group_size=4,
                  **kwargs):
         super(ResNet, self).__init__(**kwargs)
 
@@ -352,6 +353,7 @@ class ResNet(Brain):
         self.projection_shortcut = projection_shortcut
         self.use_bias = None
         self.use_gsmax = use_gsmax
+        self.group_size = group_size
 
         assert((depth - 4) % 6 == 0)
         k = width
@@ -392,7 +394,7 @@ class ResNet(Brain):
         self.attach(BatchNormalizationLayer(name="bn_out"))
         if self.use_gsmax:
             self.attach(GroupSoftmaxLayer(
-                group_size=4*640/160,
+                group_size=self.group_size*640/160,
                 name="gsmax_out"))
         else:
             self.attach(ReLULayer(name="relu_out"))
@@ -469,7 +471,7 @@ class ResNet(Brain):
 
                 if self.use_gsmax and n_input_plane > 16:
                     self.attach(GroupSoftmaxLayer(
-                        group_size=4*n_input_plane/160,
+                        group_size=self.group_size*n_input_plane/160,
                         name="gsmax_{}_{}".format(self.residual_block_No, i)))
                 else:
                     self.attach(ReLULayer(name="relu_{}_{}".format(
@@ -493,7 +495,7 @@ class ResNet(Brain):
 
                 if self.use_gsmax and n_input_plane > 16:
                     self.attach(GroupSoftmaxLayer(
-                        group_size=4*n_output_plane/160,
+                        group_size=self.group_size*n_output_plane/160,
                         name="gsmax_{}_{}".format(self.residual_block_No, i)))
                 else:
                     self.attach(ReLULayer(name="relu_{}_{}".format(

@@ -338,6 +338,16 @@ class ProcessingLayer(ShadowableBlock):
                 var_average = self.moving_averages.average(var)
                 self._var_summary(var.op.name + "_average", var_average)
 
+        # Log parameter number of this layer.
+        total_para_num = 0
+        for var in self.var_list:
+            shape = var.get_shape().as_list()
+            para_num = 1
+            for dim in shape:
+                para_num *= dim
+            total_para_num += para_num
+        log.info("This layer has {} parameters.".format(total_para_num))
+
     def _var_summary(self, tag, var):
         if len(var.get_shape().as_list()) is 0:
             tf.scalar_summary(tag, var, collections=[TRAIN_SUMMARY_COLLECTION])
