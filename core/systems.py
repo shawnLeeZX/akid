@@ -161,10 +161,14 @@ class GraphSystem(LinkedSystem):
                 # Find inputs in the system to current block.
                 inputs = []
                 for input in l.inputs:
+                    input_num = len(inputs)
+
                     # First check whether the input is from the system input.
                     if input["name"] == "system_in":
                         for i in input["idxs"]:
                             inputs.append(data_in[i])
+                            continue
+
                     # Then look through outputs of setup layers.
                     for b in self.blocks:
                         if b.is_setup and b.name == input["name"]:
@@ -177,6 +181,13 @@ class GraphSystem(LinkedSystem):
                                 for i in input["idxs"]:
                                     inputs.append(b.data[i])
                             break
+
+                    if len(inputs) != input_num + 1:
+                        raise Exception("{} is not found. You perhaps misspell"
+                                        " the layer name.".format(
+                                            input["name"]))
+                        log.error()
+
                 if len(inputs) is 1:
                     l.setup(inputs[0])
                 else:
