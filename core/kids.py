@@ -34,6 +34,7 @@ class Kid(object):
         * `on_train_log_step`.
         * `on_val_log_step`
         * `on_train_begin`
+        * `on_batch_begin`
 
     Refer to function that calls functions on hooks for detailed explanation on
     what does those hooks do. For example, to refer to method
@@ -460,6 +461,9 @@ class Kid(object):
                 self.feed_dict.update(val_feed_dict)
 
         if self.kongfu.lr_scheme["name"] is LearningRateScheme.placeholder:
+            if not self.kongfu.lr_value:
+                raise Exception("You should feed a learning rate to"
+                        " `Kongfu.lr_value`")
             lr_dict = {self.kongfu.learning_rate: self.kongfu.lr_value}
             if self.feed_dict:
                 self.feed_dict.update(lr_dict)
@@ -498,10 +502,16 @@ class Kid(object):
             func(self)
 
     def on_train_begin(self):
+        for func in self.hooks.on_batch_begin:
+            func(self)
         for func in self.hooks.on_train_begin:
             func(self)
 
     def on_batch_begin(self):
+        """
+        NOTE: all functions attached to this hook will be called in the hook
+        `on_train_begin` as well, with a higher priority.
+        """
         for func in self.hooks.on_batch_begin:
             func(self)
 
