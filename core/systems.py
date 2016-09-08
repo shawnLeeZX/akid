@@ -78,6 +78,17 @@ class LinkedSystem(System):
         """
         return self.blocks[-1].name
 
+    def get_layer_by_name(self, name):
+        """
+        Get any layers in the system by its name. None if the layer is not
+        found.
+        """
+        for b in self.blocks:
+            if b.name is name:
+                return b
+
+        raise Exception("Layer {} is not found".format(name))
+
     @property
     def is_empty(self):
         if self.blocks:

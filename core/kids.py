@@ -139,6 +139,7 @@ class Kid(object):
         """
         self.sensor = sensor_in
         self.brain = brain_in
+        self.val_brain = self.brain.get_val_copy()
         self.kongfu = kongfu_in
         self.engine_para = engine
         self.sess = sess
@@ -370,19 +371,14 @@ class Kid(object):
                 raise e
 
         if engine_name == "single":
-            self.engine = engines.SingleGPUEngine(self.sensor,
-                                                  self.brain,
-                                                  self.kongfu)
+            self.engine = engines.SingleGPUEngine(self)
         elif engine_name == "data_parallel":
             if type(self.engine_para) is str:
                 # TODO: automatically use the maximal even number of gpus.
                 num_gpu = 2
             else:
                 num_gpu = self.engine_para["num_gpu"]
-            self.engine = engines.DataParallelEngine(num_gpu,
-                                                     sensor=self.sensor,
-                                                     brain=self.brain,
-                                                     kongfu=self.kongfu)
+            self.engine = engines.DataParallelEngine(num_gpu, kid=self)
         else:
             raise Exception('No engine "{}". Perhaps you have a typo.'.format(
                 engine_name))

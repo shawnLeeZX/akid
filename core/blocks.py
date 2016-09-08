@@ -70,6 +70,9 @@ class Block(object):
         log.info("{} has bag: {}".format(name, bag))
         self.bag = bag
 
+        # Variable scope to give unique names.
+        self.var_scope = None
+
         # Boolean flag to indicate whether this layer has been built before. It
         # is used for determining whether we should share variables of this
         # layer later in `setup`. We need this for creating validation brain or
@@ -101,16 +104,27 @@ class Block(object):
         Args:
             All arguments will be passed to the actual `_setup` function.
         """
-        with tf.variable_scope(self.name, reuse=self.is_setup):
-            self._pre_setup()
+        if self.var_scope:
+            var_scope = self.var_scope
+        else:
+            var_scope = self.name
+
+        # Note an assignment operation will be wasted if self.var_scope already
+        # has value, however, to make sure the first time assignment works,
+        # this is the best way I can think of.
+        with tf.variable_scope(var_scope) as self.var_scope:
+            if not self._skip_pre_post_setup():
+                self._pre_setup()
             if not self.is_setup:
                 self._pre_setup_shared()
             self._setup(*args, **kwargs)
-            self._post_setup()
+            if not self._skip_pre_post_setup():
+                self._post_setup()
             if not self.is_setup:
                 self._post_setup_shared()
 
         self.is_setup = True
+        self.var_scope.reuse_variables()
 
     def _pre_setup(self):
         """
@@ -144,6 +158,14 @@ class Block(object):
         """
         pass
 
+    def _skip_pre_post_setup(self):
+        """
+        Whether to skip `_pre_setup` and `_post_setup`. This method serves to
+        provide a finer granularity control in `setup`. To change the behavior
+        of any sub-classes, just override this method.
+        """
+        return False
+
     @abc.abstractmethod
     def _setup(self):
         """
@@ -170,23 +192,8 @@ class ShadowableBlock(Block):
         # Whether this processing block is a shallow replica.
         self.is_shadow = False
 
-    def setup(self, *args, **kwargs):
-        """
-        Add logic to deal with shallow replica to `Block`' `setup`. Refer to it
-        for more explanation.
-        """
-        with tf.variable_scope(self.name, reuse=self.is_setup):
-            if not self.is_shadow:
-                self._pre_setup()
-            if not self.is_setup:
-                self._pre_setup_shared()
-            self._setup(*args, **kwargs)
-            if not self.is_shadow:
-                self._post_setup()
-            if not self.is_setup:
-                self._post_setup_shared()
-
-        self.is_setup = True
+    def _skip_pre_post_setup(self):
+        return self.is_shadow
 
     def set_shadow(self):
         """
@@ -261,6 +268,11 @@ class ProcessingLayer(ShadowableBlock):
 
     def set_val(self):
         self.is_val = True
+
+    def _pre_setup(self):
+        super(ProcessingLayer, self)._pre_setup()
+        if self.is_val:
+            self.var_scope.reuse_variables()
 
     def _pre_setup_shared(self):
         # Moving averages are supposed be shared so it would only be set up

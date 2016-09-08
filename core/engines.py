@@ -24,10 +24,13 @@ class Engine(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, sensor, brain, kongfu):
-        self.sensor = sensor
-        self.brain = brain
-        self.kongfu = kongfu
+    def __init__(self, kid):
+        self.kid = kid
+
+        self.sensor = kid.sensor
+        self.brain = kid.brain
+        self.kongfu = kid.kongfu
+        self.val_brain = kid.val_brain
 
         with tf.variable_scope(global_var_scope):
             self.global_step_tensor = tf.get_variable(
@@ -98,7 +101,6 @@ class SingleGPUEngine(Engine):
         return self.kongfu.data
 
     def _setup_val_towers(self):
-        self.val_brain = self.brain.get_val_copy()
         data = self.sensor.data(get_val=True)
         label = self.sensor.labels(get_val=True)
         system_in = [data]
@@ -171,6 +173,19 @@ class DataParallelEngine(Engine):
         super(DataParallelEngine, self).__init__(**kwargs)
         self.num_gpu = num_gpu
 
+    def get_layer_data(self, name, get_val=False):
+        if get_val:
+            towers = self.val_towers
+        else:
+            towers = self.train_towers
+
+        data = []
+        for t in towers:
+            l = t.get_layer_by_name(name)
+            data.append(l.data)
+
+        return tf.concat(0, data, name=name)
+
     def _split_input(self, data, label):
         """
         Given data and labels, split them and return.
@@ -178,9 +193,10 @@ class DataParallelEngine(Engine):
         with tf.variable_scope("data_split"):
             splitted_data = tf.split(0, self.num_gpu, data)
             if type(label) is list:
+                splitted_labels = []
                 for i in xrange(0, len(label)):
-                    label[i] = tf.split(0, self.num_gpu, label[i])
-                splitted_labels = zip(*label)
+                    splitted_labels.append(tf.split(0, self.num_gpu, label[i]))
+                splitted_labels = zip(*splitted_labels)
             else:
                 splitted_labels = tf.split(0, self.num_gpu, label)
 
@@ -226,8 +242,8 @@ class DataParallelEngine(Engine):
             for i in xrange(0, len(towers[0].eval)):
                 sum_of_eval = tf.add_n([t.eval[i] for t in towers])
                 eval = tf.div(sum_of_eval,
-                        self.num_gpu,
-                        name="{}_avg".format(towers[0].eval[i].op.name))
+                              self.num_gpu,
+                              name="{}_avg".format(towers[0].eval[i].op.name))
                 eval_list.append(eval)
 
         return eval_list
@@ -280,7 +296,6 @@ class DataParallelEngine(Engine):
         return grads
 
     def _setup_val_towers(self):
-        self.val_brain = self.brain.get_val_copy()
         data = self.sensor.data(get_val=True)
         label = self.sensor.labels(get_val=True)
         splitted_data, splitted_labels = self._split_input(data, label)
