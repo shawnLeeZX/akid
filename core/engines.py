@@ -32,12 +32,8 @@ class Engine(object):
         self.kongfu = kid.kongfu
         self.val_brain = kid.val_brain
 
-        with tf.variable_scope(global_var_scope):
-            self.global_step_tensor = tf.get_variable(
-                name=GLOBAL_STEP,
-                shape=[],
-                initializer=tf.constant_initializer(0),
-                trainable=False)
+        with tf.variable_scope(global_var_scope, reuse=True):
+            self.global_step_tensor = tf.get_variable(GLOBAL_STEP)
 
     @abc.abstractmethod
     def loss(self, get_val=False):

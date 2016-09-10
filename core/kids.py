@@ -459,7 +459,7 @@ class Kid(object):
         if self.kongfu.lr_scheme["name"] is LearningRateScheme.placeholder:
             if not self.kongfu.lr_value:
                 raise Exception("You should feed a learning rate to"
-                        " `Kongfu.lr_value`")
+                                " `Kongfu.lr_value`")
             lr_dict = {self.kongfu.learning_rate: self.kongfu.lr_value}
             if self.feed_dict:
                 self.feed_dict.update(lr_dict)

@@ -3,12 +3,10 @@ This module contains network models.
 """
 from __future__ import absolute_import, division, print_function
 
-import copy
 import inspect
 
 import tensorflow as tf
 
-from ..layers.loss_layers import LossLayer
 from ..layers.synapse_layers import SynapseLayer
 from .blocks import ProcessingLayer
 from .systems import GraphSystem

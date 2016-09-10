@@ -37,4 +37,18 @@ LEARNING_RATE_TAG = "Learning Rate"
 # tag suffixes
 SPARSITY_SUMMARY_SUFFIX = "sparsity"
 
+
+def init():
+    """
+    Kick start the world clock.
+    """
+    with tf.variable_scope(global_var_scope):
+        global global_step_tensor
+        global_step_tensor = tf.get_variable(
+            name=GLOBAL_STEP,
+            shape=[],
+            initializer=tf.constant_initializer(0),
+            trainable=False)
+
+
 __all__ = [name for name, x in locals().items() if not inspect.ismodule(x)]

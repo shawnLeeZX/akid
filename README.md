@@ -9,6 +9,9 @@ kinds of *sensors* it equipped to sense a *source*, parts of the world, by a
 certain *way*, to accumulate experience and summarize knowledge in ones *brain*
 to fulfill a basic purpose, to *survive*.
 
+The world is run by a clock. It represents how long the kid has been practices
+in the world. The clock is the conventional training step.
+
 The data supplier, such as the data generator in `keras`, or data layer in
 `Caffe`, is abstracted as a class `Sensor`. It takes a `Source` which either
 provides data in form of tensor of Tensorflow or array of numpy. Optionally, it
@@ -39,6 +42,16 @@ Besides, an Observer class could open a brain and look into it, which is to
 mean visualization.
 
 ## Architecture
+
+### Kick start clock
+
+If any training is supposed to done, using the machinery provided `akid`, the
+clock needs to be manually started using the following snippets.
+
+```
+from akid.common import init
+init()
+```
 
 ### Model Abstraction
 
@@ -137,3 +150,26 @@ Every sub-block of a large block should be self-contained. A large block only
 needs minimum amount of information from a sub block. They communicate through
 I/O interfaces. So the hierarchical composition scale up in a distributed way
 and could goes arbitrary deep with manageable complexity.
+
+## Usage Scenario
+
+`akid` provides full machinery from preparing the data, doing data
+augmentation, specifying computation graph (neural network architecture),
+choosing optimization algorithms, specifying training scheme (data parallelism
+etc), and information logging. However, it is possible to use those components
+separately.
+
+### Standalone computational graph
+
+Following the LEGO block design philosophy, it is possible to `Brain` alone to
+just specify the computation graph, and use whatever the data preparation
+machinery of your own. What you need is to pass the data tensors and call
+`setup`. For example
+
+```python
+model = build_brain()
+data, labels = build_input()
+brain.setup([data, labels])
+```
+
+Similar scenarios hold for all classes.

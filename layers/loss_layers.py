@@ -31,6 +31,10 @@ class LossLayer(ProcessingLayer):
 
 
 class SoftmaxWithLossLayer(LossLayer):
+    """
+    This layer supports two types of labels --- scalar label, or dense vector
+    labels. Passing either one type of them will work out of the box.
+    """
     def __init__(self, class_num, **kwargs):
         super(SoftmaxWithLossLayer, self).__init__(**kwargs)
         self.class_num = class_num
@@ -39,17 +43,24 @@ class SoftmaxWithLossLayer(LossLayer):
         logits = data_in[0]
         labels = data_in[1]
 
-        # Set up loss graph.
-        # Convert from sparse integer labels in the range [0, NUM_CLASSSES) to
-        # 1-hot dense float vectors (that is we will have batch_size vectors,
-        # each with NUM_CLASSES values, all of which are 0.0 except there will
-        # be a 1.0 in the entry corresponding to the label).
-        batch_size = tf.size(labels)
-        _labels = tf.expand_dims(labels, 1)
-        indices = tf.expand_dims(tf.range(0, batch_size, 1), 1)
-        concated = tf.concat(1, [indices, _labels])
-        onehot_labels = tf.sparse_to_dense(
-            concated, tf.pack([batch_size, self.class_num]), 1.0, 0.0)
+        label_shape_size = len(labels.get_shape().as_list())
+        if label_shape_size is 1:
+            # Set up loss graph.
+            # Convert from sparse integer labels in the range [0, NUM_CLASSSES)
+            # to 1-hot dense float vectors (that is we will have batch_size
+            # vectors, each with NUM_CLASSES values, all of which are 0.0
+            # except there will be a 1.0 in the entry corresponding to the
+            # label).
+            batch_size = tf.size(labels)
+            _labels = tf.expand_dims(labels, 1)
+            indices = tf.expand_dims(tf.range(0, batch_size, 1), 1)
+            concated = tf.concat(1, [indices, _labels])
+            onehot_labels = tf.sparse_to_dense(
+                concated, tf.pack([batch_size, self.class_num]), 1.0, 0.0)
+        else:
+            # The labels has already been expanded, no need to do it again.
+            onehot_labels = labels
+
         cross_entropy \
             = tf.nn.softmax_cross_entropy_with_logits(logits,
                                                       onehot_labels,
@@ -59,12 +70,20 @@ class SoftmaxWithLossLayer(LossLayer):
         self._loss = cross_entropy_mean
 
         # Set up eval graph.
-        # NOTE: this approach has a bug. If the classifier is so weak, it gives
-        # all equal probability for all classes, then the final accuracy would
-        # be 1, since obviously the desired class is in the top k.
-        correct = tf.nn.in_top_k(logits, labels, 1)
-        # Return the number of true entries.
-        self._eval = tf.reduce_mean(tf.cast(correct, tf.float32), name="acc")
+        if label_shape_size is 1:
+            # NOTE: this approach has a bug. If the classifier is so weak, it
+            # gives all equal probability for all classes, then the final
+            # accuracy would be 1, since obviously the desired class is in the
+            # top k.
+            correct = tf.nn.in_top_k(logits, labels, 1)
+            # Return the number of true entries.
+        else:
+            truth = tf.argmax(labels, dimension=1)
+            predictions = tf.argmax(logits, dimension=1)
+            correct = tf.equal(truth, predictions)
+
+            self._eval = tf.reduce_mean(tf.cast(correct, tf.float32),
+                                        name="acc")
 
 
 class GroupSoftmaxWithLossLayer(GroupSoftmaxLayer, SoftmaxWithLossLayer):

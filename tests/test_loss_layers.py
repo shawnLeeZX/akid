@@ -1,3 +1,5 @@
+import tensorflow as tf
+
 from akid.tests.test import TestCase, main, TestFactory
 from akid import Brain
 from akid.sugar import cnn_block
@@ -8,6 +10,14 @@ from akid.layers import SoftmaxWithLossLayer
 class TestLossLayers(TestCase):
     def setUp(self):
         sugar.init()
+
+    def test_dense_eval(self):
+        labels = tf.constant([[1, 0, 0], [0, 1, 0]], dtype=tf.float32)
+        logits = tf.constant([[1, 2, 0], [1, 2, 0]], dtype=tf.float32)
+        l = SoftmaxWithLossLayer(class_num=3, name="loss")
+        l.setup([logits, labels])
+        with tf.Session():
+            assert l.eval.eval() == 0.5
 
     def test_multiplier(self):
         brain = Brain(name="test_brain")

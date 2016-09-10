@@ -70,6 +70,7 @@
     CLOSED: [2016-07-10 Sun 15:10]
     - State "CANCELLED"  from "TODO"       [2016-07-10 Sun 15:10] \\
       An exception should be raised instead.
+*** TODO Think a better way to pass parameters instead of using dictionary, which is error prone.
 *** TODO Think how to place PaddingLayer and Jokers into the right place
     Currently, PaddingLayer is Child of both ProcessingLayer and
     Joker. Essentially, it should be the child of certain general block.

@@ -14,6 +14,7 @@ from akid.core.sensors import *
 from akid.core.jokers import *
 from akid.core.common import *
 from akid.core.brains import *
+from akid.core import common
 try:
     from akid.core.observer import *
 except ImportError as e:

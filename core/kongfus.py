@@ -8,6 +8,7 @@ import inspect
 import tensorflow as tf
 
 from .common import TRAINING_DYNAMICS_COLLECTION, LEARNING_RATE_TAG
+from .common import global_var_scope, GLOBAL_STEP
 from .blocks import ShadowableBlock
 from ..utils import glog as log
 
@@ -30,6 +31,7 @@ class KongFu(ShadowableBlock):
                  lr_scheme={"name": LearningRateScheme.exp_decay,
                             "base_lr": 0.01,
                             "decay_rate": 0.95,
+                            "num_batches_per_epoch": 468,
                             "decay_epoch_num": 1},
                  **kwargs):
         """
@@ -40,14 +42,19 @@ class KongFu(ShadowableBlock):
             lr_scheme: dict
                  Learning rate scheme to use. Two types are supported for now:
                      1. `exp_decay`: exponential decay. 'base_lr',
-                        'decay_rate', and 'decay_epoch_num' are required
-                        parameters.
+                        'decay_rate' are required parameters. Either
+                        'decay_steps' or 'decay_epoch_num' should be
+                        present. If using 'decay_epoch_num', an additional
+                        parameter 'num_batches_per_epoch' should be passed
+                        in. It is used to convert epoch number to step number.
                      2. `placeholder`: a placeholder that is supposed to pass
                         in by feed dict, so arbitrary hard coded learning rate
                         decay could be used. To use this scheme, you should
                         update `lr_value` of `KongFu` manually, which is
                         normally done by assigning value in some callback
-                        functions.
+                        functions. Alternatively, if you are using `KongFu`
+                        standalone, you need to feed a value to
+                        `KongFu.learning_rate`.
                  See the default value for an example usage.
         """
         # Since normally we do not care what the name of an optimizer is, just
@@ -58,28 +65,28 @@ class KongFu(ShadowableBlock):
         super(KongFu, self).__init__(**kwargs)
         self.lr_scheme = lr_scheme
 
-    def _setup(self, engine, loss):
+    def _setup(self, loss):
         """
-        Build and return training ops.
-
-        Args:
-            engine: Engine
-                A KongFu needs to know who is using it to suit its taste. A
-                engine is passed to provide necessary information such as how
-                many batches are there in a epoch of engine's sensor, and
-                also take away anything that should be held.
+        Build and return training ops according to the loss.
         """
         try:
             if self.lr_scheme["name"] is LearningRateScheme.exp_decay:
                 base_lr = float(self.lr_scheme["base_lr"])
                 decay_rate = self.lr_scheme["decay_rate"]
-                decay_epoch_num = self.lr_scheme["decay_epoch_num"]
+                if "decay_steps" not in self.lr_scheme:
+                    decay_epoch_num = self.lr_scheme["decay_epoch_num"]
+                    num_batches_per_epoch \
+                        = self.lr_scheme("num_batches_per_epoch")
+                    decay_steps = num_batches_per_epoch * decay_epoch_num
+                else:
+                    decay_steps = self.lr_scheme["decay_steps"]
 
-                decay_steps = int(engine.sensor.num_batches_per_epoch_train
-                                  * decay_epoch_num)
+                with tf.variable_scope(global_var_scope, reuse=True):
+                    step = tf.get_variable(GLOBAL_STEP)
+
                 learning_rate = tf.train.exponential_decay(
                     base_lr,
-                    engine.global_step_tensor,
+                    step,
                     decay_steps,
                     decay_rate,
                     staircase=True)
