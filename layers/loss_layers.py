@@ -82,11 +82,11 @@ class SoftmaxWithLossLayer(LossLayer):
             predictions = tf.argmax(logits, dimension=1)
             correct = tf.equal(truth, predictions)
 
-            self._eval = tf.reduce_mean(tf.cast(correct, tf.float32),
-                                        name="acc")
+        self._eval = tf.reduce_mean(tf.cast(correct, tf.float32),
+                                    name="acc")
 
 
-class GroupSoftmaxWithLossLayer(GroupSoftmaxLayer, SoftmaxWithLossLayer):
+class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
     """
     A loss layer that makes use of the group structure in the target classes.
     Group structure here means hidden units in a group is mutually exclusive

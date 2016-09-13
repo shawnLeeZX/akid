@@ -1,4 +1,4 @@
-from akid.tests.test import TestCase, TestFactory, main
+from akid.tests.test import AKidTestCase, TestFactory, main
 from akid import (
     IntegratedSensor,
     FeedSensor,
@@ -17,8 +17,9 @@ from akid.models.brains import AlexNet
 from akid import LearningRateScheme
 
 
-class TestFeedSensor(TestCase):
+class TestFeedSensor(AKidTestCase):
     def setUp(self):
+        super(TestFeedSensor, self).setUp()
         self.brain = TestFactory.get_test_brain()
         source = TestFactory.get_test_feed_source()
         self.sensor = FeedSensor(source_in=source,
@@ -61,8 +62,9 @@ class TestFeedSensor(TestCase):
         kid.practice()
 
 
-class TestIntegratedSensor(TestCase):
+class TestIntegratedSensor(AKidTestCase):
     def setUp(self):
+        super(TestIntegratedSensor, self).setUp()
         # TODO(Shuai): This test is supposed to test on MNIST with
         # integrated sensor instead of using data augmented cifar10.
         self.brain = AlexNet(name="AlexNet")
@@ -90,9 +92,10 @@ class TestIntegratedSensor(TestCase):
             self.brain,
             GradientDescentKongFu(
                 lr_scheme={"name": LearningRateScheme.exp_decay,
-                    "base_lr": 0.1,
-                    "decay_rate": 0.1,
-                    "decay_epoch_num": 350}),
+                           "base_lr": 0.1,
+                           "decay_rate": 0.1,
+                           "num_batches_per_epoch": 391,
+                           "decay_epoch_num": 350}),
             max_steps=1000)
         kid.setup()
 
@@ -105,9 +108,10 @@ class TestIntegratedSensor(TestCase):
             self.brain,
             GradientDescentKongFu(
                 lr_scheme={"name": LearningRateScheme.exp_decay,
-                    "base_lr": 0.1,
-                    "decay_rate": 0.1,
-                    "decay_epoch_num": 350}),
+                           "base_lr": 0.1,
+                           "decay_rate": 0.1,
+                           "num_batches_per_epoch": 391,
+                           "decay_epoch_num": 350}),
             max_steps=200,
             summary_on_val=True)
         kid.setup()

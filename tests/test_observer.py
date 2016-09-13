@@ -1,13 +1,14 @@
 import tensorflow as tf
 
 from akid import Observer
-from akid.tests.test import TestCase, TestFactory, main
+from akid.tests.test import AKidTestCase, TestFactory, main
 from akid.models.brains import OneLayerBrain
 from akid import FeedSensor, MomentumKongFu, Kid
 
 
-class TestObserver(TestCase):
+class TestObserver(AKidTestCase):
     def setUp(self):
+        super(TestObserver, self).setUp()
         brain = OneLayerBrain(do_stat_on_norm=True, name="test_brain")
         source = TestFactory.get_test_feed_source()
 

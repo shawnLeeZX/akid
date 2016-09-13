@@ -1,9 +1,9 @@
-from akid.tests.test import TestCase, main
+from akid.tests.test import AKidTestCase, main
 import tensorflow as tf
 from akid.layers import PaddingLayer
 
 
-class TestCommonLayers(TestCase):
+class TestCommonLayers(AKidTestCase):
     def test_padding(self):
         input = tf.constant(1, shape=[1, 2, 2, 1])
         layer = PaddingLayer(padding=[1, 1])

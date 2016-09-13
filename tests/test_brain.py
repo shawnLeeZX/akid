@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from akid.tests.test import TestCase, TestFactory, main
+from akid.tests.test import AKidTestCase, TestFactory, main
 from akid import Brain, FeedSensor, MomentumKongFu, Kid
 from akid.layers import (
     ConvolutionLayer,
@@ -11,7 +11,7 @@ from akid.layers import (
 )
 
 
-class TestBrain(TestCase):
+class TestBrain(AKidTestCase):
     def test_moving_average(self):
         brain = TestFactory.get_test_brain(using_moving_average=True)
         source = TestFactory.get_test_feed_source()

@@ -92,7 +92,7 @@ class SingleGPUEngine(Engine):
         system_in.extend(label) if type(label) is list \
             else system_in.append(label)
         self.brain.setup(system_in)
-        self.kongfu.setup(self, self.brain.loss)
+        self.kongfu.setup(self.brain.loss)
 
         return self.kongfu.data
 
@@ -273,7 +273,7 @@ class DataParallelEngine(Engine):
                 # Set up KongFu (optimizer).
                 # For now, we do not need to keep track of Kongfu, so just set
                 # it up multiple times.
-                kongfu.setup(self, tower.loss)
+                kongfu.setup(tower.loss)
 
                 # Create the next tower.
                 # Do not do copy at the last tower.

@@ -1,14 +1,15 @@
 import tensorflow as tf
 
-from akid.tests.test import TestCase, main, TestFactory
+from akid.tests.test import AKidTestCase, main, TestFactory
 from akid import Brain
 from akid.sugar import cnn_block
 from akid import sugar
 from akid.layers import SoftmaxWithLossLayer
 
 
-class TestLossLayers(TestCase):
+class TestLossLayers(AKidTestCase):
     def setUp(self):
+        super(TestLossLayers, self).setUp()
         sugar.init()
 
     def test_dense_eval(self):

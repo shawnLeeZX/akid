@@ -1,10 +1,11 @@
-from akid.tests.test import TestCase, main
+from akid.tests.test import AKidTestCase, main
 from akid.examples.mnist import block_mnist
 from akid import sugar
 
 
-class TestTemplate(TestCase):
+class TestTemplate(AKidTestCase):
     def setUp(self):
+        super(TestTemplate, self).setUp()
         sugar.init()
 
     def test_cnn_block(self):

@@ -1,4 +1,4 @@
-from akid.tests.test import TestCase, TestFactory, main
+from akid.tests.test import AKidTestCase, TestFactory, main
 from akid import (
     IntegratedSensor,
     RescaleJoker,
@@ -6,9 +6,10 @@ from akid import (
     GradientDescentKongFu
 )
 from akid.models.brains import AlexNet
+from akid import LearningRateScheme
 
 
-class TestJoker(TestCase):
+class TestJoker(AKidTestCase):
     def test_rescale_joker(self):
         # TODO(Shuai): This test is supposed to test on MNIST with integrated
         # sensor instead of using cifar10.
@@ -26,10 +27,15 @@ class TestJoker(TestCase):
         kid = Kid(
             sensor,
             brain,
-            GradientDescentKongFu(base_lr=0.1,
-                                  decay_rate=0.1,
-                                  decay_epoch_num=350),
+            GradientDescentKongFu(
+                lr_scheme={
+                    "name": LearningRateScheme.exp_decay,
+                    "base_lr": 0.1,
+                    "decay_rate": 0.1,
+                    "num_batches_per_epoch": 391,
+                    "decay_epoch_num": 350}),
             max_steps=2000)
+
         kid.setup()
 
         loss = kid.practice()

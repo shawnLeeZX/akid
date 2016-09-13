@@ -3,12 +3,13 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 
-from akid.tests.test import TestCase, main
+from akid.tests.test import AKidTestCase, main
 from akid.ops import msra_initializer
 
 
-class TestOps(TestCase):
+class TestOps(AKidTestCase):
     def setUp(self):
+        super(TestOps, self).setUp()
         self.graph = tf.Graph()
 
     def test_msra_init_op_conv(self):

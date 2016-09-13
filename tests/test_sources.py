@@ -3,13 +3,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from akid import AKID_DATA_PATH
-from akid.tests.test import TestCase, main
+from akid.tests.test import AKidTestCase, main
 from akid.datasets import Cifar10FeedSource, Cifar10TFSource
 from akid.datasets import Cifar100TFSource
 from akid.datasets import MNISTFeedSource, RotatedMNISTFeedSource
+from akid import LearningRateScheme
 
 
-class TestSource(TestCase):
+class TestSource(AKidTestCase):
     def test_mnist_feed_source(self):
         source = MNISTFeedSource(
             name="MNIST_feed",
@@ -115,9 +116,13 @@ class TestSource(TestCase):
         kid = Kid(
             sensor,
             brain,
-            GradientDescentKongFu(base_lr=0.1,
-                                  decay_rate=0.1,
-                                  decay_epoch_num=350),
+            GradientDescentKongFu(
+                lr_scheme={
+                    "name": LearningRateScheme.exp_decay,
+                    "base_lr": 0.1,
+                    "decay_rate": 0.1,
+                    "num_batches_per_epoch": 391,
+                    "decay_epoch_num": 350}),
             summary_on_val=True,
             max_steps=1000)
         kid.setup()
@@ -144,9 +149,13 @@ class TestSource(TestCase):
         kid = Kid(
             sensor,
             brain,
-            GradientDescentKongFu(base_lr=0.1,
-                                  decay_rate=0.1,
-                                  decay_epoch_num=350),
+            GradientDescentKongFu(
+                lr_scheme={
+                    "name": LearningRateScheme.exp_decay,
+                    "base_lr": 0.1,
+                    "decay_rate": 0.1,
+                    "num_batches_per_epoch": 391,
+                    "decay_epoch_num": 350}),
             summary_on_val=True,
             max_steps=1000)
         kid.setup()
@@ -194,9 +203,13 @@ class TestSource(TestCase):
         kid = Kid(
             sensor,
             brain,
-            GradientDescentKongFu(base_lr=0.1,
-                                  decay_rate=0.1,
-                                  decay_epoch_num=350),
+            GradientDescentKongFu(
+                lr_scheme={
+                    "name": LearningRateScheme.exp_decay,
+                    "base_lr": 0.1,
+                    "decay_rate": 0.1,
+                    "num_batches_per_epoch": 391,
+                    "decay_epoch_num": 350}),
             summary_on_val=True,
             max_steps=2000)
         kid.setup()

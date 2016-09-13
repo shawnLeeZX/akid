@@ -2,15 +2,16 @@ import time
 
 import tensorflow as tf
 
-from akid.tests.test import TestCase, main, TestFactory
+from akid.tests.test import AKidTestCase, main, TestFactory
 from akid import Brain
 from akid.sugar import cnn_block
 from akid import sugar
 from akid.layers import SoftmaxWithLossLayer
 
 
-class TestActivationLayers(TestCase):
+class TestActivationLayers(AKidTestCase):
     def setUp(self):
+        super(TestActivationLayers, self).setUp()
         sugar.init()
 
     def test_group_softmax(self):

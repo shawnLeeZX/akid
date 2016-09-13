@@ -4,10 +4,10 @@ from akid import (
     MomentumKongFu
 )
 
-from akid.tests.test import TestCase, TestFactory, main
+from akid.tests.test import AKidTestCase, TestFactory, main
 
 
-class TestKongFu(TestCase):
+class TestKongFu(AKidTestCase):
     def test_placeholder_lr_scheme(self):
         from akid import LearningRateScheme
         brain = TestFactory.get_test_brain()
@@ -38,13 +38,17 @@ class TestKongFu(TestCase):
         from akid import LearningRateScheme
         brain = TestFactory.get_test_brain()
         source = TestFactory.get_test_feed_source()
+        sensor = FeedSensor(source_in=source, name='data')
         kid = Kid(
-            FeedSensor(source_in=source, name='data'),
+            sensor,
             brain,
-            MomentumKongFu(lr_scheme={"name": LearningRateScheme.exp_decay,
-                                      "base_lr": 0.01,
-                                      "decay_rate": 0.95,
-                                      "decay_epoch_num": 1}),
+            MomentumKongFu(
+                lr_scheme={
+                    "name": LearningRateScheme.exp_decay,
+                    "base_lr": 0.01,
+                    "decay_rate": 0.95,
+                    "num_batches_per_epoch": 468,
+                    "decay_epoch_num": 1}),
             max_steps=900)
 
         kid.setup()

@@ -115,12 +115,12 @@ class Block(object):
         with tf.variable_scope(var_scope) as self.var_scope:
             if not self._skip_pre_post_setup():
                 self._pre_setup()
-            if not self.is_setup:
+            if not self._skip_pre_post_shared_setup():
                 self._pre_setup_shared()
             self._setup(*args, **kwargs)
             if not self._skip_pre_post_setup():
                 self._post_setup()
-            if not self.is_setup:
+            if not self._skip_pre_post_shared_setup():
                 self._post_setup_shared()
 
         self.is_setup = True
@@ -165,6 +165,14 @@ class Block(object):
         of any sub-classes, just override this method.
         """
         return False
+
+    def _skip_pre_post_shared_setup(self):
+        """
+        Whether to skip `_pre_setup_shared` and `_post_setup_shared`. This
+        method serves to provide a finer granularity control in `setup`. To
+        change the behavior of any sub-classes, just override this method.
+        """
+        return self.is_setup
 
     @abc.abstractmethod
     def _setup(self):
@@ -367,6 +375,14 @@ class ProcessingLayer(ShadowableBlock):
             tf.histogram_summary(tag,
                                  var,
                                  collections=[TRAIN_SUMMARY_COLLECTION])
+
+    def _skip_pre_post_shared_setup(self):
+        """
+        Whether to skip `_pre_setup_shared` and `_post_setup_shared`. This
+        method serves to provide a finer granularity control in `setup`. To
+        change the behavior of any sub-classes, just override this method.
+        """
+        return self.is_setup or self.is_val
 
     @property
     def data(self):

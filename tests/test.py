@@ -19,6 +19,11 @@ def main():
     unittest.main()
 
 
+class AKidTestCase(TestCase):
+    def setUp(self):
+        pass
+
+
 class TestFactory(object):
     """
     A top level class for testing `akid`.

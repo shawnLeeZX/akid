@@ -178,22 +178,21 @@ class GraphSystem(LinkedSystem):
                     if input["name"] == "system_in":
                         for i in input["idxs"]:
                             inputs.append(data_in[i])
-                            continue
-
                     # Then look through outputs of setup layers.
-                    for b in self.blocks:
-                        if b.is_setup and b.name == input["name"]:
-                            # If a layer has only one output, directly put that
-                            # data in the input since otherwise, this layer
-                            # won't be listed at all.
-                            if type(b.data) is not list:
-                                inputs.append(b.data)
-                            else:
-                                for i in input["idxs"]:
-                                    inputs.append(b.data[i])
-                            break
+                    else:
+                        for b in self.blocks:
+                            if b.is_setup and b.name == input["name"]:
+                                # If a layer has only one output, directly put
+                                # that data in the input since otherwise, this
+                                # layer won't be listed at all.
+                                if type(b.data) is not list:
+                                    inputs.append(b.data)
+                                else:
+                                    for i in input["idxs"]:
+                                        inputs.append(b.data[i])
+                                break
 
-                    if len(inputs) != input_num + 1:
+                    if len(inputs) != input_num + len(input["idxs"]):
                         raise Exception("{} is not found. You perhaps misspell"
                                         " the layer name.".format(
                                             input["name"]))

@@ -7,10 +7,10 @@ from akid import (
 )
 from akid.models import LeNet
 
-from akid.tests.test import TestCase, TestFactory, main
+from akid.tests.test import AKidTestCase, TestFactory, main
 
 
-class TestEngine(TestCase):
+class TestEngine(AKidTestCase):
     def test_data_parallel(self):
         brain = LeNet(name="LeNet")
         source = MNISTFeedSource(name="MNIST",

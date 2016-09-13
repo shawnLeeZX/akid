@@ -20,9 +20,14 @@ class LearningRateScheme(object):
 
 class KongFu(ShadowableBlock):
     """
-    An top level abstract class to create and hold a training op for a
-    `Kid` to train a network. It uses first order stochastic gradient
-    descent optimization methods.
+    An top level abstract class to compute gradients given a loss.
+
+    All concrete sub-class should save the computed gradients to `_data`, which
+    is exposed by the property `data`. The data should be the return of
+    `tf.train.Optimizer.compute_gradients`, which is a list of (gradient,
+    variable) pairs. Further processing of the gradients could be done anyway
+    you want, such as doing gradient average for data parallelism, or gradient
+    clipping.
 
     Any concrete `KongFu` should implement `_get_optimizer` to provide a
     concrete optimizer.
@@ -69,37 +74,34 @@ class KongFu(ShadowableBlock):
         """
         Build and return training ops according to the loss.
         """
-        try:
-            if self.lr_scheme["name"] is LearningRateScheme.exp_decay:
-                base_lr = float(self.lr_scheme["base_lr"])
-                decay_rate = self.lr_scheme["decay_rate"]
-                if "decay_steps" not in self.lr_scheme:
-                    decay_epoch_num = self.lr_scheme["decay_epoch_num"]
-                    num_batches_per_epoch \
-                        = self.lr_scheme("num_batches_per_epoch")
-                    decay_steps = num_batches_per_epoch * decay_epoch_num
-                else:
-                    decay_steps = self.lr_scheme["decay_steps"]
-
-                with tf.variable_scope(global_var_scope, reuse=True):
-                    step = tf.get_variable(GLOBAL_STEP)
-
-                learning_rate = tf.train.exponential_decay(
-                    base_lr,
-                    step,
-                    decay_steps,
-                    decay_rate,
-                    staircase=True)
-            elif self.lr_scheme["name"] is LearningRateScheme.placeholder:
-                learning_rate = tf.placeholder(tf.float32,
-                                               shape=[],
-                                               name='lrn')
-                self.lr_value = None
+        if self.lr_scheme["name"] is LearningRateScheme.exp_decay:
+            base_lr = float(self.lr_scheme["base_lr"])
+            decay_rate = self.lr_scheme["decay_rate"]
+            if "decay_steps" not in self.lr_scheme:
+                decay_epoch_num = self.lr_scheme["decay_epoch_num"]
+                num_batches_per_epoch \
+                    = self.lr_scheme["num_batches_per_epoch"]
+                decay_steps = num_batches_per_epoch * decay_epoch_num
             else:
-                raise Exception("Learning rate scheme is not supported. Please"
-                                " specify one from `LearningRateScheme`.")
-        except KeyError as e:
-            log.info(e.message)
+                decay_steps = self.lr_scheme["decay_steps"]
+
+            with tf.variable_scope(global_var_scope, reuse=True):
+                step = tf.get_variable(GLOBAL_STEP)
+
+            learning_rate = tf.train.exponential_decay(
+                base_lr,
+                step,
+                decay_steps,
+                decay_rate,
+                staircase=True)
+        elif self.lr_scheme["name"] is LearningRateScheme.placeholder:
+            learning_rate = tf.placeholder(tf.float32,
+                                           shape=[],
+                                           name='lrn')
+            self.lr_value = None
+        else:
+            raise Exception("Learning rate scheme is not supported. Please"
+                            " specify one from `LearningRateScheme`.")
 
         self.learning_rate = learning_rate
         self.opt = self._get_optimizer(learning_rate)

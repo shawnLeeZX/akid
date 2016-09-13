@@ -1,12 +1,13 @@
-from akid.tests.test import TestCase, main, TestFactory
+from akid.tests.test import AKidTestCase, main, TestFactory
 from akid import Brain
 from akid.sugar import cnn_block
 from akid import sugar
 from akid.layers import SoftmaxWithLossLayer
 
 
-class TestSynapseLayers(TestCase):
+class TestSynapseLayers(AKidTestCase):
     def setUp(self):
+        super(TestSynapseLayers, self).setUp()
         sugar.init()
 
     def test_l1_regularization(self):

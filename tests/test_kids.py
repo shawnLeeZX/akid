@@ -6,10 +6,10 @@ from akid import (
     MomentumKongFu
 )
 
-from akid.tests.test import TestCase, TestFactory, main
+from akid.tests.test import AKidTestCase, TestFactory, main
 
 
-class TestKid(TestCase):
+class TestKid(AKidTestCase):
     def test_core(self):
         brain = TestFactory.get_test_brain()
         source = TestFactory.get_test_feed_source()

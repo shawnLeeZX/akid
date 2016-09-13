@@ -2,6 +2,7 @@ from akid.sugar.block_templates import cnn_block
 from akid import AKID_DATA_PATH
 from akid import Brain, MNISTFeedSource, FeedSensor, Kid, MomentumKongFu
 from akid.layers import SoftmaxWithLossLayer
+from akid import LearningRateScheme
 
 
 def setup(bn=None, activation_before_pooling=False):
@@ -64,16 +65,22 @@ def setup(bn=None, activation_before_pooling=False):
                              center=True,
                              scale=True)
 
-    kid = Kid(FeedSensor(name='data',
-                              source_in=source,
-                              batch_size=64,
-                              val_batch_size=100),
-                   brain,
-                   MomentumKongFu(momentum=0.9,
-                                  base_lr=0.01,
-                                  decay_rate=0.95,
-                                  decay_epoch_num=1),
-                   max_steps=4000)
+    sensor = FeedSensor(name='data',
+                        source_in=source,
+                        batch_size=64,
+                        val_batch_size=100)
+    kid = Kid(
+        sensor,
+        brain,
+        MomentumKongFu(
+            lr_scheme={
+                "name": LearningRateScheme.exp_decay,
+                "base_lr": 0.01,
+                "decay_rate": 0.95,
+                "num_batches_per_epoch": 468,
+                "decay_epoch_num": 1},
+            momentum=0.9),
+        max_steps=4000)
     kid.setup()
 
     return kid

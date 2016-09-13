@@ -4,17 +4,8 @@ This module holds common stuffs of all, such as global constants.
 import tensorflow as tf
 import inspect
 
-# The name assigned to the current training step. It is used to create
-# universal access to current training step. This is similar to clock in a
-# computer, but in distributed system, such synchronized clock should not
-# exist, but it could understand as physical time, meaning how long this
-# kid has been trained or born.
-GLOBAL_STEP = "step"
-# The associated variable scope.
-with tf.variable_scope("global") as global_var_scope:
-    pass
-
 # Graph collection names
+# #########################################################################
 TRAIN_SUMMARY_COLLECTION = "train_summary"
 VALID_SUMMARY_COLLECTION = "val_summary"
 FILTER_WEIGHT_COLLECTION = "filter_weight"
@@ -30,12 +21,25 @@ AUXILLIARY_SUMMARY_COLLECTION = "auxiliary_summary"
 AUXILLIARY_STAT_COLLECTION = "auxiliary_stat"
 
 # Global constants
+# #########################################################################
 # Shared seed for all involved randomness.
 SEED = 66478  # Set to None for random seed.
 # Manually named tag names.
 LEARNING_RATE_TAG = "Learning Rate"
 # tag suffixes
 SPARSITY_SUMMARY_SUFFIX = "sparsity"
+
+# Clock (global step)
+# # #######################################################################
+# The name assigned to the current training step. It is used to create
+# universal access to current training step. This is similar to clock in a
+# computer, but in distributed system, such synchronized clock should not
+# exist, but it could understand as physical time, meaning how long this
+# kid has been trained or born.
+GLOBAL_STEP = "step"
+# The associated variable scope.
+with tf.variable_scope("global") as global_var_scope:
+    pass
 
 
 def init():

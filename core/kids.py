@@ -14,6 +14,7 @@ from ..utils import glog as log
 from . import sensors
 from . import engines
 from .kongfus import LearningRateScheme
+from . import common
 from .common import (
     TRAIN_SUMMARY_COLLECTION,
     VALID_SUMMARY_COLLECTION,
@@ -256,6 +257,8 @@ class Kid(object):
         Set up logging and the computation graph.
         """
         with self.graph.as_default():
+            common.init()
+            self.global_step_tensor = common.global_step_tensor
             self._setup_log()
             self._setup_sensor()
             self._setup_engine()
@@ -396,8 +399,6 @@ class Kid(object):
                 folder named `model` must exist under `Kid`'s `log_dir`
                 with saved models.
         """
-        self.global_step_tensor = self.engine.global_step_tensor
-
         # Initialization.
         if continue_from_chk_point:
             # Train from pre-trained model.
