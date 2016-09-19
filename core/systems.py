@@ -192,7 +192,11 @@ class GraphSystem(LinkedSystem):
                                         inputs.append(b.data[i])
                                 break
 
-                    if len(inputs) != input_num + len(input["idxs"]):
+                    if "idxs" not in input:
+                        input_inc = 1
+                    else:
+                        input_inc = len(input["idxs"])
+                    if len(inputs) != input_num + input_inc:
                         raise Exception("{} is not found. You perhaps misspell"
                                         " the layer name.".format(
                                             input["name"]))
