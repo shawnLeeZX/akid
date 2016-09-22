@@ -1,6 +1,15 @@
+# Welcome to akid's documentation!
+
 `akid` is a python package written for doing research in Neural Network.
 
 The name comes from the Kid saved by Neo in *Matrix*.
+
+Contents:
+
+```eval_rst
+.. toctree::
+   :maxdepth: 2
+```
 
 ## Introduction
 

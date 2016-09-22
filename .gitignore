@@ -2,3 +2,4 @@ data
 log
 *.sw[op]
 *.pyc
+/docs/_build/
