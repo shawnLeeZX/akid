@@ -60,11 +60,22 @@ def on_val_log_step(kid):
                 simple_value=v)
         kid.summary_writer.add_summary(summary, kid.step)
     # Log.
+
+    # Log current validation.
     name_to_print = [g.op.name for g in kid.engine.eval(get_val=True)]
     eval_value_to_print = ["%0.04f" % v for v in kid.evals]
     eval_to_print = dict(zip(name_to_print, eval_value_to_print))
     log.info('  Num examples: {}  Evals : {}'.format(
         kid.sensor.source.num_val, eval_to_print))
+
+    # Log current best validation.
+    name_to_print = [g.op.name + '_best'
+                     for g in kid.engine.eval(get_val=True)]
+    eval_value_to_print = ["%0.04f" % v for v in kid.best_val_evals]
+    eval_to_print = dict(zip(name_to_print, eval_value_to_print))
+    log.info('Current best evals : {}'.format(eval_to_print))
+
+    # Loss.
     log.info('  Step %d: Validation loss = %.2f' % (kid.step, kid.loss_value))
 
 

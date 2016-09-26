@@ -212,13 +212,16 @@ class Kid(object):
         self.feed_dict = None
         self.loss_value = None
         self.evals = None
+        self.best_val_evals = None
 
     def validate(self):
         """Evaluating on validation set.
 
         Return:
             loss: float
-                The validation loss.
+                The validation loss. Note that though only loss is returned,
+                `Kid`'s reference to evaluation metrics and loss are both
+                updated.
         """
         log.info('Validation Data Eval:')
 
@@ -502,6 +505,14 @@ class Kid(object):
         """
         Call hooks at the time when the kid should do logging for validation.
         """
+        # Update the best validation evaluation results.
+        if self.best_val_evals:
+            for i, e in enumerate(self.evals):
+                if self.best_val_evals[i] < e:
+                    self.best_val_evals[i] = e
+        else:
+            self.best_val_evals = list(self.evals)
+
         for func in self.hooks.on_val_log:
             func(self)
 
