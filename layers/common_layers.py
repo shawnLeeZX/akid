@@ -97,7 +97,6 @@ class MergeLayer(ProcessingLayer):
     Merge layers with the same shape by element-wise addition.
     """
     def _setup(self, inputs):
-        print inputs
         shape = inputs[0].get_shape().as_list()
         for t in inputs:
             assert t.get_shape().as_list() == shape

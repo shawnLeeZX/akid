@@ -2,6 +2,7 @@ import sys
 import inspect
 
 import tensorflow as tf
+from tensorflow.python.training import moving_averages
 
 from ..utils import glog as log
 from ..core.blocks import ProcessingLayer
@@ -212,14 +213,22 @@ class BatchNormalizationLayer(ProcessingLayer):
                  gamma_init=1,
                  fix_gamma=False,
                  share_gamma=False,
+                 use_reference_bn=False,
                  **kwargs):
         super(BatchNormalizationLayer, self).__init__(**kwargs)
         self.beta_init = float(beta_init)
         self.gamma_init = float(gamma_init)
         self.fix_gamma = fix_gamma
         self.share_gamma = share_gamma
+        self.use_reference_bn = use_reference_bn
 
     def _setup(self, input):
+        if self.use_reference_bn:
+            log.info("Using reference BN. `beta_init` is fixed to 0;"
+                     " `gamma_init` to 1.")
+            self._data = self._ref_batch_norm(input)
+            return
+
         # Logging.
         if self.gamma_init:
             log.info("Gamma initial value is {}.".format(self.gamma_init))
@@ -310,6 +319,60 @@ class BatchNormalizationLayer(ProcessingLayer):
                 name=BatchNormalizationLayer.NAME)
 
         return bn_input
+
+    def _ref_batch_norm(self, x):
+        """
+        Batch normalization from
+        https://github.com/tensorflow/models/tree/master/resnet.
+
+        It is introduced here for debugging purpose --- to see whether my
+        implementation is wrong or not.
+        """
+        params_shape = [x.get_shape()[-1]]
+
+        beta = self._get_variable(
+            'beta',
+            params_shape,
+            initializer=tf.constant_initializer(0.0, tf.float32))
+        gamma = tf.get_variable(
+            'gamma',
+            params_shape,
+            initializer=tf.constant_initializer(1.0, tf.float32))
+
+        if not self.is_val:
+            mean, variance = tf.nn.moments(x, [0, 1, 2], name='moments')
+
+            moving_mean = self._get_variable(
+                'moving_mean', params_shape,
+                initializer=tf.constant_initializer(0.0, tf.float32),
+                trainable=False)
+            moving_variance = tf.get_variable(
+                'moving_variance', params_shape, tf.float32,
+                initializer=tf.constant_initializer(1.0, tf.float32),
+                trainable=False)
+
+            self._train_op = []
+            self._train_op.append(moving_averages.assign_moving_average(
+                moving_mean, mean, 0.9))
+            self._train_op.append(moving_averages.assign_moving_average(
+                moving_variance, variance, 0.9))
+        else:
+            mean = self._get_variable(
+                'moving_mean',
+                params_shape,
+                initializer=tf.constant_initializer(0.0, tf.float32),
+                trainable=False)
+            variance = tf.get_variable(
+                'moving_variance',
+                params_shape,
+                initializer=tf.constant_initializer(1.0, tf.float32),
+                trainable=False)
+
+        # elipson used to be 1e-5. Maybe 0.001 solves NaN problem in deeper
+        # net.
+        y = tf.nn.batch_normalization(x, mean, variance, beta, gamma, 0.001)
+        y.set_shape(x.get_shape())
+        return y
 
 
 class DropoutLayer(ProcessingLayer):

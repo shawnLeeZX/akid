@@ -139,6 +139,7 @@ class Brain(GraphSystem, ProcessingLayer):
         self._setup_graph(data_in)
         self._gather_loss_graphs()
         self._gather_eval_graphs()
+        self._gather_train_ops()
 
     def _setup_graph(self, data_in):
         """
@@ -173,6 +174,22 @@ class Brain(GraphSystem, ProcessingLayer):
                     eval_graph_list.append(b.eval)
 
         self._eval = eval_graph_list
+
+    def _gather_train_ops(self):
+        """
+        Gather all train ops in all blocks in this brain.
+
+        `self.train_op` points to a list.
+        """
+        train_op_list = []
+        for b in self.blocks:
+            if b.train_op is not None:
+                if type(b.train_op) is list:
+                    train_op_list.extend(b.train_op)
+                else:
+                    train_op_list.append(b.train_op)
+
+        self._train_op = train_op_list
 
     def _post_setup(self):
         if self.do_summary:

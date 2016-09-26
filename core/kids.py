@@ -263,6 +263,13 @@ class Kid(object):
             self._setup_sensor()
             self._setup_engine()
             self._setup_summary()
+            # Group train ops.
+            if type(self.brain.train_op) is list:
+                train_op_list = list(self.brain.train_op)
+            else:
+                train_op_list = [self.brain.train_op]
+            train_op_list.append(self.engine.train_op)
+            self.train_op = tf.group(*train_op_list)
             self.saver = tf.train.Saver(tf.all_variables())
             if self.sess is None:
                 config = tf.ConfigProto(allow_soft_placement=True)
@@ -476,7 +483,7 @@ class Kid(object):
 
         self.fill_train_feed_dict()
 
-        fetch = [self.engine.train_op, self.engine.loss()]
+        fetch = [self.train_op, self.engine.loss()]
         fetch.extend(self.engine.eval())
         start_time = time.time()
         result = self.sess.run(fetch, feed_dict=self.feed_dict)

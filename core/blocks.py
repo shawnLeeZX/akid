@@ -422,7 +422,18 @@ class ProcessingLayer(ShadowableBlock):
         else:
             return None
 
-    def _get_variable(self, name, shape, initializer):
+    @property
+    def train_op(self):
+        """
+        Ops that need called along with the top level train op. Sub-class
+        should save the train op to `_train_op`.
+        """
+        if hasattr(self, "_train_op"):
+            return self._train_op
+        else:
+            return None
+
+    def _get_variable(self, name, shape, initializer, trainable=True):
         """
         Allocate or retrieve tensorflow variables. If the variable has already
         existed, depending on `moving_average_decay`'s value, moving average of
@@ -431,7 +442,10 @@ class ProcessingLayer(ShadowableBlock):
         to `tf.get_variable()` to the details of a shared variable in
         tensorflow.
         """
-        var = tf.get_variable(name, shape, initializer=initializer)
+        var = tf.get_variable(name,
+                              shape,
+                              initializer=initializer,
+                              trainable=trainable)
 
         if self.is_setup:
             if self.moving_average_decay:
