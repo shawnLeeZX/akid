@@ -365,7 +365,7 @@ class ResNet(Brain):
             self.wd = {"type": "l2", "scale": 5e-4}
         else:
             act_before_residual = [True, False, False]
-            self.wd = {"type": "l2", "scale": 0.002}
+            self.wd = {"type": "l2", "scale": 0.0002}
 
         self.attach(ConvolutionLayer([3, 3],
                                      [1, 1, 1, 1],
