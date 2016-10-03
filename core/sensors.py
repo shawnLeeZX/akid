@@ -1,3 +1,27 @@
+"""
+The interface between nature and an (artificial) signal processing system,
+saying a brain, is a `Sensor`. It does data augmentation (if needed), and
+batches datum from `Source`.
+
+Strictly speaking, the functional role of a sensor is to convert the signal in
+the natural form to a form the data processing engine, which is the brain in
+this case, could process. It is a Analog/Digital converter. However, the input
+from `Source` is already in digital form, so this function is not there
+anymore. But the data batching, augmentation and so on could still be put in
+preprocessing. Thus we still use the name sensor for concept reuse.
+
+Mathematically, it is a system made up with a series of linked blocks that do
+data augmentation.
+
+As an example, again saying in supervised setting, a sensor is a block that
+takes a data source and output sensed (batched and augmented) data. A sensor
+needs to be used along with a source. A concrete example could be the sensor
+for the MNIST dataset. Taking a `Source`, we could make a sensor::
+
+      sensor = FeedSensor(name='data', source_in=source)
+
+The type of a sensor must match that of a source.
+"""
 from __future__ import absolute_import, division, print_function
 
 import sys
@@ -17,16 +41,6 @@ class Sensor(Block):
     """
     The top level abstract sensor to preprocessing raw data received from
     `Source`, such as batching, data augmentation etc.
-
-    Physically speaking, the functional role of a sensor is to convert the
-    signal in the natural form to a form the data processing engine, which is
-    the brain in this case, could process. It is a Analog/Digital
-    converter. However, the input from `Source` is already in digital form, so
-    this function is not there anymore. But the data batching, augmentation and
-    so on could still be put in preprocessing. Thus we still use the name
-    sensor for concept reuse.
-
-    Mathematically, it is a series of linked blocks doing data augmentation.
     """
     __metaclass__ = abc.ABCMeta
 

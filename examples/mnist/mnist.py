@@ -16,8 +16,8 @@ source = MNISTFeedSource(name="MNIST",
                          num_val=10000)
 
 s = Kid(FeedSensor(name='data', source_in=source),
-             brain,
-             MomentumKongFu())
+        brain,
+        MomentumKongFu())
 s.setup()
 
 s.practice()

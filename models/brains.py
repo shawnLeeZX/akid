@@ -412,16 +412,16 @@ class ResNet(Brain):
         if h_loss:
             self.attach(SoftmaxWithLossLayer(
                 class_num=class_num,
-                multiplier = sub_class_multiplier_ratio,
+                multiplier=sub_class_multiplier_ratio,
                 inputs=[{"name": "ip"},
                         {"name": "system_in", "idxs": [2]}],
                 name="softmax"))
             self.attach(CollapseOutLayer(group_size=5,
-                type="average_out",
-                inputs=[
-                    {"name": "ip"}
-                ],
-                name="average_out"))
+                                         type="average_out",
+                                         inputs=[
+                                             {"name": "ip"}
+                                         ],
+                                         name="average_out"))
             self.attach(SoftmaxWithLossLayer(
                 class_num=20,
                 multiplier=1-sub_class_multiplier_ratio,

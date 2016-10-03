@@ -1,12 +1,38 @@
 """
-This module holds classes to model various kinds of data source a
-`Sensor` may take as an input.
+Signals propagated in nature are all abstracted as a source. For instance, an
+light source (which could be an image source or video source), an audio source,
+etc.
 
-Some `Source`s only define more abstract methods, while some override
-constructor method, since it needs more parameters. To create a concrete
-`Source`, you use multiple inheritance to compose the `Source` you needs. The
-first super class should be the one with the constructor you want, or in other
-word, the one with the most complete parameters.
+As an example, saying in supervised setting, a source is a block that takes no
+inputs (since it is a source), and outputs data. A concrete example could be
+the source for the MNIST dataset::
+
+    source = MNISTFeedSource(name="MNIST",
+                            url='http://yann.lecun.com/exdb/mnist/',
+                            work_dir=AKID_DATA_PATH + '/mnist',
+                            center=True,
+                            scale=True,
+                            num_train=50000,
+                            num_val=10000)
+
+The above code creates a source for MNIST. It is supposed to provide data for
+placeholders of tensorflow through method `get_batch`. Say::
+
+    source.get_batch(100, get_val=False)
+
+would return a tuple of numpy array of `(images, labels)`.
+
+It could be used standalone, or passed to a `Sensor`.
+
+Developer Note
+================
+
+A top level abstract class `Source` implements basic semantics of a natural
+source. Other abstract classes keep implementing more concrete
+sources. Abstract `Source` s need to be inherited and abstract methods
+implemented before it could be used. To create a concrete `Source`, you could
+use multiple inheritance to compose the `Source` you needs. Available sources
+are kept under module `sources`.
 """
 import abc
 import sys
@@ -288,6 +314,10 @@ class TFSource(StaticSource):
     """
     An abstract class that uses Reader Op of tensorflow to supply data.
 
+    It takes no inputs, and outputs four tensors --- training data, validation
+    data, training labels, validation labels. Due to its clear semantics, each
+    of those tensors is a property (instead of a list of tensors).
+
     Since normally usage of `TFSource` accompanies with data augmentation, and
     the way data augmentation works at the granularity of one sample, so
     `_setup` of `TFSource` should initialized `training_datum` and `val_datum`
@@ -433,5 +463,11 @@ class ClassificationTFSource(TFSource, SupervisedSource):
         writer.close()
 
 
-__all__ = [name for name, x in locals().items() if
-           not inspect.ismodule(x) and not inspect.isabstract(x)]
+# TODO:
+# The following lines are for a cleaner namespace for akid, since those
+# modules, classes are introduced to akid by import *. However, if I do this,
+# sphinx cannot find those classes as well. I think I should manual type in
+# what classes I want in __all__. This change is cascaded --- all inspect code
+# are deleted in all modules; no TODO in those places anymore..
+# __all__ = [name for name, x in locals().items() if
+#            not inspect.ismodule(x) and not inspect.isabstract(x)]

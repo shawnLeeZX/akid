@@ -1,5 +1,31 @@
 """
-This module contains network models.
+A brain is the data processing engine to process data supplied by `Sensor` to
+fulfill certain tasks. More specifically,
+
+* it builds up blocks to form an arbitrary network
+* offers sub-graphs for inference, loss, evaluation, summaries (TODO)
+
+To use a brain, feed in data as a list, as how it is done in any other
+blocks. Some pre-specified brains are available under `akid.models.brains`. An
+example could be::
+
+    # ... first get a feed sensor
+    sensor.setup()
+    brain = OneLayerBrain(name="brain")
+    input = [sensor.data(), sensor.labels()]
+    brain.setup(input)
+
+Note in this case, `data()` and `labels()` of `sensor` returns tensors. It is
+not always the case. If it does not, saying return a list of tensors, you need
+do things like::
+
+    input = [sensor.data()]
+    input.extend(sensor.labels())
+
+Act accordingly.
+
+TODO: write how to attach layers.
+
 """
 from __future__ import absolute_import, division, print_function
 
@@ -16,12 +42,18 @@ from ..utils import glog as log
 
 class Brain(GraphSystem, ProcessingLayer):
     """
-    Class `Brain` is the data processing engine to process data supplied by
-    `Sensor` to fulfill certain tasks. More specifically,
-    * it builds up blocks to form a network
-    * offers sub-graphs for inference, loss, evaluation
-    * does statistical summary
-    * visualization of data, filters and feature maps
+    A concrete class to build signal processing system (specifically neural
+    network).
+
+    To use the input data in a block using `inputs`, its name is
+    "system_in". For example, say that the following layer uses the labels
+    passed in::
+
+        brain.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[{"name": "ip1", "idxs": [0]},
+                    {"name": "system_in", "idxs": [1]}],
+            name="loss"))
 
     `Brain` supports variable sharing layer copy. By calling `get_copy` of the
     brain and call `setup` again, you will get a brain with the same
@@ -29,10 +61,6 @@ class Brain(GraphSystem, ProcessingLayer):
 
     Note if `do_summary` and `moving_average_decay` are specified, it would
     override that option of any layers attached to this brain.
-
-    For now, this net is a sequentially built, non-branch, one loss at the top
-    layer network. Also, how stat summaries are gathered only works layers with
-    one output for now.
     """
     def __init__(self, do_stat_on_norm=False, **kwargs):
         """

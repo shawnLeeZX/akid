@@ -1,5 +1,11 @@
 """
-This module holds layers to build up a neural network.
+Block is the foundation of `akid`. Everything is a `Block` in `akid`, even data
+source is a block, since input data are just signals propagate
+outside. Compared with pure symbol computation approach, like the one in
+tensorflow, a block is able to contain states associated with this processing
+unit. Signals are passed between blocks in form of tensors or list of tensors.
+
+Call `setup` of each block before using it.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -19,12 +25,9 @@ from .common import (
 
 class Block(object):
     """
-    Abstract class for an arbitrary block.
-
-    It models the general data processing process. The behavior of a block is
-    supposed to take arbitrary number of inputs and output arbitrary number of
-    outputs. `Source`, `Sensor`, `ProcessingLayer`, `LossLayer` and
-    `ProcessingSystem` etc are all sub-classes of this class.
+    Abstract class for an arbitrary block. `Source`, `Sensor`,
+    `ProcessingLayer`, `LossLayer` and `ProcessingSystem` etc are all
+    sub-classes of this class.
 
     A `Block` should try to implement most of its functionality only with what
     it owns, and ask for communication(which in implementation is to provide
