@@ -41,6 +41,24 @@ extensions = [
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
+# Mock out dependency
+# #######################################################################
+import mock
+
+MOCK_MODULES = ['numpy',
+                'scipy',
+                'matplotlib',
+                'gflags',
+                'matplotlib.pyplot',
+                'tensorflow',
+                'tensorflow.python',
+                'tensorflow.python.ops',
+                'tensorflow.python.ops.image_ops',
+                'tensorflow.python.training',
+                'tensorflow.python.framework']
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = mock.Mock()
+
 # Enable markdown support
 # #########################################################################
 # Enable AutoStructify, so rst directives could be include using

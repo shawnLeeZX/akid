@@ -37,15 +37,19 @@ SPARSITY_SUMMARY_SUFFIX = "sparsity"
 # exist, but it could understand as physical time, meaning how long this
 # kid has been trained or born.
 GLOBAL_STEP = "step"
-# The associated variable scope.
-with tf.variable_scope("global") as global_var_scope:
-    pass
+# Variable scope for globally shared tensors. Call `init` to initialized it.
+global_var_scope = None
 
 
 def init():
     """
     Kick start the world clock.
     """
+    # Create the global variable scope.
+    global global_var_scope
+    with tf.variable_scope("global") as global_var_scope:
+        pass
+
     with tf.variable_scope(global_var_scope):
         global global_step_tensor
         global_step_tensor = tf.get_variable(
