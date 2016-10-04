@@ -2,6 +2,23 @@
 
 Currently, `akid` only supports installing from the source.
 
+## Dependency
+
+`akid` depends on some regular numerical libraries. If you are using `pip`, you
+could install them as the following:
+
+```bash
+pip install numpy, scipy, matplotlib, gflags
+```
+
+Follow the official installation
+[guide](https://www.tensorflow.org/versions/r0.10/get_started/os_setup.html) to
+install tensorflow.
+
+NOTE: the newest tensorflow `0.11.0rc0` seems to have a bug wit `akid`, perhaps
+it is a general bug. Install version `0.10.0` at this time. The link above
+already points to version `0.10.0`.
+
 ## Install from the source
 
 ### Clone the repository
