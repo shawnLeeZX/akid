@@ -20,6 +20,12 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('../..'))
 
+print "Docs are in " + os.path.abspath('.')
+print "Parent folder: " + os.path.abspath('..')
+print "Keep going upward: " + os.path.abspath('../..')
+print "Keep going upward: " + os.path.abspath('../../..')
+print "Keep going upward: " + os.path.abspath('../../../..')
+
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
