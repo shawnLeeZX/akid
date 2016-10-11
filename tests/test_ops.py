@@ -3,7 +3,7 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 
-from akid.tests.test import AKidTestCase, main
+from akid.utils.test import AKidTestCase, main
 from akid.ops import msra_initializer
 
 

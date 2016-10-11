@@ -8,7 +8,7 @@ import inspect
 import tensorflow as tf
 
 from .common import TRAINING_DYNAMICS_COLLECTION, LEARNING_RATE_TAG
-from .common import global_var_scope, GLOBAL_STEP
+from . import common
 from .blocks import ShadowableBlock
 from ..utils import glog as log
 
@@ -85,8 +85,8 @@ class KongFu(ShadowableBlock):
             else:
                 decay_steps = self.lr_scheme["decay_steps"]
 
-            with tf.variable_scope(global_var_scope, reuse=True):
-                step = tf.get_variable(GLOBAL_STEP)
+            with tf.variable_scope(common.global_var_scope, reuse=True):
+                step = tf.get_variable(common.GLOBAL_STEP)
 
             learning_rate = tf.train.exponential_decay(
                 base_lr,

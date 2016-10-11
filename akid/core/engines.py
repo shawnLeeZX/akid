@@ -6,7 +6,7 @@ import abc
 import tensorflow as tf
 
 from .common import TRAINING_DYNAMICS_COLLECTION
-from .common import GLOBAL_STEP, global_var_scope
+from . import common
 from ..utils import glog as log
 
 
@@ -31,9 +31,6 @@ class Engine(object):
         self.brain = kid.brain
         self.kongfu = kid.kongfu
         self.val_brain = kid.val_brain
-
-        with tf.variable_scope(global_var_scope, reuse=True):
-            self.global_step_tensor = tf.get_variable(GLOBAL_STEP)
 
     @abc.abstractmethod
     def loss(self, get_val=False):
@@ -60,7 +57,7 @@ class Engine(object):
 
     def _post_setup_train(self, grads):
         apply_grad_op = self.kongfu.opt.apply_gradients(
-            grads, global_step=self.global_step_tensor)
+            grads, global_step=common.global_step_tensor)
 
         with tf.control_dependencies([apply_grad_op]):
             self.brain.on_batch_finishes()

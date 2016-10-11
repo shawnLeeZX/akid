@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from akid import Observer
-from akid.tests.test import AKidTestCase, TestFactory, main
+from akid.utils.test import AKidTestCase, TestFactory, main
 from akid.models.brains import OneLayerBrain
 from akid import FeedSensor, MomentumKongFu, Kid
 

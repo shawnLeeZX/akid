@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from akid.tests.test import AKidTestCase, TestFactory, main
+from akid.utils.test import AKidTestCase, TestFactory, main
 from akid import Brain, FeedSensor, MomentumKongFu, Kid
 from akid.layers import (
     ConvolutionLayer,

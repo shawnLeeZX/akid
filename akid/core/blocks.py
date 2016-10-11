@@ -15,7 +15,7 @@ import copy
 import tensorflow as tf
 
 from ..utils import glog as log
-from .common import GLOBAL_STEP, global_var_scope
+from . import common
 from .common import (
     TRAIN_SUMMARY_COLLECTION,
     VALID_SUMMARY_COLLECTION,
@@ -292,8 +292,8 @@ class ProcessingLayer(ShadowableBlock):
             # We pass current training step to moving average to speed up
             # updates moving average of variables at the beginning of the
             # training since moving average is useful only later.
-            with tf.variable_scope(global_var_scope, reuse=True):
-                step = tf.get_variable(GLOBAL_STEP)
+            with tf.variable_scope(common.global_var_scope, reuse=True):
+                step = tf.get_variable(common.GLOBAL_STEP)
             self.moving_averages = tf.train.ExponentialMovingAverage(
                 self.moving_average_decay, step)
 

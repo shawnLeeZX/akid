@@ -7,7 +7,7 @@ from akid import (
 )
 from akid.models import LeNet
 
-from akid.tests.test import AKidTestCase, TestFactory, main
+from akid.utils.test import AKidTestCase, TestFactory, main
 
 
 class TestEngine(AKidTestCase):

@@ -1,4 +1,4 @@
-from akid.tests.test import AKidTestCase, main
+from akid.utils.test import AKidTestCase, main
 from akid.examples.mnist import block_mnist
 from akid import sugar
 

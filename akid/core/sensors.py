@@ -160,17 +160,19 @@ class Sensor(Block):
         """
         self.source.setup()
 
-        log.info("Setting up training data ... ")
+        log.info("Setting up training sensor ... ")
         if issubclass(type(self.source), sources.SupervisedSource):
             self.training_data, self.training_labels \
                 = self._setup_training_data()
         else:
             self.training_data = self._setup_training_data()
-        log.info("Setting up val data ... ")
+        log.info("Setting up val sensor ... ")
         if issubclass(type(self.source), sources.SupervisedSource):
             self.val_data, self.val_labels = self._setup_val_data()
         else:
             self.val_data = self._setup_val_data()
+
+        log.info("Finished setting up sensor.")
 
 
 class ShuffleQueueSensor(Sensor):

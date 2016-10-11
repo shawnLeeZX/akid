@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from akid import AKID_DATA_PATH
-from akid.tests.test import AKidTestCase, main
+from akid.utils.test import AKidTestCase, main
 from akid.datasets import Cifar10FeedSource, Cifar10TFSource
 from akid.datasets import Cifar100TFSource
 from akid.datasets import MNISTFeedSource, RotatedMNISTFeedSource

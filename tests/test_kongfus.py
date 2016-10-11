@@ -4,7 +4,7 @@ from akid import (
     MomentumKongFu
 )
 
-from akid.tests.test import AKidTestCase, TestFactory, main
+from akid.utils.test import AKidTestCase, TestFactory, main
 
 
 class TestKongFu(AKidTestCase):

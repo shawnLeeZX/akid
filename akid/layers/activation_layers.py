@@ -6,7 +6,7 @@ from tensorflow.python.training import moving_averages
 
 from ..utils import glog as log
 from ..core.blocks import ProcessingLayer
-from ..core.common import SEED, GLOBAL_STEP, global_var_scope
+from ..core import common
 
 
 class PoolingLayer(ProcessingLayer):
@@ -267,8 +267,8 @@ class BatchNormalizationLayer(ProcessingLayer):
         # accumulation effect of merge layers, though it does not work not well
         # to remove the effect for ResNet. To achieve this, we use the
         # mechanism provided by tensorflow, by passing current step in.
-        with tf.variable_scope(global_var_scope, reuse=True):
-            step = tf.get_variable(GLOBAL_STEP)
+        with tf.variable_scope(common.global_var_scope, reuse=True):
+            step = tf.get_variable(common.GLOBAL_STEP)
         ema = tf.train.ExponentialMovingAverage(0.9, step)
 
         ema_apply_op = ema.apply([mean, variance])
@@ -384,7 +384,7 @@ class DropoutLayer(ProcessingLayer):
         if self.is_val:
             self._data = tf.identity(input)
         else:
-            self._data = tf.nn.dropout(input, self.keep_prob, seed=SEED)
+            self._data = tf.nn.dropout(input, self.keep_prob, seed=common.SEED)
 
 
 __all__ = [name for name, x in locals().items() if not inspect.ismodule(x)]

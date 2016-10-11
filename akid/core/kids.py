@@ -370,7 +370,6 @@ class Kid(object):
 
     def _setup_sensor(self):
         # Build training graph.
-        log.info("Setting up sensor ...")
         self.sensor.setup()
 
     def _setup_engine(self):

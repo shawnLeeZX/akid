@@ -1,4 +1,4 @@
-from akid.tests.test import AKidTestCase, main, TestFactory
+from akid.utils.test import AKidTestCase, main, TestFactory
 from akid import Brain
 from akid.sugar import cnn_block
 from akid import sugar

@@ -1,4 +1,4 @@
-from akid.tests.test import AKidTestCase, main
+from akid.utils.test import AKidTestCase, main
 import tensorflow as tf
 from akid.layers import PaddingLayer
 

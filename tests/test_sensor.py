@@ -1,4 +1,4 @@
-from akid.tests.test import AKidTestCase, TestFactory, main
+from akid.utils.test import AKidTestCase, TestFactory, main
 from akid import (
     IntegratedSensor,
     FeedSensor,
