@@ -358,7 +358,7 @@ class Observer(object):
 
         return feed_dict
 
-    def _heatmap_to_file(self, img,  title, filename, fig_size=None):
+    def _heatmap_to_file(self, img,  title, filename, fig_size=None, **kwargs):
         """
         Given a image, draw it as heat map and save it to file.
 
@@ -370,6 +370,8 @@ class Observer(object):
             The title that will be appended at the top of the heat map.
         filename: str
             File name of the saved file.
+        Remaining keywords will be passed to seaborn's `heatmap` function
+        directly.
         """
         fig = plt.figure(figsize=fig_size)
         axe = fig.add_subplot(111)
@@ -380,11 +382,13 @@ class Observer(object):
             sns.heatmap(data=img,
                         vmin=0, vmax=img.max(),
                         xticklabels=False, yticklabels=False,
-                        square=True, robust=True)
+                        square=True, robust=True,
+                        **kwargs)
         else:
             sns.heatmap(data=img, center=0,
                         xticklabels=False, yticklabels=False,
-                        square=True)
+                        square=True,
+                        **kwargs)
         axe.set_title(title)
         fig.savefig(filename)
         # We reuse title as a description of the file.
