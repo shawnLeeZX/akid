@@ -137,9 +137,13 @@ class Brain(GraphSystem, ProcessingLayer):
         for b in self.blocks:
             b.set_shadow()
 
-    def get_filters(self):
+    def get_filters(self, names=None):
         """
         A public interface to expose filters of this brain.
+
+        Args:
+            names: a list of str
+                If not None, only get filters in that list.
 
         Returns:
             A list: Filters are returned as a list, ordered by the order they
@@ -147,6 +151,9 @@ class Brain(GraphSystem, ProcessingLayer):
         """
         filter_list = []
         for b in self.blocks:
+            if names:
+                if b.name not in names:
+                    continue
             for v in b.var_list:
                 filter_list.append(v)
 

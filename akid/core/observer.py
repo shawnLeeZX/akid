@@ -9,6 +9,8 @@ import os
 import sys
 import inspect
 
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.art3d as art3d
 import numpy as np
@@ -192,6 +194,7 @@ class Observer(object):
             sys.exit(0)
 
     def visualize_filters(self,
+                          layers=None,
                           layout={"type": "normal", "num": 1},
                           big_resolution=True):
         """
@@ -200,7 +203,8 @@ class Observer(object):
         See more at doc string of `Observer` class.
 
         Args:
-            square_layout: Boolean
+            layers: list
+                If not None, only visualize filters of layers in the list.
             layout: dict
                 How many columns of filters we should lay out.  It supports
                 layouts: "square", "normal", "inverse", and "dynamic". "normal"
@@ -238,6 +242,9 @@ class Observer(object):
 
             with self.kid.sess as sess:
                 for block in self.kid.brain.blocks:
+                    if layers:
+                        if block.name not in layers:
+                            continue
                     if not issubclass(type(block), SynapseLayer):
                         continue
                     log.info("Begin to tile the filter of layer {}".format(
@@ -253,7 +260,7 @@ class Observer(object):
                     if not os.path.exists(visualization_dir):
                         os.mkdir(visualization_dir)
                     filename = visualization_dir + '/' \
-                        + block.name + "_para.jpg"
+                        + block.name + "_para.png"
                     self._heatmap_to_file(
                         filters_img,
                         title,
