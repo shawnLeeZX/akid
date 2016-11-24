@@ -33,7 +33,7 @@ def msra_initializer(factor=1.0, uniform=False, seed=None):
     Returns:
         An initializer that generates tensors with unit variance.
     """
-    def _initializer(shape, dtype=dtypes.float32):
+    def _initializer(shape, dtype=dtypes.float32, partition_info=None):
         input_size = 1.0
         for i in shape[:-2]:
             input_size *= i
