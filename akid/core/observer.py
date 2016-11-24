@@ -165,9 +165,9 @@ class Observer(object):
         try:
             self._maybe_setup_kid()
 
-            with self.kid.sess as sess:
+            with self.kid.sess.as_default():
                 self.kid.restore_from_ckpt()
-                feed_dict = self._feed_data(sess)
+                feed_dict = self._feed_data(self.kid.sess)
 
                 for block in self.kid.brain.blocks:
                     if block.data is None:
@@ -177,7 +177,7 @@ class Observer(object):
                     batch_activation = block.data.eval(feed_dict=feed_dict)
                     # For now we only visualize the first idx.
                     activation = batch_activation[0]
-                    sess.run(self.kid.brain.eval,
+                    self.kid.sess.run(self.kid.brain.eval,
                              feed_dict=feed_dict)
                     activations_img = self._tile_to_one_square(activation)
                     title = "{} Layer".format(block.name)
@@ -238,9 +238,9 @@ class Observer(object):
         log.info("Begin to draw filters of {}".format(self.kid.brain.name))
         try:
             self._maybe_setup_kid()
-            self.kid.restore_from_ckpt()
 
-            with self.kid.sess as sess:
+            with self.kid.sess.as_default():
+                self.kid.restore_from_ckpt()
                 for block in self.kid.brain.blocks:
                     if layers:
                         if block.name not in layers:
@@ -249,7 +249,7 @@ class Observer(object):
                         continue
                     log.info("Begin to tile the filter of layer {}".format(
                         block.name))
-                    filters_img = self._tile_filters(sess,
+                    filters_img = self._tile_filters(self.kid.sess,
                                                      block,
                                                      layout,
                                                      padding=2)
