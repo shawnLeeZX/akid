@@ -117,7 +117,7 @@ class Block(object):
         # this is the best way I can think of.
         with tf.variable_scope(var_scope) as self.var_scope:
             if not self._skip_pre_post_setup():
-                self._pre_setup()
+                self._pre_setup(*args, **kwargs)
             if not self._skip_pre_post_shared_setup():
                 self._pre_setup_shared()
             self._setup(*args, **kwargs)
@@ -129,7 +129,7 @@ class Block(object):
         self.is_setup = True
         self.var_scope.reuse_variables()
 
-    def _pre_setup(self):
+    def _pre_setup(self, *args, **kwargs):
         """
         Some setting won't be determined till the time to call setup. This is
         the place to set up the those settings. See `moving_averages` of
@@ -280,7 +280,7 @@ class ProcessingLayer(ShadowableBlock):
     def set_val(self):
         self.is_val = True
 
-    def _pre_setup(self):
+    def _pre_setup(self, *arg, **kwargs):
         super(ProcessingLayer, self)._pre_setup()
         if self.is_val:
             self.var_scope.reuse_variables()
@@ -298,13 +298,15 @@ class ProcessingLayer(ShadowableBlock):
                 self.moving_average_decay, step)
 
     def _post_setup(self):
+        # TODO: ideally, we want to control how many summaries we gather.
         if self.do_summary:
             log.info("Do tensorboard summary on outputs of {}".format(
                 self.name))
             collection_to_add = VALID_SUMMARY_COLLECTION if self.is_val \
                 else TRAIN_SUMMARY_COLLECTION
             if self.data is not None:
-                self._data_summary(self.data, collection_to_add)
+                if type(self.data) is not list:
+                    self._data_summary(self.data, collection_to_add)
             if self.loss is not None:
                 tf.scalar_summary(self.loss.op.name,
                                   self.loss,

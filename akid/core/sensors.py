@@ -279,11 +279,8 @@ class IntegratedSensor(ShuffleQueueSensor):
     def _raw_datum_summary(self, name, datum, collection):
         # Since image summary only takes image batches, we package each
         # image into a batch.
-        shape = datum.get_shape().as_list()
-        shape.insert(0, 1)
-        datum_batch = tf.reshape(datum, shape)
         tf.image_summary(name,
-                         datum_batch,
+                         tf.expand_dims(datum, 0),
                          collections=[collection])
 
     def _generate_image_and_label_batch(

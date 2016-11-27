@@ -121,14 +121,20 @@ class LinkedSystem(System):
         processed data.
         """
         data = data_in
-        log.info("System input shape: {}".format(data.get_shape().as_list()))
+        try:
+            shape = data.get_shape().as_list()
+        except ValueError:
+            shape = None
+
+        log.info("System input shape: {}".format(shape))
         for l in self.blocks:
             log.info("Setting up block {}.".format(l.name))
             l.do_summary = self.do_summary
             l.setup(data)
             log.info("Connected: {} -> {}".format(data.name,
                                                   l.data.name))
-            log.info("Top shape: {}".format(l.data.get_shape().as_list()))
+            if shape:
+                log.info("Top shape: {}".format(l.data.get_shape().as_list()))
             data = l.data
 
         self._data = data
@@ -141,14 +147,17 @@ class GraphSystem(LinkedSystem):
 
     It is supposed to contain `ProcessingLayer` that has a `inputs` attributes
     to hold interconnection information between layers.  If `inputs` is None,
-    it means this layer is supposed to take the first output of previous layer
+    it means this layer is supposed to take all the outputs of previous layer
     (depending on the actually topology of the system this block is in) as its
-    input data. If not None, a list of tuples should be passed in. For example,
-    the input of this layer is supposed to be outputs of layer "conv_1" and
-    "conv2", then a list of [{"name": "conv1", "idxs": [0]}, {"name":
-    "conv2", "idxs": [0]}] should be passed in. Output of any blocks are a
-    tuple (if there are multiple outputs). The list of indices means the
-    indices of outputs of that layer to use.
+    input data. A tensor is the input if the previous layer only has one
+    output, otherwise, a list of tensor would be the input. The first block of
+    the system is special, see docstring of `Brain`. If not None, a list of
+    tuples should be passed in. For example, the input of this layer is
+    supposed to be outputs of layer "conv_1" and "conv2", then a list of
+    [{"name": "conv1", "idxs": [0]}, {"name": "conv2", "idxs": [0]}] should be
+    passed in. Output of any blocks are a tuple (if there are multiple
+    outputs). The list of indices means the indices of outputs of that layer to
+    use.
 
     NOTE: no matter how the inputs are specified (by `inputs` or not), in the
     `_setup` method of a block, inputs feeds to a block is a tensor (if there
@@ -164,7 +173,7 @@ class GraphSystem(LinkedSystem):
         log.info("System input shape: {}".format(
             [d.get_shape().as_list() for d in data]))
 
-        for l in self.blocks:
+        for i, l in enumerate(self.blocks):
             log.info("Setting up block {}.".format(l.name))
             l.do_summary = self.do_summary
             inputs = None
@@ -207,21 +216,39 @@ class GraphSystem(LinkedSystem):
                 else:
                     l.setup(inputs)
             else:
-                l.setup(data[0])
+                if len(data) == 1:
+                    l.setup(data[0])
+                else:
+                    if i == 0:
+                        # We deal with the first case specially, since the
+                        # first layer normally only takes the data as inputs
+                        # instead all the output. This is also for backward
+                        # compatibility.
+                        l.setup(data[0])
+                    else:
+                        l.setup(data)
 
             # Logging
-            in_name = data[0].name if not inputs else [i.name for i in inputs]
+            dtype = type(data)
+            if inputs:
+                in_name = [i.name for i in inputs]
+            else:
+                if dtype is list or dtype is tuple:
+                    in_name = [d.name for d in data]
+                else:
+                    in_name = data[0].name
             if l.data is not None:
+                dtype = type(l.data)
                 log.info("Connected: {} -> {}".format(
                     in_name,
-                    l.data.name if type(l.data) is not tuple
+                    l.data.name if dtype is not tuple and dtype is not list
                     else [d.name for d in l.data]))
                 log.info("Top shape: {}".format(
-                    l.data.get_shape().as_list() if l.data is not tuple
+                    l.data.get_shape().as_list() if dtype is not tuple and dtype is not list
                     else [d.get_shape().as_list() for d in l.data]))
             else:
                 log.info("Inputs: {}. No outputs.".format(in_name))
 
-            data = l.data if type(l.data) is tuple else [l.data]
+            data = l.data if dtype is tuple or dtype is list else [l.data]
 
         self._data = data

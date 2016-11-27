@@ -104,8 +104,8 @@ class SynapseLayer(ProcessingLayer):
                                   " parameters!")
         sys.exit()
 
-    def _pre_setup(self):
-        super(SynapseLayer, self)._pre_setup()
+    def _pre_setup(self, *args, **kwargs):
+        super(SynapseLayer, self)._pre_setup(*args, **kwargs)
 
         if not self.initial_bias_value:
             log.info("Bias is disabled.")

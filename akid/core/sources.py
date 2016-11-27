@@ -96,7 +96,12 @@ class Source(Block):
         else:
             self.validation_rate = 0
 
-        self._get_raw_data_if_not_yet()
+        if self.url:
+            # Only download if url is specified. Ideally, the automatic
+            # download is good, however, for fast prototype purpose, normally
+            # people do not bother to automate the process, so it is better to
+            # support this option.
+            self._get_raw_data_if_not_yet()
 
     def _get_raw_data_if_not_yet(self):
         """

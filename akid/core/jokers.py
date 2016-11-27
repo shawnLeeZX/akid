@@ -62,7 +62,10 @@ class JokerSystem(LinkedSystem):
 
 
 class CropJoker(Joker):
-    def __init__(self, height, width, center=False, **kwargs):
+    def __init__(self,
+                 height=None, width=None,
+                 center=False, central_fraction=None,
+                 **kwargs):
         """
         A `Joker` that randomly crop a region of `height` and `width` from
         an input image.
@@ -72,21 +75,30 @@ class CropJoker(Joker):
                 and height by either centrally cropping the image or padding it
                 evenly with zeros, or randomly crop the input image to get an
                 image with desired size.
+            central_fraction: float
+                If existing, crop the image by fraction instead of using height
+                and width passed in.
         """
         super(CropJoker, self).__init__(**kwargs)
         self.height = height
         self.width = width
         self.center = center
+        self.central_fraction = central_fraction
 
     def _setup(self, data_in):
         if self.center:
             log.info("Center crop images.")
-            self._data = tf.image.resize_image_with_crop_or_pad(data_in,
-                                                                self.height,
-                                                                self.width)
+            if self.central_fraction:
+                self._data = tf.image.central_crop(
+                    data_in, central_fraction=self.central_fraction)
+            else:
+                self._data = tf.image.resize_image_with_crop_or_pad(
+                    data_in, self.height, self.width)
         else:
             log.info("Randomly crop images.")
             shape = data_in.get_shape().as_list()
+            assert self.width and self.height,\
+                "crop height and width should not be None."
             self._data = tf.random_crop(data_in,
                                         [self.height, self.width, shape[-1]])
 
@@ -155,6 +167,41 @@ class RescaleJoker(Joker):
     """
     def _setup(self, data_in):
         self._data = akid.image.rescale_image(data_in)
+
+
+class ResizeJoker(Joker):
+    def __init__(self,
+                 height,
+                 width,
+                 resize_method=0,
+                 **kwargs):
+        """
+        A `Joker` that resizes an image to [height, width].
+
+        Args:
+            resize_method: int
+                the resize method to use, see doc of `tf.image.resize_images`
+                for details. Briefly, available resize methods are (retrieved
+                from tensorflow version 0.11):
+                    BILINEAR = 0
+                    NEAREST_NEIGHBOR = 1
+                    BICUBIC = 2
+                    AREA = 3
+        """
+        super(ResizeJoker, self).__init__(**kwargs)
+        self.height = height
+        self.width = width
+        self.resize_method = resize_method
+
+    def _setup(self, data_in):
+        shape = data_in.get_shape().as_list()
+        if len(shape) == 3:
+            data = tf.expand_dims(data_in, 0)
+        resized_image = tf.image.resize_images(data,
+                                               [self.height, self.width],
+                                               method=self.resize_method)
+        resized_image = tf.squeeze(resized_image)
+        self._data = resized_image
 
 
 __all__ = [name for name, x in locals().items() if

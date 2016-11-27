@@ -163,7 +163,7 @@ class Kid(object):
         assert self.max_steps is None or self.max_epoch is None,\
             "Only one of `max_steps` and `max_epoch` could be used."
         assert self.max_steps is not None or self.max_epoch is not None,\
-            "At least one `max_step` and max_epoch is needed."
+            "At least one `max_steps` and `max_epoch` is needed."
 
         self.train_log_step = train_log_step
         self.val_log_step = val_log_step

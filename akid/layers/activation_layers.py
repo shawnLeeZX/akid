@@ -160,9 +160,15 @@ class GroupSoftmaxLayer(GroupProcessingLayer):
     # A default name for the tensor returned by the layer.
     NAME = "GSMax"
 
-    def __init__(self, use_temperature=False, **kwargs):
+    def __init__(self, concat_output=True, use_temperature=False, **kwargs):
+        """
+        Args:
+            concat_output: Boolean
+                Whether to concat the scattered list into one tensor.
+        """
         super(GroupSoftmaxLayer, self).__init__(**kwargs)
         self.use_temperature = use_temperature
+        self.concat_output = concat_output
 
     def _setup(self, input):
         # Divide the input into list if not already.
@@ -199,8 +205,10 @@ class GroupSoftmaxLayer(GroupProcessingLayer):
             softmax_t = tf.nn.softmax(augmented_t)
             splitted_input[i] = softmax_t[..., 0:-1]
 
-        # Concat and reshape the data into one tensor.
-        output = tf.concat(self.rank-1, splitted_input)
+        output = splitted_input
+
+        if self.concat_output:
+            output = tf.concat(self.rank-1, splitted_input)
 
         self._data = output
 

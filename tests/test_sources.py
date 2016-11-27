@@ -1,6 +1,7 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+import tensorflow as tf
 
 from akid import AKID_DATA_PATH
 from akid.utils.test import AKidTestCase, main
@@ -216,6 +217,25 @@ class TestSource(AKidTestCase):
 
         loss = kid.practice()
         assert loss < 7.3
+
+    def test_imagenet_source(self):
+        # Ideally, this source is supposed to test against the read image and
+        # labels, however, for time's sake ... just check compilation and
+        # runtime errors for now.
+        from akid import ImagenetTFSource
+        source = ImagenetTFSource(
+            name="Imagenet",
+            url=None,
+            work_dir=AKID_DATA_PATH + "/small_imagenet",
+            num_train=84321,
+            num_val=3300)
+        source.setup()
+
+        with tf.Session() as sess:
+            sess.run([source.training_datum,
+                      source.training_label,
+                      source.val_datum,
+                      source.val_label])
 
 if __name__ == "__main__":
     main()
