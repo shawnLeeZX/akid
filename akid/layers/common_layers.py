@@ -107,4 +107,35 @@ class MergeLayer(ProcessingLayer):
 
         self._data = sum
 
+
+class ScatterLayer(ProcessingLayer):
+    """
+    Scatter the input to a list of tensor according to the scattering indices
+    list by the list dimension.
+
+    Args:
+        input: Tensor
+            The tensor to be scattered
+        scatter_list: list
+            The list of length of each scattered tensor. As an example, [2,
+            3, 4] will scatter input tensor to three tensors: input[0:2],
+            input[2:2+3], input[5:5+4]. The last index could be safely
+            omitted. If not, and the overall length has not covered the whole
+            input, the remaining dimensions in the input will not be used.
+    """
+    def __init__(self, scatter_len_list, **kwargs):
+        self.scatter_len_list = scatter_len_list
+        if not kwargs.has_key("name"):
+            kwargs["name"] = "scatter"
+        super(ScatterLayer, self).__init__(**kwargs)
+
+    def _setup(self, input):
+        scattered_list = []
+        start_idx = 0
+        for length in self.scatter_len_list:
+            scattered_list.append(input[..., start_idx:start_idx+length])
+            start_idx += length
+
+        self._data = scattered_list
+
 __all__ = [name for name, x in locals().items() if not inspect.ismodule(x)]

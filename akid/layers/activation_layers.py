@@ -106,58 +106,106 @@ class SoftmaxNormalizationLayer(ProcessingLayer):
         self._data = output
 
 
-class GroupSoftmaxLayer(ProcessingLayer):
+class GroupProcessingLayer(ProcessingLayer):
+    """
+    A abstract layer that processes layer by group. This is a meta class
+    (`_setup` is not implemented).
+
+    Two modes are possible for this layer. The first is to divide the
+    neurons of this layer evenly using `group_size`. The second mode the
+    input should be a list of tensors. In this case, `group_size` is
+    ignored, and each tensor in the list is taken as a group. In both case,
+    only the last dimension of the tensor indexes group member, the other
+    dimensions index groups.
+    """
+    def __init__(self, group_size=4, **kwargs):
+        super(GroupProcessingLayer, self).__init__(**kwargs)
+        self.group_size = group_size
+        # Members to be filled during `_pre_setup`.
+        self.output_shape = None
+        self.num_group = None
+        self.shape_rank = None
+
+    def _pre_setup(self, input):
+        if type(input) is list:
+            # Get the shape for the final output tensor.
+            last_dim = 0
+            for t in input:
+                shape = t.get_shape().as_list()
+                last_dim += shape[-1]
+            self.output_shape = input[0].get_shape().as_list()
+            self.output_shape[-1] = last_dim
+            self.rank = len(self.output_shape)
+            # No work actually done. Just logging and gather some meta data.
+            self.num_group = len(input)
+            log.info("Number of groups: {}".format(self.num_group))
+            group_size_list = [t.get_shape().as_list()[-1] for t in input]
+            log.info("Group size of each group are {}".format(group_size_list))
+        else:
+            self.output_shape = input.get_shape().as_list()
+            self.rank = len(self.output_shape)
+            if self.output_shape[-1] % self.group_size is not 0:
+                log.error("Group size {} should evenly divide output channel"
+                          " number {}".format(self.group_size,
+                                              self.output_shape[-1]))
+                sys.exit()
+            out_channel_num = self.output_shape[-1]
+            self.num_group = out_channel_num // self.group_size
+            log.info("Feature maps of layer {} is divided into {} group".format(
+                self.name, self.num_group))
+            log.info("All groups have equal size {}.".format(self.group_size))
+
+
+class GroupSoftmaxLayer(GroupProcessingLayer):
     # A default name for the tensor returned by the layer.
     NAME = "GSMax"
 
-    def __init__(self, use_temperature=False, group_size=4, **kwargs):
+    def __init__(self, use_temperature=False, **kwargs):
         super(GroupSoftmaxLayer, self).__init__(**kwargs)
         self.use_temperature = use_temperature
-        self.group_size = group_size
 
     def _setup(self, input):
-        shape = input.get_shape().as_list()
-        if shape[-1] % self.group_size is not 0:
-            log.error("Group size {} should evenly divide output channel"
-                      " number {}".format(self.group_size, shape[-1]))
-            sys.exit()
-        out_channel_num = shape[-1]
-        num_split = out_channel_num // self.group_size
-        log.info("Feature maps of layer {} is divided into {} group".format(
-            self.name, num_split))
-        if num_split == out_channel_num:
-            # Means the situation has degenerated into sigmoid activation
-            output = tf.nn.sigmoid(input)
+        # Divide the input into list if not already.
+        if type(input) is list:
+            splitted_input = input
         else:
-            data = tf.reshape(input, [-1, shape[-1]])
-            if self.use_temperature:
+            out_channel_num = self.output_shape[-1]
+            if self.num_group == out_channel_num:
+                # Means the situation has degenerated into sigmoid activation
+                # Just compute and return
+                self._data = tf.nn.sigmoid(input)
+                return
+
+            splitted_input = tf.split(self.rank-1, self.num_group, input)
+            splitted_input = list(splitted_input)
+
+        # Add temperature if needed
+        if self.use_temperature:
+            for t in splitted_input:
                 T = self._get_variable(
                     "T",
                     [1],
                     initializer=tf.constant_initializer(10.0))
-                data /= T
-            data_split = tf.split(1, num_split, data)
-            data_split = list(data_split)
+                t /= T
+
+        for i, t in enumerate(splitted_input):
             # Augment each split with a constant 1.
-            # Get dim of non-channel shape
-            nc_shape = 1
-            for d in shape[0:-1]:
-                nc_shape *= d
-            self.ground_state = tf.constant(1.0, shape=[nc_shape, 1])
-            for i in xrange(0, len(data_split)):
-                data_split[i] = tf.concat(1,
-                                          [data_split[i],
-                                           self.ground_state])
-            for i in xrange(0, len(data_split)):
-                data_split[i] = tf.nn.softmax(
-                    data_split[i])[:, 0:self.group_size]
-            data = tf.concat(1, data_split,)
-            output = tf.reshape(data, shape, GroupSoftmaxLayer.NAME)
+            ground_state_shape = self.output_shape[0:-1]
+            ground_state_shape.append(1)
+            self.ground_state = tf.constant(1.0, shape=ground_state_shape)
+
+            # Compute group softmax.
+            augmented_t = tf.concat(self.rank-1, [t, self.ground_state])
+            softmax_t = tf.nn.softmax(augmented_t)
+            splitted_input[i] = softmax_t[..., 0:-1]
+
+        # Concat and reshape the data into one tensor.
+        output = tf.concat(self.rank-1, splitted_input)
 
         self._data = output
 
 
-class CollapseOutLayer(ProcessingLayer):
+class CollapseOutLayer(GroupProcessingLayer):
     """
     `CollapseOutLayer` is to collapse the a subspace into a one-dimensional
     space. It could be Maxout or AverageOut. To ensure backward compatibility,
@@ -171,38 +219,43 @@ class CollapseOutLayer(ProcessingLayer):
     MAXOUT_NAME = "MaxOut"
     AVEOUT_NAME = "AverageOut"
 
-    def __init__(self, group_size=2, type="maxout", **kwargs):
+    def __init__(self, type="maxout", **kwargs):
         super(CollapseOutLayer, self).__init__(**kwargs)
-        self.group_size = group_size
         self.type = type
 
     def _setup(self, input):
-        shape = input.get_shape().as_list()
-        if shape[-1] % self.group_size is not 0:
-            log.error("Group size {} should evenly divide output channel"
-                      " number {}".format(self.group_size, shape[3]))
-            sys.exit()
-        num_split = shape[-1] // self.group_size
-        log.info("Feature maps of layer {} is divided into {} group".format(
-            self.name, num_split))
+        if type(input) is list:
+            # process each tensor once by one and combine them
+            reduced_t_list = []
+            for t in input:
+                reduced_t = self._reduce(t)
+                reduced_t_list.append(reduced_t)
 
-        shape[-1] = num_split
-        shape.append(self.group_size)
-        buff_tensor = tf.reshape(input, shape)
+            output = tf.pack(reduced_t_list, axis=-1)
+        else:
+            shape_by_group = self.output_shape[:]
+            shape_by_group[-1] = self.num_group
+            shape_by_group.append(self.group_size)
+            buff_tensor = tf.reshape(input, shape_by_group)
+            output = self._reduce(buff_tensor)
 
+        self._data = output
+
+    def _reduce(self, tensor):
+        shape = tensor.get_shape().as_list()
         if self.type is "maxout":
-            output = tf.reduce_max(buff_tensor,
+            output = tf.reduce_max(tensor,
                                    reduction_indices=len(shape)-1,
                                    name=CollapseOutLayer.MAXOUT_NAME)
         elif self.type is "average_out":
-            output = tf.reduce_mean(buff_tensor,
+            output = tf.reduce_mean(tensor,
                                     reduction_indices=len(shape)-1,
                                     name=CollapseOutLayer.AVEOUT_NAME)
         else:
             raise Exception("Type of `CollapseOutLayer` should be 'maxout' or"
                             "'average_out'! {} is given.".format(self.type))
 
-        self._data = output
+        return output
 
 
 class BatchNormalizationLayer(ProcessingLayer):
