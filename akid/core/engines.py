@@ -177,7 +177,16 @@ class DataParallelEngine(Engine):
             l = t.get_layer_by_name(name)
             data.append(l.data)
 
-        return tf.concat(0, data, name=name)
+        # Check whether the output is a list, if it is merge by list members
+        if type(data[0]) is list:
+            data = zip(*data)
+            for i, l in enumerate(data):
+                data[i] = tf.concat(0, l, name=name)
+        # Otherwise, concat.
+        else:
+            data = tf.concat(0, data, name=name)
+
+        return data
 
     def _split_input(self, data, label):
         """
