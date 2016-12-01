@@ -61,7 +61,11 @@ MOCK_MODULES = ['numpy',
                 'tensorflow.python.ops',
                 'tensorflow.python.ops.image_ops',
                 'tensorflow.python.training',
-                'tensorflow.python.framework']
+                'tensorflow.python.framework',
+                'pycuda',
+                'pycuda.autoinit',
+                'pycuda.driver',
+                'tqdm']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 

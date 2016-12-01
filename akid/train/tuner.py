@@ -116,7 +116,7 @@ def tune(template,
 
     The jinja2 template must be a function named `setup`, and return a set up
     `Kid`. All necessary module imports should be put in the function instead
-   of module level import usually.
+    of module level import usually.
 
     The `tune` function would use all available GPUs to train networks with all
     given different set of parameters. If available GPUs are not enough, the
@@ -158,6 +158,50 @@ def tune(template,
     is still not release, since it is used to control access to the actual
     GPU. A training instance will be launched in a subshell using the GPU
     acquired. The semaphore is only released after the training has finished.
+
+    ## Example
+
+    For example, to tune the activation function and learning rates of a
+    network, first we set up network parameters in `net_paras_list`,
+    optimization parameters in `opt_paras_list`, build a network in the `setup`
+    function, then pass all of it to tune::
+
+        net_paras_list = []
+        net_paras_list.append({
+            "activation": [
+                {"type": "relu"},
+                {"type": "relu"},
+                {"type": "relu"},
+                {"type": "relu"}],
+            "bn": True})
+        net_paras_list.append({
+            "activation": [
+                {"type": "maxout", "group_size": 2},
+                {"type": "maxout", "group_size": 2},
+                {"type": "maxout", "group_size": 2},
+                {"type": "maxout", "group_size": 5}],
+            "bn": True})
+
+        opt_paras_list = []
+        opt_paras_list.append({"lr": 0.025})
+        opt_paras_list.append({"lr": 0.05})
+
+        def setup(graph):
+
+            brain.attach(cnn_block(
+                ksize=[8, 8],
+                init_para={
+                    "name": "uniform",
+                    "range": 0.005},
+                wd={"type": "l2", "scale": 0.0005},
+                out_channel_num=384,
+                pool_size=[4, 4],
+                pool_stride=[2, 2],
+                activation={{ net_paras["activation"][1] }},
+                keep_prob=0.5,
+                bn={{ net_paras["bn"] }}))
+
+        tune(setup, opt_paras_list, net_paras_list)
     """
     # Parse command line flags
     FLAGS(sys.argv)

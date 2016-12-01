@@ -1,11 +1,14 @@
 """
-Block is the foundation of `akid`. Everything is a `Block` in `akid`, even data
-source is a block, since input data are just signals propagate
-outside. Compared with pure symbol computation approach, like the one in
-tensorflow, a block is able to contain states associated with this processing
-unit. Signals are passed between blocks in form of tensors or list of tensors.
+Block is the foundation of `akid`. Everything is a `Block` in `akid`.
 
-Call `setup` of each block before using it.
+A block could be as simple as a convonlutional neural network layer that merely
+does convolution on the input data and outputs the results; it also be as
+complex as an acyclic graph that inter-connects blocks to build a neural
+network, or sequentially linked block system that does data augmentation.
+
+Compared with pure symbol computation approach, like the one in tensorflow, a
+block is able to contain states associated with this processing unit. Signals
+are passed between blocks in form of tensors or list of tensors.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -42,6 +45,8 @@ class Block(object):
     actual abstract `_setup` method which should be implemented by concrete
     layer, and other pre-setup and post-setup methods. The caller is
     responsible for passing in the right data for the `setup` method.
+
+    Call `setup` of each block before using it.
     """
     __metaclass__ = abc.ABCMeta
 

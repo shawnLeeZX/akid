@@ -3,7 +3,8 @@ A brain is the data processing engine to process data supplied by `Sensor` to
 fulfill certain tasks. More specifically,
 
 * it builds up blocks to form an arbitrary network
-* offers sub-graphs for inference, loss, evaluation, summaries (TODO)
+* offers sub-graphs for inference, loss, evaluation, summaries
+* provides access to all data and parameters within
 
 To use a brain, feed in data as a list, as how it is done in any other
 blocks. Some pre-specified brains are available under `akid.models.brains`. An
@@ -24,8 +25,45 @@ do things like::
 
 Act accordingly.
 
-TODO: write how to attach layers.
+Similarly, all blocks work this way.
 
+A brain provides easy ways to connect blocks. For example, the one layer brain
+used in the previous example is built through the following::
+
+    class OneLayerBrain(Brain):
+        def __init__(self, **kwargs):
+            super(OneLayerBrain, self).__init__(**kwargs)
+            self.attach(
+                ConvolutionLayer(ksize=[5, 5],
+                                strides=[1, 1, 1, 1],
+                                padding="SAME",
+                                out_channel_num=32,
+                                name="conv1")
+            )
+            self.attach(ReLULayer(name="relu1"))
+            self.attach(
+                PoolingLayer(ksize=[1, 5, 5, 1],
+                            strides=[1, 5, 5, 1],
+                            padding="SAME",
+                            name="pool1")
+            )
+
+            self.attach(InnerProductLayer(out_channel_num=10, name="ip1"))
+            self.attach(SoftmaxWithLossLayer(
+                class_num=10,
+                inputs=[
+                    {"name": "ip1", "idxs": [0]},
+                    {"name": "system_in", "idxs": [1]}],
+                name="loss"))
+
+It assembles a convolution layer, a ReLU Layer, a pooling layer, an inner
+product layer and a loss layer. To attach a block (layer) directly taking the
+output of the previous attached layer as the input, just use directly attach
+the block. If `inputs` of any block exists, the brain will fetch corresponding
+tensors by name of the block attached and indices of the outputs of that
+layer. See the loss layer above for an example. Note that even though there are
+multiple inputs for the brain, the first attached layer of the brain will take
+the first of these input by default.
 """
 from __future__ import absolute_import, division, print_function
 

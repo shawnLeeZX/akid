@@ -1,5 +1,20 @@
 """
-Collections `Engines` to implement the scheme to actually do the computation.
+`akid` offers built-in data parallel scheme in form of class `Engine`. It aims
+to abstract concurrency and communication away, so the end user only needs to
+deal with how to build a power network.
+
+Currently, the engine mainly works with neural network training, which is be
+used with `Kid` by specifying the engine at the construction of the kid.
+
+As an example, we could do data parallelism on multiple using::
+
+    kid = kids.Kid(
+        sensor,
+        brain,
+        MomentumKongFu(lr_scheme={"name": LearningRateScheme.placeholder}),
+        engine={"name": "data_parallel", "num_gpu": 2},
+        log_dir="log",
+        max_epoch=200)
 """
 import abc
 

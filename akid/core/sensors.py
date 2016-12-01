@@ -21,6 +21,17 @@ for the MNIST dataset. Taking a `Source`, we could make a sensor::
       sensor = FeedSensor(name='data', source_in=source)
 
 The type of a sensor must match that of a source.
+
+For `IntegratedSensor`, it is supported to add `Joker` to augment data. The way
+to augment data is similar with building blocks using `Brain`, but simpler,
+since data augmentation is added sequentially, shown in the following::
+
+    sensor = IntegratedSensor(source_in=cifar_source,
+                            batch_size=128,
+                            name='data')
+    sensor.attach(FlipJoker(flip_left_right=True, name="left_right_flip"))
+    sensor.attach(PaddingLayer(padding=[4, 4]))
+    sensor.attach(CropJoker(height=32, width=32, name="crop"))
 """
 from __future__ import absolute_import, division, print_function
 

@@ -1,8 +1,6 @@
 # HOW TO
 
-In this HOW-TO page, each block currently supported by `akid` will be broken
-down in details. The more blocks you learn, the more work you could delegate to
-`akid`.
+In this HOW-TO page, available blocks are described.
 
 ## Block
 
@@ -22,6 +20,14 @@ down in details. The more blocks you learn, the more work you could delegate to
 .. automodule:: akid.core.sensors
 ```
 
+The end computational graph is shown as following.
+
+```eval_rst
+.. image:: ../images/data_augmentation.jpg
+   :alt: alternate text
+   :align: center
+```
+
 ## Brain
 
 ```eval_rst
@@ -31,3 +37,7 @@ down in details. The more blocks you learn, the more work you could delegate to
 ## KongFu
 
 ## System
+
+```eval_rst
+.. automodule:: akid.core.systems
+```

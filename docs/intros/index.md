@@ -1,60 +1,63 @@
 # Introduction
 
-Best designs mimic nature. `akid` tries to reproduce how signals in nature
-propagates. Information flow can be abstracted as propagating through
-inter-connected blocks, each of which takes inputs and gives outputs. For
-example, a vision classification system is a block that takes image inputs and
-gives classification results.
+## Why `akid`
 
-This makes possible using `akid` in both low level abstraction and high level
-abstraction. In the low level, one can just use the machinery of blocks, and
-build computation graph as normal. In the high level, complex graph building
-machinery, parallelism schemes, logging machinery and training utilities are
-also provided.
+Why another package on neural network?
 
-In the following, two typical user case are introduced.
+Neural network, or in a more general term deep learning, has resurrected as a
+vibrating field that may transform society. A range of libraries has emerged,
+but the technology stacks of neural network is far from it maturity yet. Neural
+network is still in the state of empirical science, and products using neural
+network are in a state where research and production reinforces each other. In
+this regards, we would like to explore technology stacks that enable fast
+research prototyping and are production ready.
 
-### Use Standalone Blocks
+`akid` tries to provide a full stack of softwares (upon available open source
+libraries) that provides abstraction to let researchers focus on research
+instead of implementation, while at the same time the developed program can
+also be put into production seamlessly in a distributed environment, and be
+production ready.
 
-This case suits the ones who normally want to build things from scratch. It
-aims to eases the burden to maintain the name scope or other logistics related
-to a specific package, and lets people focus on the problem instead of the
-code.
-
-`akid` provides full machinery from preparing the data, doing data
-augmentation, specifying computation graph (neural network architecture),
-choosing optimization algorithms, specifying training scheme (data parallelism
-etc), and information logging. However, it is possible to use those components
-separately.
-
-As an example, following the LEGO block design philosophy, it is possible to
-`Brain` alone to just specify the computation graph, and use whatever the data
-preparation machinery of your own. What you need is to pass the data tensors
-and call `setup`.
-
-```python
-model = build_brain()
-data, labels = build_input()
-brain.setup([data, labels])
+```eval_rst
+.. image:: ../images/akid_stack.png
+   :scale: 50 %
+   :alt: alternate text
+   :align: left
 ```
 
-Similar scenarios hold for all classes.
+At the top application stack, it provides out-of-box tools for neural network
+applications. Lower down, `akid` provides programming paradigm that lets user
+easily build customized model. The distributed computing stack handles the
+concurrency and communication, thus letting models be trained or deployed to a
+single GPU, multiple GPUs, or a distributed environment without affecting how a
+model is specified in the programming paradigm stack. Lastly, the distributed
+deployment stack handles how the distributed computing is deployed, thus
+decoupling the research prototype environment with the actual production
+environment, and is able to dynamically allocate computing resources, so
+administration ops and development ops could be separated.
 
-### Use All Facilities Of Akid
+This paragraph is a brief summary of available packages, including
+[theano](http://deeplearning.net/software/theano/), [keras](keras.io),
+[torch](http://torch.ch/), [caffe](http://caffe.berkeleyvision.org/) which
+could be safely skipped if you are not interested. The debugging information is
+not very nice in theano. It takes too much time to compile programs. It needs
+re-compilation after kernel update. Torch lacks communities and supporting
+libraries, which may be good for research only, but for production ready
+libraries neural network should not stop there. Caffe is built on C++, which is
+too slow to develop. Keras seems to be perfect, but mostly it is a package like
+sklearn, which takes neural network as a machine learning model, which is too
+math oriented. I want something that feels like a growing kid. There are also
+many subtle difference with Keras.
 
-This case suits the ones who are product driven --- wants to get results
-quickly. It aims to provide an easy to use flow to all elements of neural
-network --- training, testing, logging, parallelism schemes, etc. That is to
-say, it could make use of all possible blocks in `akid`.
+## A narrative description of `akid`
 
-From a perspective of design, this is what `akid` means, explained in the
-following. Also, in this section, all available blocks in `akid` are briefly
-introduced.
+Briefly, `akid` is a kid who has the ability to keep practicing to improve
+itself.
 
-It is designed by analogy to a living being. A living being needs to use all
-kinds of *sensors* it equipped to sense a *source*, parts of the world, by a
-certain *way*, to accumulate experience and summarize knowledge in ones *brain*
-to fulfill a basic purpose, to *play*.
+A living being (the kid) needs to use all kinds of *sensors* it equipped to
+sense a *source*, parts of the world, by a certain *way*, to accumulate
+experience and summarize knowledge in ones *brain* to fulfill a basic purpose,
+to *play*.
 
 The world is run by a clock. It represents how long the kid has been practices
 in the world. The clock is the conventional training step.
@@ -88,116 +91,159 @@ or something else.
 Besides, an `Observer` class could open a brain and look into it, which is to
 mean visualization.
 
-TODO: write a full example here.
+## `akid` stack
 
-## Architecture
+### Application
 
-TODO: the following sections may not belong here.
+At the top of the stack, `akid` could be used as a part of application without
+knowing the underlying mechanism of neural networks.
 
-### Kick start clock
+`akid` provides full machinery from preparing the data, doing data
+augmentation, specifying computation graph (neural network architecture),
+choosing optimization algorithms, specifying training scheme (data parallelism
+etc), and information logging.
 
-If any training is supposed to done, using the machinery provided `akid`, the
-clock needs to be manually started using the following snippets.
+#### Neural network training --- A holistic example
 
+This case suits the ones who are product driven --- wants to get results
+quickly. It aims to provide an easy to use flow to all elements of neural
+network --- training, testing, logging, parallelism schemes, etc. That is to
+say, it could make use of all possible blocks in `akid`.
+
+From a perspective of design, this is what `akid` means, explained in the
+following. Also, in this section, all available blocks in `akid` are briefly
+introduced.
+
+
+```eval_rst
+.. image:: ../images/application_illustration.png
+   :alt: alternate text
 ```
-from akid.common import init
-init()
-```
-
-### Model Abstraction
-
-All core classes a sub class of `Block`.
-
-The philosophy is to make neural network come to its biological origin, the
-brain, a data processing engine that is tailored to process hierarchical data
-from our universe. The universe is built block by block, from micro world,
-modules consisting of atoms, to macro world, buildings made up by bricks and
-windows, and cosmic world, billions of stars creating galaxies.
-
-To deal with how blocks composes a larger block, a module `systems` offers
-different `System`s to model the mathematical topological structures how data
-propagates. `System` is also a sub-class of `Block`, since it is just a larger
-block.
-
-Rephrase the scenario in the *Introduction* under the block universe: A
-`Survivor` combines necessary `Block`s to survive. All previous classes
-assembled by `Survivor` are sub-classes of `Block`.
-
-### Model and Computation
-
-Each object who actually needs to do computation has its own computational
-components, a graph and a session. If no higher level one is given, the block
-will create a suite of its own; otherwise, it will use what it is given.
-
-#### Graph
-
-A model's construction is separated from its execution environment.
-
-To use most classes, its `setup` method should be called before anything
-else. This is tied with Tensorflow's two-stage execution mechanism: first build
-the computational graph in python, then run the graph in the back end. The
-`setup` of most classes build and do necessary initialization for the first
-stage of the computation. The caller is responsible for passing in the right
-data for `setup`.
-
-`setup` should be called under a `tf.Graph()` umbrella, which is in the
-simplest case is a context manager that open a default graph:
 
 ```python
-with self.graph.as_default():
-    # Graph building codes here
+from akid import AKID_DATA_PATH
+from akid import FeedSensor
+from akid import Kid
+from akid import MomentumKongFu
+from akid import MNISTFeedSource
+
+from akid.models.brains import LeNet
+
+brain = LeNet(name="Brain")
+source = MNISTFeedSource(name="Source",
+                         url='http://yann.lecun.com/exdb/mnist/',
+                         work_dir=AKID_DATA_PATH + '/mnist',
+                         center=True,
+                         scale=True,
+                         num_train=50000,
+                         num_val=10000)
+
+sensor = FeedSensor(name='Sensor', source_in=source)
+s = Kid(sensor,
+        brain,
+        MomentumKongFu(name="Kongfu"),
+        max_steps=100)
+kid.setup()
+kid.practice()
 ```
 
-That is to say if you are going to use certain class standalone, a graph
-context manager is needed.
+#### Parameter tuning
 
-Each `System` takes a `graph` argument on construction. If no one is given, it
-will create one internally. So no explicit graph umbrella is needed.
+`akid` offers automatic parameter tuning through defining template using `tune`
+function.
 
-#### Session
+```eval_rst
+.. autofunction:: akid.train.tuner.tune
 
-A graph hold all created blocks. To actually run the computational graph, all
-computational methods has an `sess` argument to take an opened `tf.Session()`
-to run within, thus any upper level execution environment could be passed
-down. The upper level code is responsible to set up a session. In such a way,
-computational graph construction does not need to take care of
-execution. However, for certain class, such as a Survivor, if an upper level
-session does not exist, a default one will be created for the execution for
-convenience.
+```
 
-This allows a model to be deployed on various execution environment.
+#### Built-in summary
 
-### Parallelism
+Tensorboard summaries are built in, and can be easily extended, and
+distributedly gathered.
 
-`akid` offers built-in data parallel scheme in form of class `Engine`, which
-could be used with `Survivor`. Just specify the engine at the construction of
-the survivor.
+```eval_rst
+.. image:: ../images/hist_summary.png
+   :align: center
+
+.. image:: ../images/scalar_summary.jpg
+   :align: center
+```
+
+#### Visualization
+
+It supports visualization of all feature maps and filters with control on the
+layout.
+
+```eval_rst
+.. image:: ../images/gradual_sparse_fmap.png
+   :align: center
+
+.. image:: ../images/gsmax_conv1_filters.png
+   :align: center
+```
+
+### Programming Paradigm
+
+We have seen how to use functionality of `akid` without much programming in the
+previous section. In this section, we would like to introduce the programming
+paradigm underlying the previous example, and how to use `akid` as a research
+package with such paradigm.
+
+Best designs mimic nature. `akid` tries to reproduce how signals in nature
+propagates. Information flow can be abstracted as propagating through
+inter-connected blocks, each of which takes inputs and gives outputs. For
+example, a vision classification system is a block that takes image inputs and
+gives classification results.
+
+```eval_rst
+.. image:: ../images/akid_block.png
+   :align: center
+```
+
+```eval_rst
+.. automodule:: akid.core.blocks
+```
+
+`akid` offers various kinds of blocks, and it is also easy to build one's own
+blocks. The `Kid` class is essentially an assembler that assemblies blocks
+provided by `akid` to mainly fulfill the task to train neural networks. Here we
+show how to build an arbitrary acyclic graph of blocks, to illustrate how to
+use blocks in `akid`.
+
+```eval_rst
+.. automodule:: akid.core.brains
+```
+
+It is possible to build residual units using `Brain`.
+
+```eval_rst
+.. image:: ../images/residual_block.jpg
+   :alt: alternate text
+   :align: center
+```
+
+### Distributed Computation
+
+```eval_rst
+.. automodule:: akid.core.engines
+```
+
+The end computational graph is
+
+```eval_rst
+.. image:: ../images/data_parallelism.jpg
+   :alt: data parallelism
+   :align: center
+```
 
 
-## Design Principles
+### Distributed Deployment
 
-### Compactness
+```eval_rst
+.. image:: https://3.bp.blogspot.com/-z1LvDFM7rKs/V1pTrqr265I/AAAAAAAAAPY/pMZWq_Fm3pMhV0GZ0VeKc4Md6DppM0xlwCLcB/s1600/Screen%2BShot%2B2015-01-26%2Bat%2B5.09.09%2BPM.png
+   :scale: 50 %
+   :alt: alternate text
+   :align: right
+```
 
-The design principle is to make the number of concepts exist at the same time
-as small as possible.
-
-### LEGO Blocks
-
-The coding process is to assembly various smaller blocks to form necessary
-functional larger blocks.
-
-The top level concept is a survivor. It models how an agent explore the world
-by learning in order to survive, though the world has not been modeled yet. Up
-to now, it could be certain virtual reality world that simulate the physical
-world to provide environment to the survivor.
-
-A `Survivor` assemblies together a `Sensor`, a `Brain` and a `KongFu`. A
-`Sensor` assemblies together `Joker`s and data `Source`s. A `Brain` assemblies
-together a number of `ProcessingLayer` to form a neural networking.
-
-### Distributed Composition
-
-Every sub-block of a large block should be self-contained. A large block only
-needs minimum amount of information from a sub block. They communicate through
-I/O interfaces. So the hierarchical composition scale up in a distributed way
-and could goes arbitrary deep with manageable complexity.
