@@ -4,19 +4,32 @@
 
 Why another package on neural network?
 
-Neural network, or in a more general term deep learning, has resurrected as a
-vibrating field that may transform society. A range of libraries has emerged,
-but the technology stacks of neural network is far from it maturity yet. Neural
-network is still in the state of empirical science, and products using neural
-network are in a state where research and production reinforces each other. In
-this regards, we would like to explore technology stacks that enable fast
-research prototyping and are production ready.
+Neural network, which is broadly named as Deep Learning nowadays, seems to have the
+potential to lead another technology revolution. It has incurred wide
+enthusiasm in
+[industry](https://www.oreilly.com/ideas/the-current-state-of-machine-intelligence-3-0),
+and serious consideration in public sector and impact
+[evaluation](https://www.whitehouse.gov/sites/default/files/whitehouse_files/microsites/ostp/NSTC/preparing_for_the_future_of_ai.pdf)
+in government. However, though being a remarkable breakthrough in high
+dimensional perception problems academically and intellectually stimulating and promising, it is still rather an immature
+technique that is fast moving and in shortage of understanding. Temporarily its
+true value lies in the capability to solve data analytic problems in industry,
+e.g. self-driving cars, detection of lung cancer etc. On the other hand, Neural
+Network is a technique that heavily relies on a large volume of data. It is
+critical for businesses that use such a technique to leverage on newly
+available data as soon as possible, which helps form a positive feedback loop that
+improves the quality of service.
 
-`akid` tries to provide a full stack of softwares (upon available open source
-libraries) that provides abstraction to let researchers focus on research
-instead of implementation, while at the same time the developed program can
-also be put into production seamlessly in a distributed environment, and be
-production ready.
+Accordingly, to benefits from the newest development and newly available data,
+we want the gap between research and production as small as possible. In this
+package, we explore technology stacks abstraction that enable fast research
+prototyping and are production ready.
+
+`akid` tries to provide a full stack of softwares that provides abstraction to
+let researchers focus on research instead of implementation, while at the same
+time the developed program can also be put into production seamlessly in a
+distributed environment, and be production ready when orchestrating with
+containers, a cluster manager, and a distributed network file system.
 
 ```eval_rst
 .. image:: ../images/akid_stack.png
@@ -36,42 +49,30 @@ decoupling the research prototype environment with the actual production
 environment, and is able to dynamically allocate computing resources, so
 administration ops and development ops could be separated.
 
-This paragraph is a brief summary of available packages, including
-[theano](http://deeplearning.net/software/theano/), [keras](keras.io),
-[torch](http://torch.ch/), [caffe](http://caffe.berkeleyvision.org/) which
-could be safely skipped if you are not interested. The debugging information is
-not very nice in theano. It takes too much time to compile programs. It needs
-re-compilation after kernel update. Torch lacks communities and supporting
-libraries, which may be good for research only, but for production ready
-libraries neural network should not stop there. Caffe is built on C++, which is
-too slow to develop. Keras seems to be perfect, but mostly it is a package like
-sklearn, which takes neural network as a machine learning model, which is too
-math oriented. I want something that feels like a growing kid. There are also
-many subtle difference with Keras.
 
 ## A narrative description of `akid`
+
+This section is the story behind `akid`, which is mainly about the design
+motivation and vision behind.
 
 Briefly, `akid` is a kid who has the ability to keep practicing to improve
 itself.
 
-A living being (the kid) needs to use all kinds of *sensors* it equipped to
-sense a *source*, parts of the world, by a certain *way*, to accumulate
-experience and summarize knowledge in ones *brain* to fulfill a basic purpose,
-to *play*.
+A living being (the kid) perceives a data `Source` with its `Sensor` and
+certain learning methods (nicknamed `KongFu`) to improve itself (its `Brain`),
+to fulfill a certain purpose.
 
-The world is run by a clock. It represents how long the kid has been practices
-in the world. The clock is the conventional training step.
+The world is timed by a clock. It represents how long the kid has been
+practicing. Technically, the clock is the conventional training step.
 
-The data supplier, such as the data generator in `keras`, or data layer in
-`Caffe`, is abstracted as a class `Sensor`. It takes a `Source` which either
-provides data in form of tensor of Tensorflow or array of numpy. Optionally, it
-could make use of class `Joker` to make jokes to the data from `Source`,
-meaning doing data augmentation.
+To break things done, `Sensor` takes a `Source` which either provides data in
+form of tensors from Tensorflow or numpy arrays. Optionally, it can make jokers
+on the data using `Joker`, meaning doing data augmentation.
 
 The data processing engine, which is a deep neural network, is abstracted as a
-class `Brain`. `Brain` is the name we give to the data processing system in
-living beings. A `Brain` incarnates one of data processing system topology, or
-in the terminology of neural network, network structure topology, such as a
+`Brain`. `Brain` is the name we give to the data processing system in living
+beings. A `Brain` incarnates one of data processing system topology, or in the
+terminology of neural network, network structure topology, such as a
 sequentially linked together layers, to process data. Available topology is
 defined in module `systems`.
 
@@ -82,38 +83,33 @@ computation is done by a class `Engine`, which implement a parallel scheme (or
 one lack of parallelism) to actually do the computation.
 
 A living being is abstracted as a `Kid` class, which assemblies all above
-classes together to play the survival game. The metaphor means by sensing more
-examples, with certain genre of Kong Fu(different training algorithms and
-policies), the data processing engine of the Survivor, the brain, should get
-better at doing whatever task it is doing, letting it be image classification
-or something else.
+classes together to play the game. The metaphor means by sensing more examples,
+with certain genre of Kong Fu(different training algorithms and policies), the
+data processing engine of the `Kid`, the brain, should get better at doing
+whatever task it is doing, letting it be image classification or something
+else.
 
-Besides, an `Observer` class could open a brain and look into it, which is to
-mean visualization.
+In addition, an `Observer` class could open a brain and look into it, which is
+to mean visualization, statistics etc.
 
 ## `akid` stack
+
+Now we go technical to discuss each stack provided by `akid`.
 
 ### Application
 
 At the top of the stack, `akid` could be used as a part of application without
 knowing the underlying mechanism of neural networks.
 
-`akid` provides full machinery from preparing the data, doing data
-augmentation, specifying computation graph (neural network architecture),
-choosing optimization algorithms, specifying training scheme (data parallelism
-etc), and information logging.
+`akid` provides full machinery from preparing data, augmenting data, specifying
+computation graph (neural network architecture), choosing optimization
+algorithms, specifying parallel training scheme (data parallelism etc), logging
+and visualization.
 
 #### Neural network training --- A holistic example
 
-This case suits the ones who are product driven --- wants to get results
-quickly. It aims to provide an easy to use flow to all elements of neural
-network --- training, testing, logging, parallelism schemes, etc. That is to
-say, it could make use of all possible blocks in `akid`.
-
-From a perspective of design, this is what `akid` means, explained in the
-following. Also, in this section, all available blocks in `akid` are briefly
-introduced.
-
+The application currently `akid` handles the best is to training neural
+networks, which is described in this section.
 
 ```eval_rst
 .. image:: ../images/application_illustration.png
@@ -247,3 +243,41 @@ The end computational graph is
    :align: right
 ```
 
+## Comparison with existing packages
+
+`akid` differs from existing packages from the perspective that it aims to
+integrate technology stacks to solve both research prototyping and industrial
+production. Existing packages mostly aim to solve problems in one of the
+stack. `akid` reduces the friction between different stacks with its unique
+features. We compare `akid` with existing packages in the following briefly.
+[Theano](http://deeplearning.net/software/theano/), [Torch](http://torch.ch/),
+[Caffe](http://caffe.berkeleyvision.org/), [MXNet](mxnet.dmlc.ml) are packages that aim to provide a
+friendly front end to complex computation back-end that are written in
+C++. Theano is a python front end to a computational graph compiler, which has
+been largely superseded by Tensorflow in the compilation speed, flexibility,
+portability etc, while `akid` is built on of Tensorflow. MXNet is a competitive
+competitor to Tensorflow. Torch is similar with theano, but with the front-end
+language to be Lua, the choice of which is mostly motivated from the fact that
+it is much easier to interface with C using Lua than Python. It has been widely
+used before deep learning has reached wide popularity, but is mostly a quick
+solution to do research in neural networks when the integration with community
+and general purpose production programming are not pressing. Caffe is written
+in C++, whose friendly front-end, aka the text network configuration file,
+loses its affinity when the model goes more than dozens of
+layer. [DeepLearning4J](https://deeplearning4j.org/) is an industrial solution
+to neural networks written in Java and Scala, and is too heavy weight for
+research prototyping. Perhaps the most similar package existing with `akid` is
+[Keras](keras.io), which both aim to provide a more intuitive interface to
+relatively low-level library, i.e. Tensorflow. `akid` is different from Keras
+at least two fundamental aspects. First, `akid` mimics how signals propagates
+in nature by abstracting everything as a semantic block, which holds many
+states, thus is able to provide a wide range of functionality in a easily
+customizable way, while Keras uses a functional API that directly manipulates
+tensors, which is a lower level of abstraction, e.g. it have to do class
+attributes traverse to retrieve layer weights with a fixed variable name while
+in `akid` variable are retrieved by names. Second, Keras mostly only provides
+an abstraction to build neural network topology, which is roughly the
+programming paradigm stack of `akid`, while `akid` provides unified abstraction
+that includes application stack, programming stack, and distributed computing
+stack. A noticeable improvement is Keras needs the user to handle communication
+and concurrency, while the distributed computing stack of `akid` hides them.
