@@ -49,10 +49,6 @@ decoupling the research prototype environment with the actual production
 environment, and is able to dynamically allocate computing resources, so
 administration ops and development ops could be separated.
 
-
-## A narrative description of `akid`
-
-
 ## `akid` stack
 
 Now we go technical to discuss each stack provided by `akid`.
