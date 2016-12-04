@@ -1,10 +1,13 @@
 """
-`akid` offers built-in data parallel scheme in form of class `Engine`. It aims
-to abstract concurrency and communication away, so the end user only needs to
-deal with how to build a power network.
+The distributed computing stack is responsible to handle concurrency and
+communication between different computing nodes, so the end user only needs to
+deal with how to build a power network. All complexity has been hidden in the
+class `Engine`. The usage of `Engine` is just to pick and use.
 
-Currently, the engine mainly works with neural network training, which is be
-used with `Kid` by specifying the engine at the construction of the kid.
+More specifically, `akid` offers built-in data parallel scheme in form of class
+`Engine`. Currently, the engine mainly works with neural network training,
+which is be used with `Kid` by specifying the engine at the construction of the
+kid.
 
 As an example, we could do data parallelism on multiple using::
 

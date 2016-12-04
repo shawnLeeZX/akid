@@ -25,7 +25,7 @@ specifically, it
     containers, and distributed operating systems such as Kubernetes.
 
 The name comes from the Kid saved by Neo in *Matrix*, and the metaphor to build
-a learning agent, which we call *kid* in our culture.
+a learning agent, which we call *kid* in human culture.
 
 * [Get Started](get_started/index.md)
 * [Introduction](intros/index.md)

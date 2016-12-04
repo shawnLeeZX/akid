@@ -12,12 +12,8 @@ pip install numpy, scipy, matplotlib, gflags
 ```
 
 Follow the official installation
-[guide](https://www.tensorflow.org/versions/r0.10/get_started/os_setup.html) to
+[guide](https://www.tensorflow.org/versions/r0.12/get_started/os_setup.html) to
 install tensorflow.
-
-NOTE: the newest tensorflow `0.11.0rc0` seems to have a bug wit `akid`, perhaps
-it is a general bug. Install version `0.10.0` at this time. The link above
-already points to version `0.10.0`.
 
 ## Install from the source
 

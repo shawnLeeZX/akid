@@ -27,8 +27,8 @@ Act accordingly.
 
 Similarly, all blocks work this way.
 
-A brain provides easy ways to connect blocks. For example, the one layer brain
-used in the previous example is built through the following::
+A brain provides easy ways to connect blocks. For example, a one layer brain
+can be built through the following::
 
     class OneLayerBrain(Brain):
         def __init__(self, **kwargs):
@@ -57,13 +57,14 @@ used in the previous example is built through the following::
                 name="loss"))
 
 It assembles a convolution layer, a ReLU Layer, a pooling layer, an inner
-product layer and a loss layer. To attach a block (layer) directly taking the
-output of the previous attached layer as the input, just use directly attach
-the block. If `inputs` of any block exists, the brain will fetch corresponding
-tensors by name of the block attached and indices of the outputs of that
-layer. See the loss layer above for an example. Note that even though there are
-multiple inputs for the brain, the first attached layer of the brain will take
-the first of these input by default.
+product layer and a loss layer. To attach a block (layer) that directly takes
+the outputs of the previous attached layer as inputs, just directly attach the
+block. If `inputs` exists, the brain will fetch corresponding tensors by name
+of the block attached and indices of the outputs of that layer. See the loss
+layer above for an example. Note that even though there are multiple inputs for
+the brain, the first attached layer of the brain will take the first of these
+input by default, given the convention that the first tensor is the data, and
+the remaining tensors are normally labels, which is not used till very late.
 """
 from __future__ import absolute_import, division, print_function
 
