@@ -109,7 +109,7 @@ class KongFu(ShadowableBlock):
 
     def _post_setup(self):
         if self.do_summary:
-            tf.scalar_summary(LEARNING_RATE_TAG,
+            tf.summary.scalar(LEARNING_RATE_TAG,
                               self.learning_rate,
                               collections=[TRAINING_DYNAMICS_COLLECTION])
 

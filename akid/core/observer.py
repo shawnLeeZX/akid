@@ -899,7 +899,7 @@ class Observer(object):
                     data = a
                     activations.remove(a)
             # Init.
-            saver = tf.train.Saver(tf.all_variables())
+            saver = tf.train.Saver(tf.global_variables())
             self.restore_from_ckpt(sess, saver, model_dir)
             # Run the graph once to get all activation.
             feed_dict = self.fill_feed_dict(self.data_sets.train)

@@ -74,8 +74,8 @@ def _activation_summary(x):
     Returns:
         nothing
     """
-    tf.histogram_summary(x.op.name + '/activations', x)
-    tf.scalar_summary(x.op.name + '/sparsity', tf.nn.zero_fraction(x))
+    tf.summary.histogram(x.op.name + '/activations', x)
+    tf.summary.scalar(x.op.name + '/sparsity', tf.nn.zero_fraction(x))
 
 
 def inference(images):
@@ -198,7 +198,7 @@ def training(loss, BATCH_SIZE):
         train_op: The Op for training.
     """
     # Add a scalar summary for the snapshot loss.
-    tf.scalar_summary(loss.op.name, loss)
+    tf.summary.scalar(loss.op.name, loss)
     # Optimizer: set up a variable that's incremented once per batch and
     # controls the learning rate decay.
     step = tf.Variable(0, name='step', trainable=False)
@@ -209,7 +209,7 @@ def training(loss, BATCH_SIZE):
         NUM_TRAIN,          # Decay step.
         0.95,                # Decay rate.
         staircase=True)
-    tf.scalar_summary('learning_rate', learning_rate)
+    tf.summary.scalar('learning_rate', learning_rate)
     # Use simple momentum for the optimization.
     optimizer = tf.train.MomentumOptimizer(learning_rate, 0.9)
     # Create a variable to track the global step.
@@ -218,7 +218,7 @@ def training(loss, BATCH_SIZE):
     train_op = optimizer.minimize(loss, global_step=step)
     # Add histograms for trainable variables.
     for var in tf.trainable_variables():
-        tf.histogram_summary(var.op.name, var)
+        tf.summary.histogram(var.op.name, var)
     return train_op
 
 

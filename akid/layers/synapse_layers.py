@@ -142,7 +142,7 @@ class SynapseLayer(ProcessingLayer):
                     v_norms = tf.sqrt(_, name="l2norm")
                     tf.add_to_collection(AUXILLIARY_STAT_COLLECTION,
                                          v_norms)
-                    tf.histogram_summary(
+                    tf.summary.histogram(
                         v.op.name + "l2norm",
                         v_norms,
                         collections=[AUXILLIARY_SUMMARY_COLLECTION])

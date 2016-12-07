@@ -359,7 +359,7 @@ class ImagenetTFSource(ClassificationTFSource):
         if not thread_id:
             image_with_box = tf.image.draw_bounding_boxes(
                 tf.expand_dims(image, 0), bbox)
-            tf.image_summary('image_with_bounding_boxes', image_with_box)
+            tf.summary.image('image_with_bounding_boxes', image_with_box)
 
         # A large fraction of image datasets contain a human-annotated
         # bounding box delineating the region of the image containing
@@ -383,7 +383,7 @@ class ImagenetTFSource(ClassificationTFSource):
         if not thread_id:
             image_with_distorted_box = tf.image.draw_bounding_boxes(
                 tf.expand_dims(image, 0), distort_bbox)
-            tf.image_summary('images_with_distorted_bounding_box',
+            tf.summary.image('images_with_distorted_bounding_box',
                              image_with_distorted_box)
 
         # Crop the image to the specified bounding box.

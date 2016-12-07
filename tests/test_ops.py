@@ -19,7 +19,7 @@ class TestOps(AKidTestCase):
                                   initializer=msra_initializer(factor=1))
             mean = tf.reduce_mean(var, [0, 1, 3])
         with tf.Session(graph=self.graph) as sess:
-            init = tf.initialize_all_variables()
+            init = tf.global_variables_initializer()
             sess.run(init)
 
             mean = mean.eval()
@@ -36,7 +36,7 @@ class TestOps(AKidTestCase):
                                   initializer=msra_initializer(factor=1))
             mean = tf.reduce_mean(var, [1])
         with tf.Session(graph=self.graph) as sess:
-            init = tf.initialize_all_variables()
+            init = tf.global_variables_initializer()
             sess.run(init)
 
             mean = mean.eval()

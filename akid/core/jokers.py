@@ -158,7 +158,7 @@ class WhitenJoker(Joker):
     Per image whitening joke.
     """
     def _setup(self, data_in):
-        self._data = tf.image.per_image_whitening(data_in)
+        self._data = tf.image.per_image_standardization(data_in)
 
 
 class RescaleJoker(Joker):

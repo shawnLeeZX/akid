@@ -9,7 +9,7 @@ More specifically, `akid` offers built-in data parallel scheme in form of class
 which is be used with `Kid` by specifying the engine at the construction of the
 kid.
 
-As an example, we could do data parallelism on multiple using::
+As an example, we could do data parallelism on multiple computing towers using::
 
     kid = kids.Kid(
         sensor,
@@ -86,7 +86,7 @@ class Engine(object):
 
         for grad, var in grads:
             if grad is not None:
-                tf.histogram_summary(
+                tf.summary.histogram(
                     var.op.name + '/gradients',
                     grad,
                     collections=[TRAINING_DYNAMICS_COLLECTION])

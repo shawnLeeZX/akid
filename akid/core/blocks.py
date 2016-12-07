@@ -8,7 +8,11 @@ network, or sequentially linked block system that does data augmentation.
 
 Compared with pure symbol computation approach, like the one in tensorflow, a
 block is able to contain states associated with this processing unit. Signals
-are passed between blocks in form of tensors or list of tensors.
+are passed between blocks in form of tensors or list of tensors. Many heavy
+lifting has been done in the block (`Block` and its sub-classes),
+e.g. pre-condition setup, name scope maintenance, copy functionality for
+validation and copy functionality for distributed replicas, setting up and
+gathering visualization summaries, centralization of variable allocation, etc.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -313,17 +317,17 @@ class ProcessingLayer(ShadowableBlock):
                 if type(self.data) is not list:
                     self._data_summary(self.data, collection_to_add)
             if self.loss is not None:
-                tf.scalar_summary(self.loss.op.name,
+                tf.summary.scalar(self.loss.op.name,
                                   self.loss,
                                   collections=[collection_to_add])
             if self.eval is not None:
                 if type(self.eval) is list:
                     for e in self.eval:
-                        tf.scalar_summary(e.op.name,
+                        tf.summary.scalar(e.op.name,
                                           e,
                                           collections=[collection_to_add])
                 else:
-                    tf.scalar_summary(self.eval.op.name,
+                    tf.summary.scalar(self.eval.op.name,
                                       self.eval,
                                       collections=[collection_to_add])
 
@@ -339,10 +343,10 @@ class ProcessingLayer(ShadowableBlock):
         assert collection is TRAIN_SUMMARY_COLLECTION or \
             collection is VALID_SUMMARY_COLLECTION, \
             "{} is not one of those defined in common.py. Some thing is wrong"
-        tf.histogram_summary(data.op.name + '/activations',
+        tf.summary.histogram(data.op.name + '/activations',
                              data,
                              collections=[collection])
-        tf.scalar_summary(data.op.name + '/' + SPARSITY_SUMMARY_SUFFIX,
+        tf.summary.scalar(data.op.name + '/' + SPARSITY_SUMMARY_SUFFIX,
                           tf.nn.zero_fraction(data),
                           collections=[collection])
 
@@ -380,9 +384,9 @@ class ProcessingLayer(ShadowableBlock):
 
     def _var_summary(self, tag, var):
         if len(var.get_shape().as_list()) is 0:
-            tf.scalar_summary(tag, var, collections=[TRAIN_SUMMARY_COLLECTION])
+            tf.summary.scalar(tag, var, collections=[TRAIN_SUMMARY_COLLECTION])
         else:
-            tf.histogram_summary(tag,
+            tf.summary.histogram(tag,
                                  var,
                                  collections=[TRAIN_SUMMARY_COLLECTION])
 

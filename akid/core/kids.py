@@ -273,7 +273,7 @@ class Kid(object):
                 train_op_list = [self.brain.train_op]
             train_op_list.append(self.engine.train_op)
             self.train_op = tf.group(*train_op_list)
-            self.saver = tf.train.Saver(tf.all_variables())
+            self.saver = tf.train.Saver(tf.global_variables())
             if self.sess is None:
                 config = tf.ConfigProto(allow_soft_placement=True)
                 config.gpu_options.allow_growth = True
@@ -352,7 +352,7 @@ class Kid(object):
     def _setup_summary(self):
         if self.do_summary:
             # SummaryWriter to output summaries and the Graph.
-            self.summary_writer = tf.train.SummaryWriter(self.log_dir)
+            self.summary_writer = tf.summary.FileWriter(self.log_dir)
             log.info("Summary event file will be saved to {}".format(
                 self.log_dir))
             # Build the summary operation based on the TF collection of
@@ -364,7 +364,7 @@ class Kid(object):
                 val_summary_ops = tf.get_collection(
                     VALID_SUMMARY_COLLECTION)
                 summary_ops.extend(val_summary_ops)
-            self.summary_op = tf.merge_summary(summary_ops)
+            self.summary_op = tf.summary.merge(summary_ops)
             # Write the brain to tensorflow event file.
             self.summary_writer.add_graph(self.graph)
 
@@ -414,7 +414,7 @@ class Kid(object):
             self.restore_from_ckpt()
         else:
             with self.graph.as_default():
-                init = tf.initialize_all_variables()
+                init = tf.global_variables_initializer()
             self.sess.run(init)
 
         # Start queue runner if needed.

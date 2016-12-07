@@ -8,7 +8,7 @@ fulfill certain tasks. More specifically,
 
 To use a brain, feed in data as a list, as how it is done in any other
 blocks. Some pre-specified brains are available under `akid.models.brains`. An
-example could be::
+example that sets up a brain using existing brains is::
 
     # ... first get a feed sensor
     sensor.setup()
@@ -267,7 +267,7 @@ class Brain(GraphSystem, ProcessingLayer):
 
     def _post_setup(self):
         if self.do_summary:
-            tf.scalar_summary(self.loss.op.name, self.loss)
+            tf.summary.scalar(self.loss.op.name, self.loss)
 
     def on_batch_finishes(self):
         # Max norm constrain.

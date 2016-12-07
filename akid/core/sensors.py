@@ -157,10 +157,10 @@ class Sensor(Block):
                                 VALID_SUMMARY_COLLECTION)
 
     def _image_summary(self, name, image_batch, collection):
-            tf.histogram_summary(name,
+            tf.summary.histogram(name,
                                  image_batch,
                                  collections=[collection])
-            tf.image_summary(name,
+            tf.summary.image(name,
                              image_batch,
                              collections=[collection])
 
@@ -290,7 +290,7 @@ class IntegratedSensor(ShuffleQueueSensor):
     def _raw_datum_summary(self, name, datum, collection):
         # Since image summary only takes image batches, we package each
         # image into a batch.
-        tf.image_summary(name,
+        tf.summary.image(name,
                          tf.expand_dims(datum, 0),
                          collections=[collection])
 

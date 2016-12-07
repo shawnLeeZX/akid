@@ -47,7 +47,7 @@ model is specified in the programming paradigm stack. Lastly, the distributed
 deployment stack handles how the distributed computing is deployed, thus
 decoupling the research prototype environment with the actual production
 environment, and is able to dynamically allocate computing resources, so
-administration ops and development ops could be separated.
+developments (Devs) and operations (Ops) could be separated.
 
 ## `akid` stack
 
@@ -302,6 +302,7 @@ integrate technology stacks to solve both research prototyping and industrial
 production. Existing packages mostly aim to solve problems in one of the
 stack. `akid` reduces the friction between different stacks with its unique
 features. We compare `akid` with existing packages in the following briefly.
+
 [Theano](http://deeplearning.net/software/theano/), [Torch](http://torch.ch/),
 [Caffe](http://caffe.berkeleyvision.org/), [MXNet](mxnet.dmlc.ml) are packages that aim to provide a
 friendly front end to complex computation back-end that are written in
@@ -316,9 +317,13 @@ solution to do research in neural networks when the integration with community
 and general purpose production programming are not pressing. Caffe is written
 in C++, whose friendly front-end, aka the text network configuration file,
 loses its affinity when the model goes more than dozens of
-layer. [DeepLearning4J](https://deeplearning4j.org/) is an industrial solution
+layer.
+
+[DeepLearning4J](https://deeplearning4j.org/) is an industrial solution
 to neural networks written in Java and Scala, and is too heavy weight for
-research prototyping. Perhaps the most similar package existing with `akid` is
+research prototyping.
+
+Perhaps the most similar package existing with `akid` is
 [Keras](keras.io), which both aim to provide a more intuitive interface to
 relatively low-level library, i.e. Tensorflow. `akid` is different from Keras
 at least two fundamental aspects. First, `akid` mimics how signals propagates
