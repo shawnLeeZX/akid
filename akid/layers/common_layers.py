@@ -99,7 +99,9 @@ class MergeLayer(ProcessingLayer):
     def _setup(self, inputs):
         shape = inputs[0].get_shape().as_list()
         for t in inputs:
-            assert t.get_shape().as_list() == shape
+            t_shape = t.get_shape().as_list()
+            assert t_shape == shape,\
+                "Tensors to merge do not have the same shape as {} (found {})".format(shape, t_shape)
 
         sum = inputs[0]
         for t in inputs[1:]:

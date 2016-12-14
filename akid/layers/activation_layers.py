@@ -332,7 +332,15 @@ class BatchNormalizationLayer(ProcessingLayer):
             step = tf.get_variable(common.GLOBAL_STEP)
         ema = tf.train.ExponentialMovingAverage(0.9, step)
 
-        ema_apply_op = ema.apply([mean, variance])
+        with tf.variable_scope(tf.get_variable_scope(), reuse=False):
+            # NOTE: Prior to tf 0.12, I did not need the variable scope above
+            # this line to get things working. The problem is that moving
+            # average cannot be put in a variable scope that plans to reuse its
+            # variables (due to a debias mechanism introduced in tf 0.12). This
+            # is a temporary fix, waiting for solutions in issues:
+            # https://github.com/tensorflow/tensorflow/issues/6270 and
+            # https://github.com/tensorflow/tensorflow/issues/5827
+            ema_apply_op = ema.apply([mean, variance])
         ema_mean, ema_var = ema.average(mean), ema.average(variance)
         # Add the moving average to var list, for purposes such as
         # visualization.
