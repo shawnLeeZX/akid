@@ -130,17 +130,11 @@ class ImagenetTFSource(ClassificationTFSource):
         super(ImagenetTFSource, self).__init__(**kwargs)
         self.has_super_label = has_super_label
 
-    def _read(self):
+    def _setup(self):
         """
-        Create multiple readers to read from tfrecord, and crop it using
-        bounding boxes. The cropped images and its labels are the output of
-        this source. In this case of validation samples, no cropping is done.
-
-        Multiple readers may be present if specified. In this case, the
-        output data is a dequeue op instead of a single reader op.
-
-        The data augmentation done in the inception code is delegated to
-        sensors, as what should be done in akid.
+        Read, and crop images using bounding boxes. The cropped images and its
+        labels are the output of this source. In this case of validation
+        samples, no cropping is done.
         """
 
         with tf.device('/cpu:0'):

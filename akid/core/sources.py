@@ -333,11 +333,9 @@ class TFSource(StaticSource):
     Note the optional properties of `Source`, is made abstract, consequently
     mandatory.
     """
+    @abc.abstractmethod
     def _setup(self):
         self._read()
-
-    @abc.abstractmethod
-    def _read(self):
         """
         TFSource uses Reader Ops of Tensorflow to read data. So any sub-classes
         of `TFSource` should implement it to actually read data. If it is
@@ -401,20 +399,6 @@ class ClassificationTFSource(TFSource, SupervisedSource):
     It further makes concrete most of the abstract methods of its super
     classes.
     """
-    def _setup(self):
-        self._read()
-
-    @abc.abstractmethod
-    def _read(self):
-        """
-        TFSource uses Reader Ops of Tensorflow to read data. So any sub-classes
-        of `TFSource` should implement it to actually read data. If it is
-        combined with `SupervisedSource`, then setup of `labels` should also be
-        put here.
-        """
-        raise NotImplementedError("Each sub-class of TFSource needs to"
-                                  " implement this method to read data!")
-
     @property
     def training_datum(self):
         return self._training_datum
