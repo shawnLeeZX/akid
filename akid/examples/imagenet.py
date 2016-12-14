@@ -12,7 +12,6 @@ brain = ImagenetResNet(depth=50, width=2, class_num=1001,
 # Set up a sensor.
 # #########################################################################
 source = ImagenetTFSource(
-    num_readers=4,
     has_super_label=False,
     name="Imagenet",
     url=None,

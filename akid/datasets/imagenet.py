@@ -126,12 +126,9 @@ class ImagenetData(Dataset):
 
 
 class ImagenetTFSource(ClassificationTFSource):
-    def __init__(self, num_readers, has_super_label=True, **kwargs):
+    def __init__(self, has_super_label=True, **kwargs):
         super(ImagenetTFSource, self).__init__(**kwargs)
         self.has_super_label = has_super_label
-        # TODO: figure out why do we need set this number. Is it better to have
-        # only one queue in the preprocessing?
-        self.num_readers = num_readers
 
     def _read(self):
         """
@@ -176,7 +173,6 @@ class ImagenetTFSource(ClassificationTFSource):
         """
         Given a dataset return the data tensors for images and labels.
         """
-        # TODO: deal with validation case.
         data_files = dataset.data_files()
         if data_files is None:
             raise ValueError('No data files found for this dataset')
@@ -190,74 +186,19 @@ class ImagenetTFSource(ClassificationTFSource):
             filename_queue = tf.train.string_input_producer(data_files,
                                                             shuffle=False,
                                                             capacity=1)
-
-        # TODO: the following factors should be configurable.
-        # Approximate number of examples per shard.
-        examples_per_shard = 1024
-        # FIXME: the example per shard is not accuracy, find other ways to
-        # calculate buffer size.
-
-        # Size the random shuffle queue to balance between good global mixing
-        # (more examples) and memory use (fewer examples).  1 image uses
-        # 299*299*3*4 bytes = 1MB The default input_queue_memory_factor is 16
-        # implying a shuffling queue size: examples_per_shard * 16 * 1MB =
-        # 17.6GB
-        input_queue_memory_factor = 16
-        queue_examples = examples_per_shard * input_queue_memory_factor
-        min_queue_examples \
-            = examples_per_shard * (input_queue_memory_factor - 2)
-
-        # Number of parallel readers during training.
-        if self.num_readers > 1:
-            # Create multiple readers to populate the queue of examples.
-            enqueue_ops = []
-            for thread_id in range(self.num_readers):
-                reader = dataset.reader()
-                _, example_serialized = reader.read(filename_queue)
-                image_buffer, label, bbox, _ \
-                    = self.parse_example_proto(example_serialized)
-                if train:
-                    image = self.process_train_image(image_buffer,
-                                                     bbox,
-                                                     thread_id)
-                else:
-                    image = self.decode_jpeg(image_buffer)
-                if type(label) is list:
-                    label.insert(0, image)
-                    to_enqueue = label
-                    dtypes = [tf.float32, tf.int32, tf.int32]
-                else:
-                    to_enqueue = [image, label]
-                    dtypes = [tf.float32, tf.int32]
-                if train:
-                    examples_queue = tf.RandomShuffleQueue(
-                        capacity=queue_examples,
-                        min_after_dequeue=min_queue_examples,
-                        dtypes=dtypes)
-                else:
-                    examples_queue = tf.FIFOQueue(
-                        capacity=queue_examples,
-                        dtypes=dtypes)
-
-                enqueue_ops.append(examples_queue.enqueue(to_enqueue))
-
-            tf.train.queue_runner.add_queue_runner(
-                tf.train.queue_runner.QueueRunner(examples_queue, enqueue_ops))
-            out_tensor_list = examples_queue.dequeue()
+        reader = dataset.reader()
+        _, example_serialized = reader.read(filename_queue)
+        image_buffer, label, bbox, _ = self.parse_example_proto(
+            example_serialized)
+        if train:
+            image = self.process_train_image(image_buffer, bbox, 0)
         else:
-            reader = dataset.reader()
-            _, example_serialized = reader.read(filename_queue)
-            image_buffer, label, bbox, _ = self.parse_example_proto(
-                example_serialized)
-            if train:
-                image = self.process_train_image(image_buffer, bbox)
-            else:
-                image = self.decode_jpeg(image_buffer)
-            if type(label) is list:
-                label.insert(0, image)
-                out_tensor_list = label
-            else:
-                out_tensor_list = [image, label]
+            image = self.decode_jpeg(image_buffer)
+        if type(label) is list:
+            label.insert(0, image)
+            out_tensor_list = label
+        else:
+            out_tensor_list = [image, label]
 
         return out_tensor_list
 
