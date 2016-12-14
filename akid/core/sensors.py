@@ -220,8 +220,9 @@ class IntegratedSensor(ShuffleQueueSensor):
     `LinkedSystem`s, `training_jokers` and `val_jokers`, which do data
     processing on training datum and validation datum respectively.
     """
-    def __init__(self, **kwargs):
+    def __init__(self, num_preprocess_threads=4,  **kwargs):
         super(IntegratedSensor, self).__init__(**kwargs)
+        self.num_preprocess_threads = num_preprocess_threads
 
         # Keep two LinkedSystem to hold Jokers that may apply to training and
         # validation data.
@@ -310,17 +311,14 @@ class IntegratedSensor(ShuffleQueueSensor):
                 A list of batched tensors of passed in `image` and `label`. The
                 order how they are passed in is preserved in the list.
         """
-        # Having errors when thread number is too high.
-        # num_preprocess_threads = 16
-        num_preprocess_threads = 4
         input_list = [image]
         input_list.extend(label) if type(label) is list \
             else input_list.append(label)
         batch_list = tf.train.shuffle_batch(
             input_list,
             batch_size=batch_size,
-            num_threads=num_preprocess_threads,
-            capacity=min_queue_examples + 3 * batch_size,
+            num_threads=self.num_preprocess_threads,
+            capacity=min_queue_examples + 2 * self.num_preprocess_threads * batch_size,
             min_after_dequeue=min_queue_examples,
             name=name)
 

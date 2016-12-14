@@ -126,6 +126,13 @@ class ImagenetData(Dataset):
 
 
 class ImagenetTFSource(ClassificationTFSource):
+    def __init__(self, num_readers, has_super_label=True, **kwargs):
+        super(ImagenetTFSource, self).__init__(**kwargs)
+        self.has_super_label = has_super_label
+        # TODO: figure out why do we need set this number. Is it better to have
+        # only one queue in the preprocessing?
+        self.num_readers = num_readers
+
     def _read(self):
         """
         Create multiple readers to read from tfrecord, and crop it using
@@ -143,26 +150,27 @@ class ImagenetTFSource(ClassificationTFSource):
             dataset = ImagenetData(work_dir=self.work_dir,
                                    subset="train",
                                    name="Imagenet")
-            self._training_datum, sub_label, super_label \
-                = self._read_dataset(dataset, train=True)
+            tensor_list = self._read_dataset(dataset, train=True)
+            self._training_datum = tensor_list[0]
+            self._training_label = tensor_list[1:]
             # Manually set shape value, which is necessary for later
             # usage. The height and width info is dynamically determined when
             # decoding jpg files, so is not available. tf.slice seems to lose
             # all shape info when one of the shape info is missing before
             # slicing.
             self._training_datum.set_shape([None, None, 3])
-            sub_label.set_shape([1])
-            super_label.set_shape([1])
-            self._training_label = [sub_label, super_label]
+            for t in self._training_label:
+                t.set_shape([1])
+
             dataset = ImagenetData(work_dir=self.work_dir,
                                    subset="validation",
                                    name="Imagenet")
-            self._val_datum, sub_label, super_label \
-                = self._read_dataset(dataset, train=False)
-            sub_label.set_shape([1])
-            super_label.set_shape([1])
-            self._val_label = [sub_label, super_label]
+            tensor_list = self._read_dataset(dataset, train=False)
+            self._val_datum = tensor_list[0]
+            self._val_label = tensor_list[1:]
             self._val_datum.set_shape([None, None, 3])
+            for t in self._val_label:
+                t.set_shape([1])
 
     def _read_dataset(self, dataset, train):
         """
@@ -199,26 +207,14 @@ class ImagenetTFSource(ClassificationTFSource):
         min_queue_examples \
             = examples_per_shard * (input_queue_memory_factor - 2)
 
-        if train:
-            examples_queue = tf.RandomShuffleQueue(
-                capacity=queue_examples,
-                min_after_dequeue=min_queue_examples,
-                dtypes=[tf.float32, tf.int32, tf.int32])
-        else:
-            examples_queue = tf.FIFOQueue(
-                capacity=queue_examples,
-                dtypes=[tf.float32, tf.int32, tf.int32])
-
-        # TODO: reader number should be configurable.
         # Number of parallel readers during training.
-        num_readers = 4
-        if num_readers > 1:
+        if self.num_readers > 1:
             # Create multiple readers to populate the queue of examples.
             enqueue_ops = []
-            for thread_id in range(num_readers):
+            for thread_id in range(self.num_readers):
                 reader = dataset.reader()
                 _, example_serialized = reader.read(filename_queue)
-                image_buffer, label, super_label, bbox, _ \
+                image_buffer, label, bbox, _ \
                     = self.parse_example_proto(example_serialized)
                 if train:
                     image = self.process_train_image(image_buffer,
@@ -226,23 +222,44 @@ class ImagenetTFSource(ClassificationTFSource):
                                                      thread_id)
                 else:
                     image = self.decode_jpeg(image_buffer)
-                enqueue_ops.append(
-                    examples_queue.enqueue([image, label, super_label]))
+                if type(label) is list:
+                    label.insert(0, image)
+                    to_enqueue = label
+                    dtypes = [tf.float32, tf.int32, tf.int32]
+                else:
+                    to_enqueue = [image, label]
+                    dtypes = [tf.float32, tf.int32]
+                if train:
+                    examples_queue = tf.RandomShuffleQueue(
+                        capacity=queue_examples,
+                        min_after_dequeue=min_queue_examples,
+                        dtypes=dtypes)
+                else:
+                    examples_queue = tf.FIFOQueue(
+                        capacity=queue_examples,
+                        dtypes=dtypes)
+
+                enqueue_ops.append(examples_queue.enqueue(to_enqueue))
 
             tf.train.queue_runner.add_queue_runner(
                 tf.train.queue_runner.QueueRunner(examples_queue, enqueue_ops))
-            image, label, super_label = examples_queue.dequeue()
+            out_tensor_list = examples_queue.dequeue()
         else:
             reader = dataset.reader()
             _, example_serialized = reader.read(filename_queue)
-            image_buffer, label, super_label, bbox, _ = self.parse_example_proto(
+            image_buffer, label, bbox, _ = self.parse_example_proto(
                 example_serialized)
             if train:
                 image = self.process_train_image(image_buffer, bbox)
             else:
                 image = self.decode_jpeg(image_buffer)
+            if type(label) is list:
+                label.insert(0, image)
+                out_tensor_list = label
+            else:
+                out_tensor_list = [image, label]
 
-        return image, label, super_label
+        return out_tensor_list
 
     def decode_jpeg(self, image_buffer, scope=None):
         """Decode a JPEG string into one 3-D float image Tensor.
@@ -308,11 +325,12 @@ class ImagenetTFSource(ClassificationTFSource):
                                                 default_value=''),
             'image/class/label': tf.FixedLenFeature([1], dtype=tf.int64,
                                                     default_value=-1),
-            'image/class/super_label': tf.FixedLenFeature([1], dtype=tf.int64,
-                                                    default_value=-1),
             'image/class/text': tf.FixedLenFeature([], dtype=tf.string,
                                                    default_value=''),
         }
+        if self.has_super_label:
+            feature_map['image/class/super_label'] \
+                = tf.FixedLenFeature([1], dtype=tf.int64, default_value=-1)
         sparse_float32 = tf.VarLenFeature(dtype=tf.float32)
         # Sparse features in Example proto.
         feature_map.update(
@@ -323,8 +341,9 @@ class ImagenetTFSource(ClassificationTFSource):
 
         features = tf.parse_single_example(example_serialized, feature_map)
         label = tf.cast(features['image/class/label'], dtype=tf.int32)
-        super_label = tf.cast(features['image/class/super_label'],
-                              dtype=tf.int32)
+        if self.has_super_label:
+            super_label = tf.cast(features['image/class/super_label'],
+                                dtype=tf.int32)
 
         xmin = tf.expand_dims(features['image/object/bbox/xmin'].values, 0)
         ymin = tf.expand_dims(features['image/object/bbox/ymin'].values, 0)
@@ -340,11 +359,16 @@ class ImagenetTFSource(ClassificationTFSource):
         bbox = tf.expand_dims(bbox, 0)
         bbox = tf.transpose(bbox, [0, 2, 1])
 
-        return features['image/encoded'],\
-            label,\
-            super_label,\
-            bbox,\
-            features['image/class/text']
+        if self.has_super_label:
+            return features['image/encoded'],\
+                [label, super_label],\
+                bbox,\
+                features['image/class/text']
+        else:
+            return features['image/encoded'],\
+                label,\
+                bbox,\
+                features['image/class/text']
 
     def process_train_image(self, image_buffer, bbox, thread_id):
         # Crop data

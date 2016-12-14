@@ -341,13 +341,14 @@ class ResNet(Brain):
                  class_num=10,
                  dropout_prob=None,
                  projection_shortcut=True,
-                 sub_class_multiplier_ratio=0.5,
-                 h_loss=False,
                  use_gsmax=False,
                  group_size=4,
                  **kwargs):
         super(ResNet, self).__init__(**kwargs)
 
+        self.depth = depth
+        self.width = width
+        self.class_num = class_num
         self.residual_block_No = 0
         self.dropout_prob = dropout_prob
         self.projection_shortcut = projection_shortcut
@@ -355,8 +356,165 @@ class ResNet(Brain):
         self.use_gsmax = use_gsmax
         self.group_size = group_size
 
+    def _attach_stack(self,
+                      n_input_plane,
+                      n_output_plane,
+                      count,
+                      stride,
+                      act_before_residual,
+                      block_type="basic"):
+        if block_type == "basic":
+            conv_params = [[(3, 3), stride, "SAME"],
+                           [(3, 3), (1, 1), "SAME"]]
+        elif block_type == "bottleneck":
+            # The implementation of bottleneck layer is a little tricky, though
+            # I think I make it clearer than Facebook's version that uses a
+            # global variable. Besides that we choose the type of residual unit
+            # using the string here, in the actual `_attach_block` method, the
+            # `n_input_plane` and `n_output_plane` methods stick with their
+            # essential meaning when not using a bottleneck unit. That's to say
+            # the real channel number when 3X3 convolution is applied. The
+            # enlarging of channel number happens internally, similar with how
+            # it is done in the facebook version.
+            conv_params = [[(1, 1), (1, 1), "SAME"],
+                           [(3, 3), stride, "SAME"],
+                           [(1, 1), (1, 1), "SAME"]]
+        else:
+            raise Exception("Block type {} is not supported.".format(block_type))
+
+        self._attach_block(n_input_plane,
+                           n_output_plane,
+                           stride,
+                           act_before_residual,
+                           conv_params)
+        for i in xrange(2, count+1):
+            if block_type == "basic":
+                conv_params = [[(3, 3), (1, 1), "SAME"],
+                               [(3, 3), (1, 1), "SAME"]]
+            elif block_type == "bottleneck":
+                conv_params = [[(1, 1), (1, 1), "SAME"],
+                               [(3, 3), (1, 1), "SAME"],
+                               [(1, 1), (1, 1), "SAME"]]
+            else:
+                raise Exception("Block type {} is not supported.".format(block_type))
+
+            self._attach_block(n_output_plane,
+                               n_output_plane,
+                               (1, 1),
+                               False,
+                               conv_params)
+
+    def _attach_block(self,
+                      n_input_plane,
+                      n_output_plane,
+                      stride,
+                      act_before_residual,
+                      conv_params):
+        self.residual_block_No += 1
+
+        main_branch_layer_name = self.blocks[-1].name
+
+        is_bottleneck = False  # A flag for shortcut padding.
+        for i, v in enumerate(conv_params):
+            ksize, r_stride, padding = v
+            self.attach(BatchNormalizationLayer(
+                name="bn_{}_{}".format(self.residual_block_No, i)))
+
+            if self.use_gsmax and n_input_plane > 16:
+                self.attach(GroupSoftmaxLayer(
+                    group_size=self.group_size*n_input_plane/160,
+                    name="gsmax_{}_{}".format(self.residual_block_No, i)))
+            else:
+                self.attach(ReLULayer(name="relu_{}_{}".format(
+                    self.residual_block_No, i)))
+
+            if i == 0:
+                if n_input_plane != n_output_plane and act_before_residual:
+                    # At the first block of each BIG layer, two branches may
+                    # share the same BN and activation function, thus bookkeep
+                    # the branching layer name.
+                    main_branch_layer_name = self.blocks[-1].name
+
+            # We determine whether this is bottleneck layer by checking the
+            # kernel size.
+            if i == len(conv_params) - 1 and list(ksize) == [1, 1]:
+                # This is the last layer of a bottleneck layer, we need to
+                # increase the channel number back.
+                is_bottleneck = True
+                # In wide residual network, only bottleneck conv layer is
+                # widened, thus the effect needs be offset back.
+                out_channel_num = n_output_plane * 4 / self.width
+            else:
+                out_channel_num = n_output_plane
+
+            if i != 0:
+                if self.dropout_prob:
+                    self.attach(DropoutLayer(
+                        keep_prob=1-self.dropout_prob,
+                        name="dropout_{}_{}".format(self.residual_block_No,
+                                                    i)))
+            self.attach(ConvolutionLayer(ksize,
+                                         [1, r_stride[0], r_stride[1], 1],
+                                         padding=padding,
+                                         init_para={"name": "msra_init"},
+                                         initial_bias_value=self.use_bias,
+                                         wd=self.wd,
+                                         out_channel_num=out_channel_num,
+                                         name="conv_{}_{}".format(
+                                             self.residual_block_No, i)))
+
+        last_residual_layer_name = self.blocks[-1].name
+
+        if n_input_plane != n_output_plane:
+            if self.projection_shortcut:
+                self.attach(ConvolutionLayer(
+                    [1, 1],
+                    [1, stride[0], stride[1], 1],
+                    inputs=[{"name": main_branch_layer_name}],
+                    padding="SAME",
+                    init_para={"name": "msra_init"},
+                    initial_bias_value=self.use_bias,
+                    wd=self.wd,
+                    out_channel_num=out_channel_num,
+                    name="conv_{}_shortcut".format(self.residual_block_No)))
+            else:
+                _ = (1, stride[0], stride[1], 1)
+                if is_bottleneck:
+                    in_channel_num = n_input_plane * 4
+                else:
+                    in_channel_num = n_input_plane
+
+                self.attach(PoolingLayer(
+                    ksize=_,
+                    strides=_,
+                    inputs=[{"name": main_branch_layer_name}],
+                    padding="VALID",
+                    type="avg",
+                    name="pool_{}_shortcut".format(self.residual_block_No)))
+                self.attach(PaddingLayer(
+                    padding=[0, 0, 0, (out_channel_num - in_channel_num) // 2],
+                    name="pad_{}_shortcut".format(self.residual_block_No)))
+
+            shortcut_layer_name = self.blocks[-1].name
+        else:
+            shortcut_layer_name = main_branch_layer_name
+
+        self.attach(MergeLayer(inputs=[{"name": last_residual_layer_name},
+                                       {"name": shortcut_layer_name}],
+                               name="merge_{}".format(self.residual_block_No)))
+
+
+class CifarResNet(ResNet):
+    def __init__(self,
+                 sub_class_multiplier_ratio=0.5,
+                 h_loss=False,
+                 **kwargs):
+        super(CifarResNet, self).__init__(**kwargs)
+
+        depth = self.depth
+
         assert((depth - 4) % 6 == 0)
-        k = width
+        k = self.width
         n_stages = [16, 16*k, 32*k, 64*k]
         assert (depth - 4) % 6 is 0
         n = (depth - 4) / 6
@@ -407,11 +565,11 @@ class ResNet(Brain):
         self.attach(InnerProductLayer(initial_bias_value=0,
                                       init_para={"name": "default"},
                                       wd=self.wd,
-                                      out_channel_num=class_num,
+                                      out_channel_num=self.class_num,
                                       name='ip'))
         if h_loss:
             self.attach(SoftmaxWithLossLayer(
-                class_num=class_num,
+                class_num=self.class_num,
                 multiplier=sub_class_multiplier_ratio,
                 inputs=[{"name": "ip"},
                         {"name": "system_in", "idxs": [2]}],
@@ -431,122 +589,73 @@ class ResNet(Brain):
                 name="super_class_loss"))
         else:
             self.attach(SoftmaxWithLossLayer(
-                class_num=class_num,
+                class_num=self.class_num,
                 inputs=[{"name": "ip"},
                         {"name": "system_in", "idxs": [1]}],
                 name="softmax"))
 
-    def _attach_stack(self,
-                      n_input_plane,
-                      n_output_plane,
-                      count,
-                      stride,
-                      act_before_residual):
-        self._attach_block(n_input_plane,
-                           n_output_plane,
-                           stride,
-                           act_before_residual)
-        for i in xrange(2, count+1):
-            self._attach_block(n_output_plane,
-                               n_output_plane,
-                               (1, 1),
-                               False)
 
-    def _attach_block(self,
-                      n_input_plane,
-                      n_output_plane,
-                      stride,
-                      act_before_residual):
-        self.residual_block_No += 1
+class ImagenetResNet(ResNet):
+    def __init__(self, **kwargs):
+        super(ImagenetResNet, self).__init__(**kwargs)
 
-        conv_params = [[3, 3, stride, "SAME"],
-                       [3, 3, (1, 1), "SAME"]]
+        k = self.width
+        n_stages = [64, 64*k, 128*k, 256*k, 512*k]
+        # Given imagenet needs a some non-regular conv-bn-relu-pool block at
+        # the beginning of the branch, it is tailed by handle, and replaces the
+        # first shared pre-activation block. The remaining shared
+        # pre-activation block are still active.
+        act_before_residual = [False, True, True, True]
+        strides = [1, 2, 2, 2]
+        # The configuration to train imagenet.
+        cfg = {
+         18  : [[2, 2, 2, 2], "basicblock"],
+         34  : [[3, 4, 6, 3], "basicblock"],
+         50  : [[3, 4, 6, 3], "bottleneck"],
+         101 : [[3, 4, 23, 3], "bottleneck"],
+         152 : [[3, 8, 36, 3], "bottleneck"],
+         200 : [[3, 24, 36, 3], "bottleneck"],
+        }
+        n_depth, block_name = cfg[self.depth]
+        self.wd = {"type": "l2", "scale": 1e-4}
 
-        main_branch_layer_name = self.blocks[-1].name
+        self.attach(ConvolutionLayer([7, 7],
+                                     [1, 2, 2, 1],
+                                     padding="SAME",
+                                     init_para={"name": "msra_init"},
+                                     wd=self.wd,
+                                     out_channel_num=64,
+                                     initial_bias_value=self.use_bias,
+                                     name="conv0"))
+        self.attach(BatchNormalizationLayer(name="bn0"))
+        self.attach(ReLULayer(name="relu0"))
+        self.attach(PoolingLayer(ksize=[1, 3, 3, 1],
+                                 strides=[1, 2, 2, 1],
+                                 padding="SAME",
+                                 type="max",
+                                 name="pool0"))
+        for i in xrange(4):
+            self._attach_stack(n_input_plane=n_stages[i],
+                               n_output_plane=n_stages[i+1],
+                               count=n_depth[i],
+                               stride=(strides[i], strides[i]),
+                               act_before_residual=act_before_residual[i],
+                               block_type="bottleneck")
 
-        for i, v in enumerate(conv_params):
-            if i == 0:
-                self.attach(BatchNormalizationLayer(
-                    name="bn_{}_{}".format(self.residual_block_No, i)))
-
-                if self.use_gsmax and n_input_plane > 16:
-                    self.attach(GroupSoftmaxLayer(
-                        group_size=self.group_size*n_input_plane/160,
-                        name="gsmax_{}_{}".format(self.residual_block_No, i)))
-                else:
-                    self.attach(ReLULayer(name="relu_{}_{}".format(
-                        self.residual_block_No, i)))
-
-                if n_input_plane != n_output_plane and act_before_residual:
-                    main_branch_layer_name = self.blocks[-1].name
-
-                self.attach(ConvolutionLayer([3, 3],
-                                             [1, v[2][0], v[2][1], 1],
-                                             padding="SAME",
-                                             init_para={"name": "msra_init"},
-                                             initial_bias_value=self.use_bias,
-                                             wd=self.wd,
-                                             out_channel_num=n_output_plane,
-                                             name="conv_{}_{}".format(
-                                                 self.residual_block_No, i)))
-            else:
-                self.attach(BatchNormalizationLayer(
-                    name="bn_{}_{}".format(self.residual_block_No, i)))
-
-                if self.use_gsmax and n_input_plane > 16:
-                    self.attach(GroupSoftmaxLayer(
-                        group_size=self.group_size*n_output_plane/160,
-                        name="gsmax_{}_{}".format(self.residual_block_No, i)))
-                else:
-                    self.attach(ReLULayer(name="relu_{}_{}".format(
-                        self.residual_block_No, i)))
-
-                if self.dropout_prob:
-                    self.attach(DropoutLayer(
-                        keep_prob=1-self.dropout_prob,
-                        name="dropout_{}_{}".format(self.residual_block_No,
-                                                    i)))
-                self.attach(ConvolutionLayer([3, 3],
-                                             [1, v[2][0], v[2][1], 1],
-                                             padding="SAME",
-                                             init_para={"name": "msra_init"},
-                                             initial_bias_value=self.use_bias,
-                                             wd=self.wd,
-                                             out_channel_num=n_output_plane,
-                                             name="conv_{}_{}".format(
-                                                 self.residual_block_No, i)))
-
-        last_residual_layer_name = self.blocks[-1].name
-
-        if n_input_plane != n_output_plane:
-            if self.projection_shortcut:
-                self.attach(ConvolutionLayer(
-                    [1, 1],
-                    [1, stride[0], stride[1], 1],
-                    inputs=[{"name": main_branch_layer_name}],
-                    padding="SAME",
-                    init_para={"name": "msra_init"},
-                    initial_bias_value=self.use_bias,
-                    wd=self.wd,
-                    out_channel_num=n_output_plane,
-                    name="conv_{}_shortcut".format(self.residual_block_No)))
-            else:
-                _ = (1, stride[0], stride[1], 1)
-                self.attach(PoolingLayer(
-                    ksize=_,
-                    strides=_,
-                    inputs=[{"name": main_branch_layer_name}],
-                    padding="VALID",
-                    type="avg",
-                    name="pool_{}_shortcut".format(self.residual_block_No)))
-                self.attach(PaddingLayer(
-                    padding=[0, 0, 0, (n_output_plane - n_input_plane) // 2],
-                    name="pad_{}_shortcut".format(self.residual_block_No)))
-
-            shortcut_layer_name = self.blocks[-1].name
-        else:
-            shortcut_layer_name = main_branch_layer_name
-
-        self.attach(MergeLayer(inputs=[{"name": last_residual_layer_name},
-                                       {"name": shortcut_layer_name}],
-                               name="merge_{}".format(self.residual_block_No)))
+        self.attach(ReLULayer(name="relu_final"))
+        self.attach(PoolingLayer(ksize=[1, 7, 7, 1],
+                                 strides=[1, 1, 1, 1],
+                                 padding="VALID",
+                                 type="avg",
+                                 name="global_pool"))
+        self.attach(ReshapeLayer(name="reshape"))
+        self.attach(InnerProductLayer(initial_bias_value=0,
+                                      init_para={"name": "default"},
+                                      wd=self.wd,
+                                      out_channel_num=self.class_num,
+                                      name='ip'))
+        self.attach(SoftmaxWithLossLayer(
+            class_num=self.class_num,
+            inputs=[{"name": "ip"},
+                    {"name": "system_in", "idxs": [1]}],
+            name="softmax"))

@@ -237,5 +237,21 @@ class TestSource(AKidTestCase):
                       source.val_datum,
                       source.val_label])
 
+        # Again just test for compilation and runtime error.
+        source = ImagenetTFSource(
+            has_super_label=False,
+            name="Imagenet",
+            url=None,
+            work_dir=AKID_DATA_PATH + "/imagenet",
+            num_train=1281167,
+            num_val=50000)
+        source.setup()
+
+        with tf.Session() as sess:
+            sess.run([source.training_datum,
+                      source.training_label,
+                      source.val_datum,
+                      source.val_label])
+
 if __name__ == "__main__":
     main()
