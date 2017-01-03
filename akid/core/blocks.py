@@ -1,5 +1,18 @@
 """
-Block is the foundation of `akid`. Everything is a `Block` in `akid`.
+`akid` builds another layer of abstraction on top of *Tensor*: *Block*.
+Tensor can be taken as the media/formalism signal propagates in digital world,
+while Block is the data processing entity that processes inputs and emits
+outputs.
+
+It coincides with a branch of "ideology" called dataism that takes everything
+in this world is a data processing entity. An interesting one that may come
+from *A Brief History of Tomorrow* by Yuval Noah Harari.
+
+Best designs mimic nature. `akid` tries to reproduce how signals in nature
+propagates. Information flow can be abstracted as data propagating through
+inter-connected blocks, each of which processes inputs and emits outputs. For
+example, a vision classification system is a block that takes image inputs and
+gives classification results. Everything is a `Block` in `akid`.
 
 A block could be as simple as a convonlutional neural network layer that merely
 does convolution on the input data and outputs the results; it also be as
@@ -12,7 +25,8 @@ are passed between blocks in form of tensors or list of tensors. Many heavy
 lifting has been done in the block (`Block` and its sub-classes),
 e.g. pre-condition setup, name scope maintenance, copy functionality for
 validation and copy functionality for distributed replicas, setting up and
-gathering visualization summaries, centralization of variable allocation, etc.
+gathering visualization summaries, centralization of variable allocation,
+attaching debugging ops now and then etc.
 """
 from __future__ import absolute_import, division, print_function
 
