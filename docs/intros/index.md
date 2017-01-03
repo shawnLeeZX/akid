@@ -51,7 +51,7 @@ developments (Devs) and operations (Ops) could be separated.
 
 ## `akid` stack
 
-Now we go technical to discuss each stack provided by `akid`.
+Now we discuss each stack provided by `akid`.
 
 ### Application stack
 
@@ -205,12 +205,6 @@ We have seen how to use functionality of `akid` without much programming in the
 previous section. In this section, we would like to introduce the programming
 paradigm underlying the previous example, and how to use `akid` as a research
 library with such paradigm.
-
-Best designs mimic nature. `akid` tries to reproduce how signals in nature
-propagates. Information flow can be abstracted as data propagating through
-inter-connected blocks, each of which processes inputs and emits outputs. For
-example, a vision classification system is a block that takes image inputs and
-gives classification results.
 
 ```eval_rst
 .. figure:: ../images/akid_block.png

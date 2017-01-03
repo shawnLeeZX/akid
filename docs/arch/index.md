@@ -1,5 +1,7 @@
 # Architecture and Design Principles
 
+TODO: finish this section
+
 ## Architecture
 
 ### Kick start clock

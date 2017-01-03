@@ -1,5 +1,13 @@
 # Welcome to akid's documentation!
 
+
+* [Get Started](get_started/index.md)
+* [Introduction](intros/index.md)
+* [How To](how_tos/index.md)
+* [Tutorials](tutorials/index.md)
+* [Architecture](arch/index.md)
+* [Model Zoo](model/index.md)
+
 `akid` is a python package written for doing research in Neural Network. It
 also aims to be production ready by taking care of concurrency and
 communication in distributed computing. It is built on
@@ -22,13 +30,23 @@ specifically, it
 * be production ready
   * built-in support for distributed computing
   * compatibility to orchestrate with distributed file systems, docker
-    containers, and distributed operating systems such as Kubernetes.
+    containers, and distributed operating systems such as Kubernetes. (This
+    feature mainly is a best-practice guide for K8s etc, which is under
+    experimenting and not available yet.)
 
 The name comes from the Kid saved by Neo in *Matrix*, and the metaphor to build
 a learning agent, which we call *kid* in human culture.
 
-* [Get Started](get_started/index.md)
-* [Introduction](intros/index.md)
-* [How To](how_tos/index.md)
-* [Tutorials](tutorials/index.md)
-* [Architecture](arch/index.md)
+It distinguish itself from an unique design, which is described in the following.
+
+```eval_rst
+.. figure:: images/akid_block.png
+   :align: center
+
+   Illustration of the arbitrary connectivity supported by `akid`. Forward
+   connection, branching and mergine, and feedback connection are supported.
+```
+
+```eval_rst
+.. automodule:: akid.core.blocks
+```

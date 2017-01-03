@@ -2,6 +2,8 @@
 
 In this HOW-TO page, available blocks are described.
 
+TODO: finished this section
+
 ## Block
 
 ```eval_rst
