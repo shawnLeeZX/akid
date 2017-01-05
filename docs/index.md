@@ -8,6 +8,8 @@
 * [Architecture](arch/index.md)
 * [Model Zoo](model/index.md)
 
+Fork me at https://github.com/shawnLeeZX/akid !
+
 `akid` is a python package written for doing research in Neural Network. It
 also aims to be production ready by taking care of concurrency and
 communication in distributed computing. It is built on
