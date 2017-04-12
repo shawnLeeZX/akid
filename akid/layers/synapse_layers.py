@@ -182,8 +182,8 @@ class SynapseLayer(ProcessingLayer):
                     sys.exit(1)
             except KeyError as e:
                 raise Exception("`{}` not found in the provided regularization"
-                          " parameters, `wd`. Perhaps you have some"
-                          " typos.".format(e.message))
+                                " parameters, `wd`. Perhaps you have some"
+                                " typos.".format(e.message))
 
         return var, weight_decay
 

@@ -25,6 +25,7 @@ class TestEngine(AKidTestCase):
             brain,
             MomentumKongFu(name="opt"),
             engine="data_parallel",
+            debug=True,
             max_steps=1000)
         kid.setup()
 

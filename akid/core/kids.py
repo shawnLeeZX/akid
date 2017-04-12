@@ -71,7 +71,8 @@ class Kid(Block):
                  graph=None,
                  save_chk_point=True,
                  do_summary=True,
-                 summary_on_val=False):
+                 summary_on_val=False,
+                 debug=False):
         """
         Assemble a sensor, a brain, and a KongFu to start the survival game.
 
@@ -145,6 +146,7 @@ class Kid(Block):
         self.kongfu = kongfu_in
         self.engine_para = engine
         self.sess = sess
+        self.debug = debug
 
         # Set up logging facilities.
         if log_dir is None:
@@ -348,8 +350,8 @@ class Kid(Block):
         log.init("stdout")
         if self.log_to_file:
             log.init(self.log_filepath)
-        # TODO(Shuai): Make this a switch instead of hard coded.
-        log.setLevel(log.DEBUG)
+        if self.debug:
+            log.setLevel(log.DEBUG)
         self.log("Logs will be save to: {}".format(self.log_dir))
 
     def _setup_summary(self):
