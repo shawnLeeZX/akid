@@ -46,17 +46,50 @@ from .common import (
 
 class Block(object):
     """
-    Abstract class for an arbitrary block. `Source`, `Sensor`,
-    `ProcessingLayer`, `LossLayer` and `ProcessingSystem` etc are all
+    The top level class. Everything should be its sub-class.
+    """
+    __metaclass__ = abc.ABCMeta
+
+    def log(self, message, debug=False):
+        """
+        An unified place where logging should be processed. It is planned to
+        handle logging level according to situation.
+
+        Currently, it only handles info and debug level message, given the
+        purpose of logging is to provide a detailed trace of operations of
+        `akid`.
+
+        NOTE: Remember to initialize it before using. See `utils.glog` for
+        details.
+        """
+        if debug:
+            log.debug(message)
+        else:
+            log.info(message)
+
+    def error(self, message):
+        log.error(message)
+
+    def warning(self, message):
+        log.warning(message)
+
+    def get_copy(self):
+        return copy.copy(self)
+
+
+class ProcessingBlock(Block):
+    """
+    Abstract class for an arbitrary block that generates output. `Source`,
+    `Sensor`, `ProcessingLayer`, `LossLayer` and `ProcessingSystem` etc are all
     sub-classes of this class.
 
-    A `Block` should try to implement most of its functionality only with what
-    it owns, and ask for communication(which in implementation is to provide
-    interfaces) as little as possible.
+    A `ProcessingBlock` should try to implement most of its functionality only
+    with what it owns, and ask for communication(which in implementation is to
+    provide interfaces) as little as possible.
 
-    Outputs of a block is in form of properties. `Block` has an abstract
-    property data which sub-class should implement to provide the processed
-    outputs.
+    Outputs of a block is in form of properties. `ProcessingBlock` has an
+    abstract property data which sub-class should implement to provide the
+    processed outputs.
 
     `setup` is the interface for any containers, such as a `Brain` class, that
     hold this block, to call to set up this block. It is a wrapper for the
@@ -66,9 +99,8 @@ class Block(object):
 
     Call `setup` of each block before using it.
     """
-    __metaclass__ = abc.ABCMeta
 
-    def __init__(self, do_summary=True, name=None, bag=None):
+    def __init__(self, do_summary=True, name=None, bag=None, **kwargs):
         """
         Create a layer and name it.
 
@@ -79,12 +111,14 @@ class Block(object):
                 Tensorflow will be used.
             do_summary: Boolean
                 Whether to do summary on blocks contained. If True, outputs of
-                this `Block` would be added to tensorflow summary.
+                this `ProcessingBlock` would be added to tensorflow summary.
             bag: supposed to be a dict
                 A dictionary that holds any further ad hoc information one
                 wants to keep in this block, such as a list of filters you want
                 to visualize later.
         """
+        super(ProcessingBlock, self).__init__(**kwargs)
+
         if not name:
             raise Exception(
                 "{}'s `name` argument cannot be None! It serves as an"
@@ -93,7 +127,7 @@ class Block(object):
 
         self.name = name
         self.do_summary = do_summary
-        log.info("{} has bag: {}".format(name, bag))
+        self.log("{} has bag: {}".format(name, bag))
         self.bag = bag
 
         # Variable scope to give unique names.
@@ -123,9 +157,9 @@ class Block(object):
         visualization related logistics. If `_setup` has any output, it would
         be returned.
 
-        A `Block` could be set up any times one wants. Each time it would build
-        computational graph to process input provided this time, and any
-        variables are shared.
+        A `ProcessingBlock` could be set up any times one wants. Each time it
+        would build computational graph to process input provided this time,
+        and any variables are shared.
 
         Args:
             All arguments will be passed to the actual `_setup` function.
@@ -208,11 +242,8 @@ class Block(object):
         raise NotImplementedError('Each sub-layer needs to implement this'
                                   'method to process data!')
 
-    def get_copy(self):
-        return copy.copy(self)
 
-
-class ShadowableBlock(Block):
+class ShadowableBlock(ProcessingBlock):
     """
     A block for creating shadow replicas for parallelism.
 
@@ -240,6 +271,18 @@ class ShadowableBlock(Block):
         shadow_copy.set_shadow()
         return shadow_copy
 
+    def log(self, msg, *args, **kwargs):
+        """
+        Logging method to control the verbosity of the output. It logs all
+        logging of shadow replica to debug.
+        """
+        # It is possible the constructor of `ShadowableBlock` has not been
+        # called, in this case we fall back to its super's log.
+        if hasattr(self, "is_shadow") and self.is_shadow:
+            log.debug(msg)
+        else:
+            super(ShadowableBlock, self).log(msg, *args, **kwargs)
+
 
 class ProcessingLayer(ShadowableBlock):
     """
@@ -250,7 +293,7 @@ class ProcessingLayer(ShadowableBlock):
     interface to provide the data it processes.
 
     For now, all processing layers only have one output, and provide it via
-    property `data`. So it overrides the `data` method of `Block`.
+    property `data`. So it overrides the `data` method of `ProcessingBlock`.
 
     Optionally a `ProcessingLayer` could have a `loss` property for loss (or
     losses) in this layer and a `eval` property for any evaluation metrics in

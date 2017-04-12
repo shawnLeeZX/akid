@@ -4,14 +4,11 @@ create more complex blocks. A system does not concern which type of block it
 holds, but only concerns the mathematical topology how they connect.
 """
 import copy
-import abc
-import sys
 
-from .blocks import Block
-from ..utils import glog as log
+from .blocks import ShadowableBlock
 
 
-class System(Block):
+class System(ShadowableBlock):
     """
     A top level class to model a system that is purposeless. It means this
     system does not serve a clear purpose, but an aggregation of blocks.
@@ -30,19 +27,11 @@ class System(Block):
     only should use them when an action that cannot be accomplished without
     information from more than one blocks.
     """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self, do_stat_on_norm=False, **kwargs):
         super(System, self).__init__(**kwargs)
 
         self.do_stat_on_norm = do_stat_on_norm
-
-    @abc.abstractmethod
-    def data(self):
-        raise NotImplementedError("Each system should implement the interface"
-                                  " `data` to provide the data propagated in"
-                                  " it to the outside world!")
-        sys.exit()
 
 
 class LinkedSystem(System):
@@ -126,15 +115,15 @@ class LinkedSystem(System):
         except ValueError:
             shape = None
 
-        log.info("System input shape: {}".format(shape))
+        self.log("System input shape: {}".format(shape))
         for l in self.blocks:
-            log.info("Setting up block {}.".format(l.name))
+            self.log("Setting up block {}.".format(l.name))
             l.do_summary = self.do_summary
             l.setup(data)
-            log.info("Connected: {} -> {}".format(data.name,
+            self.log("Connected: {} -> {}".format(data.name,
                                                   l.data.name))
             if shape:
-                log.info("Top shape: {}".format(l.data.get_shape().as_list()))
+                self.log("Top shape: {}".format(l.data.get_shape().as_list()))
             data = l.data
 
         self._data = data
@@ -170,11 +159,11 @@ class GraphSystem(LinkedSystem):
         # Normalize input to a list for convenience even if there is only one
         # input.
         data = data_in if type(data_in) is list else [data_in]
-        log.info("System input shape: {}".format(
+        self.log("System input shape: {}".format(
             [d.get_shape().as_list() for d in data]))
 
         for i, l in enumerate(self.blocks):
-            log.info("Setting up block {}.".format(l.name))
+            self.log("Setting up block {}.".format(l.name))
             l.do_summary = self.do_summary
             inputs = None
             if l.inputs:
@@ -209,7 +198,6 @@ class GraphSystem(LinkedSystem):
                         raise Exception("{} is not found. You perhaps misspell"
                                         " the layer name.".format(
                                             input["name"]))
-                        log.error()
 
                 if len(inputs) is 1:
                     l.setup(inputs[0])
@@ -239,15 +227,15 @@ class GraphSystem(LinkedSystem):
                     in_name = data[0].name
             if l.data is not None:
                 dtype = type(l.data)
-                log.info("Connected: {} -> {}".format(
+                self.log("Connected: {} -> {}".format(
                     in_name,
                     l.data.name if dtype is not tuple and dtype is not list
                     else [d.name for d in l.data]))
-                log.info("Top shape: {}".format(
+                self.log("Top shape: {}".format(
                     l.data.get_shape().as_list() if dtype is not tuple and dtype is not list
                     else [d.get_shape().as_list() for d in l.data]))
             else:
-                log.info("Inputs: {}. No outputs.".format(in_name))
+                self.log("Inputs: {}. No outputs.".format(in_name))
 
             data = l.data if dtype is tuple or dtype is list else [l.data]
 

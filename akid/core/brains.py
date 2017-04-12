@@ -76,8 +76,6 @@ from ..layers.synapse_layers import SynapseLayer
 from .blocks import ProcessingLayer
 from .systems import GraphSystem
 
-from ..utils import glog as log
-
 
 class Brain(GraphSystem, ProcessingLayer):
     """
@@ -207,9 +205,9 @@ class Brain(GraphSystem, ProcessingLayer):
                 Data supplied by `Sensor`, including labels.
         """
         if self.is_val:
-            log.info("Setting up val brain {} ...".format(self.name))
+            self.log("Setting up val brain {} ...".format(self.name))
         else:
-            log.info("Setting up brain {} ...".format(self.name))
+            self.log("Setting up brain {} ...".format(self.name))
         self._setup_graph(data_in)
         self._gather_loss_graphs()
         self._gather_eval_graphs()

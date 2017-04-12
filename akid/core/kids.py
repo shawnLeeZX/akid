@@ -13,6 +13,7 @@ import tensorflow as tf
 from ..utils import glog as log
 from . import sensors
 from . import engines
+from .blocks import Block
 from .kongfus import LearningRateScheme
 from . import common
 from .common import (
@@ -22,7 +23,7 @@ from .common import (
 )
 
 
-class Kid(object):
+class Kid(Block):
     """
     Kid is a class to assemble a `Sensor`, for supplying data, a
     `Brain`, for data processing, and a genre of `KongFu`, for algorithms or
@@ -223,7 +224,7 @@ class Kid(object):
                 `Kid`'s reference to evaluation metrics and loss are both
                 updated.
         """
-        log.info('Validation Data Eval:')
+        self.log('Validation Data Eval:')
 
         if not self.initialized:
             self.init(continue_from_chk_point=True)
@@ -303,7 +304,7 @@ class Kid(object):
         try:
             self.init(continue_from_chk_point)
             # And then after everything is built, start the training loop.
-            log.info("Begin training brain: " + self.brain.name)
+            self.log("Begin training brain: " + self.brain.name)
             previous_step = tf.train.global_step(self.sess,
                                                  self.global_step_tensor)
             self.step = previous_step
@@ -334,7 +335,7 @@ class Kid(object):
 
             return loss
         except tf.OpError as e:
-            log.info("Tensorflow error when running: {}".format(e.message))
+            self.log("Tensorflow error when running: {}".format(e.message))
             sys.exit(0)
 
     def _setup_log(self):
@@ -342,18 +343,20 @@ class Kid(object):
             os.makedirs(self.log_dir)
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
+        # TODO: Think how to add a check that if log has initialized, do not do
+        # this any more.
         log.init("stdout")
         if self.log_to_file:
             log.init(self.log_filepath)
         # TODO(Shuai): Make this a switch instead of hard coded.
         log.setLevel(log.DEBUG)
-        log.info("Logs will be save to: {}".format(self.log_dir))
+        self.log("Logs will be save to: {}".format(self.log_dir))
 
     def _setup_summary(self):
         if self.do_summary:
             # SummaryWriter to output summaries and the Graph.
             self.summary_writer = tf.summary.FileWriter(self.log_dir)
-            log.info("Summary event file will be saved to {}".format(
+            self.log("Summary event file will be saved to {}".format(
                 self.log_dir))
             # Build the summary operation based on the TF collection of
             # Summaries.
@@ -434,7 +437,7 @@ class Kid(object):
         self.saver.save(self.sess,
                         self.model_dir + "/checkpoint",
                         global_step=step)
-        log.info("Checkpoint at step {} saved to folder:"
+        self.log("Checkpoint at step {} saved to folder:"
                  " {}".format(step, self.model_dir))
 
     def restore_from_ckpt(self):
@@ -447,14 +450,14 @@ class Kid(object):
         """
         checkpoint = tf.train.get_checkpoint_state(self.model_dir)
         if checkpoint and checkpoint.model_checkpoint_path:
-            log.info("Recovering net from checkpoint %s."
+            self.log("Recovering net from checkpoint %s."
                      % checkpoint.model_checkpoint_path)
             self.saver.restore(self.sess, checkpoint.model_checkpoint_path)
             filename = checkpoint.model_checkpoint_path.split('/')[-1]
             step = int(filename.split('-')[-1])
             return step
         else:
-            log.error("No checkpoint found under %s!" % self.model_dir)
+            self.error("No checkpoint found under %s!" % self.model_dir)
             sys.exit()
 
     def fill_train_feed_dict(self):

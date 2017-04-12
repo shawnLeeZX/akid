@@ -70,7 +70,12 @@
     CLOSED: [2016-07-10 Sun 15:10]
     - State "CANCELLED"  from "TODO"       [2016-07-10 Sun 15:10] \\
       An exception should be raised instead.
-*** TODO kid also should be sub-class of block, they share the mechanism that decouple building computation graph and running sess
+*** STARTED kid also should be sub-class of block, they share the mechanism that decouple building computation graph and running sess
+**** DONE Kid is a sub-class of Block
+     CLOSED: [2017-04-12 Wed 19:16]
+     - State "DONE"       from "TODO"       [2017-04-12 Wed 19:16]
+**** TODO But they do not share much, deal with computation graph and running sess
+*** TODO make debug level switchable in kid
 *** TODO add shape of conv filter in
 *** TODO aggregate all tests as a suite, so having more control
 *** TODO Think a better way to pass parameters instead of using dictionary, which is error prone.

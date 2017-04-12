@@ -4,7 +4,6 @@ import tensorflow as tf
 
 from ..core.blocks import ProcessingLayer
 from ..core.jokers import Joker
-from ..utils import glog as log
 
 
 class ReshapeLayer(ProcessingLayer):
@@ -88,7 +87,7 @@ class PaddingLayer(ProcessingLayer, Joker):
                     [self.padding[2], self.padding[2]]
                 ]
 
-        log.info("Padding: {}".format(_padding))
+        self.log("Padding: {}".format(_padding))
         self._data = tf.pad(input, paddings=_padding)
 
 

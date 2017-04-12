@@ -10,16 +10,15 @@ import inspect
 
 import tensorflow as tf
 
-from .blocks import Block
+from .blocks import ShadowableBlock
 from .systems import LinkedSystem
-from ..utils import glog as log
 import akid
 
 
-class Joker(Block):
+class Joker(ShadowableBlock):
     """
     A top level abstract class to do data augmentations. Since it is also part
-    of a data processing process, it is a sub-class of `Block`.
+    of a data processing process, it is a sub-class of `ProcessingBlock`.
 
     A Joker normally accepts one input -- so its `_setup` only takes one input,
     and gives out one output -- so the output is revealed via property `data`.
@@ -87,7 +86,7 @@ class CropJoker(Joker):
 
     def _setup(self, data_in):
         if self.center:
-            log.info("Center crop images.")
+            self.log("Center crop images.")
             if self.central_fraction:
                 self._data = tf.image.central_crop(
                     data_in, central_fraction=self.central_fraction)
@@ -95,7 +94,7 @@ class CropJoker(Joker):
                 self._data = tf.image.resize_image_with_crop_or_pad(
                     data_in, self.height, self.width)
         else:
-            log.info("Randomly crop images.")
+            self.log("Randomly crop images.")
             shape = data_in.get_shape().as_list()
             assert self.width and self.height,\
                 "crop height and width should not be None."
@@ -118,10 +117,10 @@ class FlipJoker(Joker):
 
     def _setup(self, data_in):
         if self.flip_left_right:
-            log.info("Randomly flip image left right.")
+            self.log("Randomly flip image left right.")
             self._data = tf.image.random_flip_left_right(data_in)
         else:
-            log.info("Randomly flip image up down.")
+            self.log("Randomly flip image up down.")
             self._data = tf.image.random_flip_up_down(data_in)
 
 
@@ -144,10 +143,10 @@ class LightJoker(Joker):
         data = data_in
         # TODO(Shuai): The parameters should not be hard coded.
         if self.contrast:
-            log.info("Randomly change contrast.")
+            self.log("Randomly change contrast.")
             data = tf.image.random_contrast(data, lower=0.2, upper=1.8)
         if self.brightness:
-            log.info("Randomly change brightness.")
+            self.log("Randomly change brightness.")
             data = tf.image.random_brightness(data, max_delta=63)
 
         self._data = data

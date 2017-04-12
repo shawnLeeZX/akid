@@ -25,10 +25,10 @@ import tensorflow as tf
 
 from .common import TRAINING_DYNAMICS_COLLECTION
 from . import common
-from ..utils import glog as log
+from .blocks import Block
 
 
-class Engine(object):
+class Engine(Block):
     """
     The class that abstracts parallel scheme of network training.
 
@@ -40,8 +40,6 @@ class Engine(object):
     to devices according to the parallel scheme, gathers and processes the
     results, and provides the end result as if no parallelism exists.
     """
-    __metaclass__ = abc.ABCMeta
-
     def __init__(self, kid):
         self.kid = kid
 
@@ -272,6 +270,11 @@ class DataParallelEngine(Engine):
         # Split the data.
         data = self.sensor.data()
         label = self.sensor.labels()
+
+        # TODO: A description of how the data parallelism is done should be
+        # provided. Otherwise, the logging information only has the one of the
+        # first built tower.
+
         splitted_data, splitted_labels = self._split_input(data, label)
 
         # Set up brains according to the number of gpus used.
@@ -284,7 +287,7 @@ class DataParallelEngine(Engine):
         tower = self.brain
         kongfu = self.kongfu
         for i in xrange(0, self.num_gpu):
-            log.info("Setting up tower {} for training".format(i))
+            self.log("Setting up tower {} for training".format(i))
             with tf.device('/gpu:{}'.format(i)):
                 # Set up a tower
                 system_in = self._setup_system_in(splitted_data[i],
@@ -324,7 +327,7 @@ class DataParallelEngine(Engine):
         self.val_towers = []
         tower = self.val_brain
         for i in xrange(0, self.num_gpu):
-            log.info("Setting up tower {} for validation".format(i))
+            self.log("Setting up tower {} for validation".format(i))
             with tf.device('/gpu:{}'.format(i)):
                 system_in = self._setup_system_in(splitted_data[i],
                                                   splitted_labels[i])

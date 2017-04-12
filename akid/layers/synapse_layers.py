@@ -5,7 +5,6 @@ import math
 
 import tensorflow as tf
 
-from ..utils import glog as log
 from ..core.blocks import ProcessingLayer
 from ..core.common import (
     SEED,
@@ -108,12 +107,12 @@ class SynapseLayer(ProcessingLayer):
         super(SynapseLayer, self)._pre_setup(*args, **kwargs)
 
         if not self.initial_bias_value:
-            log.info("Bias is disabled.")
+            self.log("Bias is disabled.")
 
     def _post_setup_shared(self):
         super(SynapseLayer, self)._post_setup_shared()
         if self.max_norm:
-            log.info("Using max norm constrain of {}.".format(self.max_norm))
+            self.log("Using max norm constrain of {}.".format(self.max_norm))
             # Create the op to apply max norm clip on weights.
             self.clipped_filters = []
             for v in self.var_list:
@@ -166,7 +165,7 @@ class SynapseLayer(ProcessingLayer):
         weight_decay = None
         if self.wd and self.wd["scale"] is not 0:
             try:
-                log.info("Using {} regularization with scale {}".format(
+                self.log("Using {} regularization with scale {}".format(
                     self.wd["type"], self.wd["scale"]))
 
                 if self.wd["type"] == "l2":
@@ -178,21 +177,20 @@ class SynapseLayer(ProcessingLayer):
                                           self.wd["scale"],
                                           name=name + '/l1_loss')
                 else:
-                    log.error("Type {} loss is not supported!".format(
+                    self.log.error("Type {} loss is not supported!".format(
                         self.wd["type"]))
                     sys.exit(1)
             except KeyError as e:
-                log.error("`{}` not found in the provided regularization"
+                raise Exception("`{}` not found in the provided regularization"
                           " parameters, `wd`. Perhaps you have some"
                           " typos.".format(e.message))
-                sys.exit(1)
 
         return var, weight_decay
 
     def _get_default_initializer(self):
         # By default, we use the most preliminary initialization (for
         # conforming with torch).
-        log.info("Weights of {} uses default initialization.".format(
+        self.log("Weights of {} uses default initialization.".format(
             self.name))
         # The strange factor here is to make variance `1/sqrt(dim)`. For
         # the meaning of `dim`, see the doc of
@@ -209,7 +207,7 @@ class SynapseLayer(ProcessingLayer):
                 if name is "default":
                     return self._get_default_initializer()
                 elif name is "truncated_normal":
-                    log.info("Weights of {} uses truncated normal initializer"
+                    self.log("Weights of {} uses truncated normal initializer"
                              " with stddev {}".format(
                                  self.name, self.init_para["stddev"]))
                     return tf.truncated_normal_initializer(
@@ -217,7 +215,7 @@ class SynapseLayer(ProcessingLayer):
                         seed=SEED)
                 elif name is "uniform":
                     range = self.init_para["range"]
-                    log.info("Weights of {} uses uniform initializer with"
+                    self.log("Weights of {} uses uniform initializer with"
                              " stddev {}".format(self.name, range))
                     return tf.random_uniform_initializer(minval=-range,
                                                          maxval=range,
@@ -226,10 +224,10 @@ class SynapseLayer(ProcessingLayer):
                     try:
                         factor = self.init_para["factor"]
                     except KeyError as e:
-                        log.info("Key factor is not found in `init_para`. Use"
+                        self.log("Key factor is not found in `init_para`. Use"
                                  " 1")
                         factor = 1
-                    log.info("Weights of {} uses uniform unit scaling"
+                    self.log("Weights of {} uses uniform unit scaling"
                              " initializer of factor {}".format(
                                  self.name, factor))
                     return tf.uniform_unit_scaling_initializer(factor=factor,
@@ -238,20 +236,20 @@ class SynapseLayer(ProcessingLayer):
                     try:
                         factor = self.init_para["factor"]
                     except KeyError as e:
-                        log.info("Key factor is not found in `init_para`. Use"
+                        self.log("Key factor is not found in `init_para`. Use"
                                  " 1")
                         factor = 1
-                    log.info("Weights of {} uses unit gradient (msra"
+                    self.log("Weights of {} uses unit gradient (msra"
                              " initializer) initializer with factor {}".format(
                                  self.name, factor))
                     return msra_initializer(factor=factor, seed=SEED)
                 else:
-                    log.error("{} is not supported!".format(name))
+                    self.log.error("{} is not supported!".format(name))
                     sys.exit(0)
             except KeyError as e:
-                log.error("`{}` not found in the provided initialization"
-                          " parameters, `init_para`. Perhaps you have some"
-                          " typos.".format(e.message))
+                self.error("`{}` not found in the provided initialization"
+                           " parameters, `init_para`. Perhaps you have some"
+                           " typos.".format(e.message))
                 sys.exit(1)
 
 
@@ -278,7 +276,7 @@ class ConvolutionLayer(SynapseLayer):
     def _setup(self, input):
         self._para_init(input)
 
-        log.debug("Padding method {}.".format(self.padding))
+        self.log("Padding method {}.".format(self.padding), debug=True)
         conv = tf.nn.conv2d(input, self.weights, self.strides, self.padding)
 
         if self.initial_bias_value is not None:
@@ -380,6 +378,26 @@ class InvariantInnerProductLayer(SynapseLayer):
             'biases',
             shape=[self.out_channel_num],
             initializer=tf.constant_initializer(0.0))
+
+
+class RenderingMixtureLayer(SynapseLayer):
+    """
+    Implementation of *Ankit B. Patel et al A Probabilistic Framework for Deep
+    Learning*.
+
+    A rendering mixture layer is a *max-sum classifier* that passes the maximal
+    log likelihood of all variations of a hidden class to the next layer. It is
+    a generative model that first computes the posterior probability p(c | I),
+    where c is the predicted class, and I is the input image (feature map),
+    then uses the predicted class to reconstruct the input images. Formally,
+    the process is a hard Expectation Maximization.
+    """
+    # Parameter init.
+    # Reparameterize to weight and bias of neural network (TODO: check whether
+    # it is necessary)
+    # Reconstruct input
+    # Compute reconstruction gradient
+    pass
 
 
 __all__ = [name for name, x in locals().items() if

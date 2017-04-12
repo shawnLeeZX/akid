@@ -42,13 +42,12 @@ import inspect
 import tensorflow as tf
 
 from .jokers import JokerSystem
-from .blocks import Block
-from ..utils import glog as log
+from .blocks import ProcessingBlock
 from . import sources
 from .common import TRAIN_SUMMARY_COLLECTION, VALID_SUMMARY_COLLECTION
 
 
-class Sensor(Block):
+class Sensor(ProcessingBlock):
     """
     The top level abstract sensor to preprocessing raw data received from
     `Source`, such as batching, data augmentation etc.
@@ -101,10 +100,8 @@ class Sensor(Block):
             else:
                 return self.training_labels
         else:
-            log.error("Sensor {} is not supposed to provide"
-                      "labels".format(self.name))
-
-        sys.exit()
+            raise Exception("Sensor {} is not supposed to provide"
+                            "labels".format(self.name))
 
     @abc.abstractmethod
     def _setup_training_data(self):
@@ -142,9 +139,9 @@ class Sensor(Block):
                 = (self.source.num_train - 1) // self.batch_size + 1
             self.num_batches_per_epoch_val \
                 = (self.source.num_val - 1) // self.val_batch_size + 1
-            log.info("A epoch of training set contains {} batches".format(
+            self.log("A epoch of training set contains {} batches".format(
                 self.num_batches_per_epoch_train))
-            log.info("A epoch of validation set contains {} batches".format(
+            self.log("A epoch of validation set contains {} batches".format(
                 self.num_batches_per_epoch_val))
 
     def _post_setup_shared(self):
@@ -171,19 +168,19 @@ class Sensor(Block):
         """
         self.source.setup()
 
-        log.info("Setting up training sensor ... ")
+        self.log("Setting up training sensor ... ")
         if issubclass(type(self.source), sources.SupervisedSource):
             self.training_data, self.training_labels \
                 = self._setup_training_data()
         else:
             self.training_data = self._setup_training_data()
-        log.info("Setting up val sensor ... ")
+        self.log("Setting up val sensor ... ")
         if issubclass(type(self.source), sources.SupervisedSource):
             self.val_data, self.val_labels = self._setup_val_data()
         else:
             self.val_data = self._setup_val_data()
 
-        log.info("Finished setting up sensor.")
+        self.log("Finished setting up sensor.")
 
 
 class ShuffleQueueSensor(Sensor):

@@ -6,7 +6,6 @@ import tensorflow as tf
 
 from ..core.blocks import ProcessingLayer
 from .activation_layers import GroupSoftmaxLayer
-from ..utils import glog as log
 
 
 class LossLayer(ProcessingLayer):
@@ -22,7 +21,7 @@ class LossLayer(ProcessingLayer):
 
     def _setup(self, *args, **kwargs):
         self._loss_layer_setup(*args, **kwargs)
-        log.info("Using multiplier {}".format(self.multiplier))
+        self.log("Using multiplier {}".format(self.multiplier))
         self._loss = self._loss * self.multiplier
 
     @abc.abstractmethod
@@ -121,12 +120,12 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
         shape = input.get_shape().as_list()
         assert len(shape) is 2, "Input should be rank 2."
         if shape[-1] % self.group_size is not 0:
-            log.error("Group size {} should evenly divide output channel"
+            raise Exception("Group size {} should evenly divide output channel"
                       " number {}".format(self.group_size, shape[-1]))
-            sys.exit()
+
         out_channel_num = shape[-1]
         num_split = out_channel_num // self.group_size
-        log.info("Feature maps of layer {} is divided into {} group".format(
+        self.log("Feature maps of layer {} is divided into {} group".format(
             self.name, num_split))
         data = tf.reshape(input, [-1, shape[-1]])
         if self.use_temperature:

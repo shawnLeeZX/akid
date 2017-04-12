@@ -4,7 +4,6 @@ import inspect
 import tensorflow as tf
 from tensorflow.python.training import moving_averages
 
-from ..utils import glog as log
 from ..core.blocks import ProcessingLayer
 from ..core import common
 
@@ -24,8 +23,8 @@ class PoolingLayer(ProcessingLayer):
         self.type = type
 
     def _setup(self, input):
-        log.debug("Padding method {}.".format(self.padding))
-        log.debug("Pooling method {}.".format(self.type))
+        self.log("Padding method {}.".format(self.padding), debug=True)
+        self.log("Pooling method {}.".format(self.type), debug=True)
         if self.type == "max":
             self._data = tf.nn.max_pool(input,
                                         self.ksize,
@@ -37,7 +36,7 @@ class PoolingLayer(ProcessingLayer):
                                         self.strides,
                                         self.padding)
         else:
-            log.error("Type `{}` pooling is not supported.".format(
+            raise Exception("Type `{}` pooling is not supported.".format(
                 self.type))
 
 
@@ -90,11 +89,10 @@ class SoftmaxNormalizationLayer(ProcessingLayer):
                                    initializer=tf.constant_initializer(10.0))
             data /= T
         if shape[-1] % self.group_size is not 0:
-            log.error("Group size {} should evenly divide output channel"
+            raise Exception("Group size {} should evenly divide output channel"
                       " number {}".format(self.group_size, shape[-1]))
-            sys.exit()
         num_split = shape[-1] // self.group_size
-        log.info("Feature maps of layer {} is divided into {} group".format(
+        self.log("Feature maps of layer {} is divided into {} group".format(
             self.name, num_split))
         data_split = tf.split(1, num_split, data)
         data_split = list(data_split)
@@ -138,22 +136,22 @@ class GroupProcessingLayer(ProcessingLayer):
             self.rank = len(self.output_shape)
             # No work actually done. Just logging and gather some meta data.
             self.num_group = len(input)
-            log.info("Number of groups: {}".format(self.num_group))
+            self.log("Number of groups: {}".format(self.num_group))
             group_size_list = [t.get_shape().as_list()[-1] for t in input]
-            log.info("Group size of each group are {}".format(group_size_list))
+            self.log("Group size of each group are {}".format(group_size_list))
         else:
             self.output_shape = input.get_shape().as_list()
             self.rank = len(self.output_shape)
             if self.output_shape[-1] % self.group_size is not 0:
-                log.error("Group size {} should evenly divide output channel"
+                self.log.error("Group size {} should evenly divide output channel"
                           " number {}".format(self.group_size,
                                               self.output_shape[-1]))
                 sys.exit()
             out_channel_num = self.output_shape[-1]
             self.num_group = out_channel_num // self.group_size
-            log.info("Feature maps of layer {} is divided into {} group".format(
+            self.log("Feature maps of layer {} is divided into {} group".format(
                 self.name, self.num_group))
-            log.info("All groups have equal size {}.".format(self.group_size))
+            self.log("All groups have equal size {}.".format(self.group_size))
 
 
 class GroupSoftmaxLayer(GroupProcessingLayer):
@@ -285,20 +283,20 @@ class BatchNormalizationLayer(ProcessingLayer):
 
     def _setup(self, input):
         if self.use_reference_bn:
-            log.info("Using reference BN. `beta_init` is fixed to 0;"
+            self.log("Using reference BN. `beta_init` is fixed to 0;"
                      " `gamma_init` to 1.")
             self._data = self._ref_batch_norm(input)
             return
 
         # Logging.
         if self.gamma_init:
-            log.info("Gamma initial value is {}.".format(self.gamma_init))
+            self.log("Gamma initial value is {}.".format(self.gamma_init))
             if self.fix_gamma:
-                log.info("Gamma is fixed to during training.")
+                self.log("Gamma is fixed to during training.")
             else:
-                log.info("Gamma is trainable.")
+                self.log("Gamma is trainable.")
         else:
-            log.info("Gamma is not used during training.")
+            self.log("Gamma is not used during training.")
 
         input_shape = input.get_shape().as_list()
         if len(input_shape) is 2:

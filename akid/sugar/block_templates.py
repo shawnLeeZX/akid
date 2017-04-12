@@ -10,7 +10,6 @@ a block.
 import sys
 import inspect
 
-from ..utils import glog as log
 from akid.layers import (
     ConvolutionLayer,
     PoolingLayer,

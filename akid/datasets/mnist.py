@@ -5,7 +5,6 @@ import zipfile
 
 import numpy as np
 
-from ..utils import glog as log
 from ..core.sources import InMemoryFeedSource, SupervisedSource
 from .datasets import DataSet, DataSets
 
@@ -30,7 +29,7 @@ class MNISTFeedSource(InMemoryFeedSource, SupervisedSource):
         if not os.path.exists(filepath):
             filepath, _ = urllib.urlretrieve(self.url + filename, filepath)
             statinfo = os.stat(filepath)
-            log.info('Successfully downloaded', filename, statinfo.st_size,
+            self.log('Successfully downloaded', filename, statinfo.st_size,
                      'bytes.')
         return filepath
 
@@ -81,7 +80,7 @@ class MNISTFeedSource(InMemoryFeedSource, SupervisedSource):
 
     def _read32(self, bytestream):
         dt = np.dtype(np.uint32).newbyteorder('>')
-        return np.frombuffer(bytestream.read(4), dtype=dt)
+        return int(np.frombuffer(bytestream.read(4), dtype=dt))
 
     def _dense_to_one_hot(self, labels_dense, num_classes=10):
         """Convert class labels from scalars to one-hot vectors."""
@@ -95,7 +94,7 @@ class MNISTFeedSource(InMemoryFeedSource, SupervisedSource):
         """
         Extract the images into a 4D uint8 np array [index, y, x, depth].
         """
-        log.info('Extracting', filename)
+        self.log('Extracting', filename)
         with gzip.open(filename) as bytestream:
             magic = self._read32(bytestream)
             if magic != 2051:
@@ -151,12 +150,12 @@ class RotatedMNISTFeedSource(InMemoryFeedSource, SupervisedSource):
         if not os.path.exists(filepath):
             filepath, _ = urllib.urlretrieve(self.url + filename, filepath)
             statinfo = os.stat(filepath)
-            log.info('Successfully downloaded', filename, statinfo.st_size,
+            self.log('Successfully downloaded', filename, statinfo.st_size,
                      'bytes.')
-            log.info('Extracting zip file ... ')
+            self.log('Extracting zip file ... ')
             f = zipfile.ZipFile(filepath)
             f.extractall(path=self.work_dir)
-            log.info('Extraction finished ... ')
+            self.log('Extraction finished ... ')
 
     def _load(self, fake_data=False, one_hot=False):
         filename = self.url.split('/')[-1]

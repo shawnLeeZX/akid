@@ -10,7 +10,6 @@ import tensorflow as tf
 from .common import TRAINING_DYNAMICS_COLLECTION, LEARNING_RATE_TAG
 from . import common
 from .blocks import ShadowableBlock
-from ..utils import glog as log
 
 
 class LearningRateScheme(object):
