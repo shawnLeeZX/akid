@@ -14,9 +14,13 @@ inter-connected blocks, each of which processes inputs and emits outputs. For
 example, a vision classification system is a block that takes image inputs and
 gives classification results. Everything is a `Block` in `akid`.
 
-A block could be as simple as a convonlutional neural network layer that merely
-does convolution on the input data and outputs the results; it also be as
-complex as an acyclic graph that inter-connects blocks to build a neural
+Two types of blocks exist: the blocks build computational graph, and does not
+care about execution; and the blocks that deal with execution (TODO). The later
+part has not been sorted through yet.
+
+The type one block could be as simple as a convonlutional neural network layer
+that merely does convolution on the input data and outputs the results; it also
+be as complex as an acyclic graph that inter-connects blocks to build a neural
 network, or sequentially linked block system that does data augmentation.
 
 Compared with pure symbol computation approach, like the one in tensorflow, a
@@ -82,6 +86,8 @@ class ProcessingBlock(Block):
     Abstract class for an arbitrary block that generates output. `Source`,
     `Sensor`, `ProcessingLayer`, `LossLayer` and `ProcessingSystem` etc are all
     sub-classes of this class.
+
+    `ProcessingBlock` builds computational graph that processes data.
 
     A `ProcessingBlock` should try to implement most of its functionality only
     with what it owns, and ask for communication (which in implementation is to
