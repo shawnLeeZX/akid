@@ -49,12 +49,12 @@ def main(_):
                                num_val=10000)
       sensor = FeedSensor(name='data', source_in=source)
 
-      sensor.setup()
+      sensor.forward()
       brain = OneLayerBrain(name="brain")
       # input = [sensor.data()]
       # input.extend(sensor.labels())
       input = [sensor.data(), sensor.labels()]
-      brain.setup(input)
+      brain.forward(input)
       loss = brain.loss
       global_step = tf.Variable(0)
 

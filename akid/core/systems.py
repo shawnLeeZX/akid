@@ -92,12 +92,12 @@ class LinkedSystem(System):
         """
         return self._data
 
-    def _setup(self, data_in):
+    def _forward(self, data_in):
         """
         A `LinkedSystem` could be used standalone. However, another typical use
         of `LinkedSystem` is inherit it to make something more complex, such as
         creating a `Brain` sequentially linking layers together. In that case,
-        `_setup` would be overrided. So we move the linking operation to
+        `_forward` would be overrided. So we move the linking operation to
         another private function so after sub-class of this class does not need
         to rewrite the linking code.
         """
@@ -119,7 +119,7 @@ class LinkedSystem(System):
         for l in self.blocks:
             self.log("Setting up block {}.".format(l.name))
             l.do_summary = self.do_summary
-            l.setup(data)
+            l.forward(data)
             self.log("Connected: {} -> {}".format(data.name,
                                                   l.data.name))
             if shape:
@@ -149,7 +149,7 @@ class GraphSystem(LinkedSystem):
     use.
 
     NOTE: no matter how the inputs are specified (by `inputs` or not), in the
-    `_setup` method of a block, inputs feeds to a block is a tensor (if there
+    `_forward` method of a block, inputs feeds to a block is a tensor (if there
     is only one input) or a list of tensors (if there are multiple inputs.)
     """
     def _link_blocks(self, data_in):
@@ -200,21 +200,21 @@ class GraphSystem(LinkedSystem):
                                             input["name"]))
 
                 if len(inputs) is 1:
-                    l.setup(inputs[0])
+                    l.forward(inputs[0])
                 else:
-                    l.setup(inputs)
+                    l.forward(inputs)
             else:
                 if len(data) == 1:
-                    l.setup(data[0])
+                    l.forward(data[0])
                 else:
                     if i == 0:
                         # We deal with the first case specially, since the
                         # first layer normally only takes the data as inputs
                         # instead all the output. This is also for backward
                         # compatibility.
-                        l.setup(data[0])
+                        l.forward(data[0])
                     else:
-                        l.setup(data)
+                        l.forward(data)
 
             # Logging
             dtype = type(data)

@@ -113,7 +113,7 @@ class Cifar10TFSource(Cifar10Source, ClassificationTFSource):
     """
     A concrete `Source` for Cifar10 dataset.
     """
-    def _setup(self):
+    def _forward(self):
         """
         Construct input for CIFAR evaluation using the Reader ops.
         """

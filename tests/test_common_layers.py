@@ -7,7 +7,7 @@ class TestCommonLayers(AKidTestCase):
     def test_padding(self):
         input = tf.constant(1, shape=[1, 2, 2, 1])
         layer = PaddingLayer(padding=[1, 1])
-        layer.setup(input)
+        layer.forward(input)
         assert layer.data.get_shape().as_list() == [1, 4, 4, 1]
 
     def test_scattering(self):
@@ -16,7 +16,7 @@ class TestCommonLayers(AKidTestCase):
 
         scatter_len_list = [1, 2]
         layer = ScatterLayer(scatter_len_list=scatter_len_list)
-        layer.setup(input)
+        layer.forward(input)
         scattered_list = layer.data
         for i, t in enumerate(scattered_list):
             shape = t.get_shape().as_list()

@@ -196,7 +196,7 @@ class SupervisedSource(Source):
         only able to provide shape information.
 
         If a sub-class decides to use this property, the setup of tensor
-        `labels` should be in `_setup`.
+        `labels` should be in `_forward`.
         """
         raise NotImplementedError("The property `training_label` is not"
                                   " implemented!")
@@ -210,7 +210,7 @@ class SupervisedSource(Source):
         `training_labels`.
 
         If a sub-class decides to use this property, the setup of tensor
-        `labels` should be in `_setup`.
+        `labels` should be in `_forward`.
         """
         raise NotImplementedError("The property `val_label` is not"
                                   " implemented!")
@@ -273,7 +273,7 @@ class InMemoryFeedSource(StaticSource, FeedSource):
 
     This class holds a private member `_data_sets` to hold all data.
     """
-    def _setup(self):
+    def _forward(self):
         """
         Call `_load` to load datasets into memory.
         """
@@ -325,7 +325,7 @@ class TFSource(StaticSource):
 
     Since normally usage of `TFSource` accompanies with data augmentation, and
     the way data augmentation works at the granularity of one sample, so
-    `_setup` of `TFSource` should initialized `training_datum` and `val_datum`
+    `_forward` of `TFSource` should initialized `training_datum` and `val_datum`
     to a `tf.Tensor` that returns by some Reader Op of tensorflow. The data
     provided by this class of source has necessary information associated with
     the tensor variable, and could be used directly in the further pipeline.
@@ -334,7 +334,7 @@ class TFSource(StaticSource):
     mandatory.
     """
     @abc.abstractmethod
-    def _setup(self):
+    def _forward(self):
         self._read()
         """
         TFSource uses Reader Ops of Tensorflow to read data. So any sub-classes

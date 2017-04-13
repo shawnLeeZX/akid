@@ -20,7 +20,7 @@ class Joker(ShadowableBlock):
     A top level abstract class to do data augmentations. Since it is also part
     of a data processing process, it is a sub-class of `ProcessingBlock`.
 
-    A Joker normally accepts one input -- so its `_setup` only takes one input,
+    A Joker normally accepts one input -- so its `_forward` only takes one input,
     and gives out one output -- so the output is revealed via property `data`.
     """
     def __init__(self, do_summary=False, **kwargs):
@@ -37,8 +37,8 @@ class Joker(ShadowableBlock):
         super(Joker, self).__init__(**kwargs)
 
     @abc.abstractmethod
-    def _setup(self, data_in):
-        raise NotImplementedError("Each `Joker` should implement `_setup` to"
+    def _forward(self, data_in):
+        raise NotImplementedError("Each `Joker` should implement `_forward` to"
                                   " do actual data augmentation!")
         sys.exit()
 
@@ -84,7 +84,7 @@ class CropJoker(Joker):
         self.center = center
         self.central_fraction = central_fraction
 
-    def _setup(self, data_in):
+    def _forward(self, data_in):
         if self.center:
             self.log("Center crop images.")
             if self.central_fraction:
@@ -115,7 +115,7 @@ class FlipJoker(Joker):
         super(FlipJoker, self).__init__(**kwargs)
         self.flip_left_right = flip_left_right
 
-    def _setup(self, data_in):
+    def _forward(self, data_in):
         if self.flip_left_right:
             self.log("Randomly flip image left right.")
             self._data = tf.image.random_flip_left_right(data_in)
@@ -139,7 +139,7 @@ class LightJoker(Joker):
         self.contrast = contrast
         self.brightness = brightness
 
-    def _setup(self, data_in):
+    def _forward(self, data_in):
         data = data_in
         # TODO(Shuai): The parameters should not be hard coded.
         if self.contrast:
@@ -156,7 +156,7 @@ class WhitenJoker(Joker):
     """
     Per image whitening joke.
     """
-    def _setup(self, data_in):
+    def _forward(self, data_in):
         self._data = tf.image.per_image_standardization(data_in)
 
 
@@ -164,7 +164,7 @@ class RescaleJoker(Joker):
     """
     Rescale images to $[0, 1]$.
     """
-    def _setup(self, data_in):
+    def _forward(self, data_in):
         self._data = akid.image.rescale_image(data_in)
 
 
@@ -192,7 +192,7 @@ class ResizeJoker(Joker):
         self.width = width
         self.resize_method = resize_method
 
-    def _setup(self, data_in):
+    def _forward(self, data_in):
         shape = data_in.get_shape().as_list()
         if len(shape) == 3:
             data = tf.expand_dims(data_in, 0)

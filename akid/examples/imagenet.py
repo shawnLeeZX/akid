@@ -34,7 +34,7 @@ sensor = IntegratedSensor(source_in=source,
                           name='data')
 # resize joker
 class ColorJoker(Joker):
-    def _setup(self, data_in):
+    def _forward(self, data_in):
       data = tf.image.random_brightness(data_in, max_delta=32. / 255.)
       data = tf.image.random_saturation(data, lower=0.5, upper=1.5)
       data = tf.image.random_hue(data, max_delta=0.2)
@@ -55,7 +55,7 @@ sensor.attach(ResizeJoker(224, 224, name="resize"), to_val=True)
 
 
 class AdhocJoker(Joker):
-    def _setup(self, data_in):
+    def _forward(self, data_in):
         # Make the range of image be [-1, 1]
         data = tf.sub(data_in, 0.5)
         data = tf.mul(data, 2.0)

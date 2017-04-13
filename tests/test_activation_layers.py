@@ -66,7 +66,7 @@ class TestActivationLayers(AKidTestCase):
         input = tf.constant([log(3), log(3), log(3),
                              log(3), log(3), log(3)])
         layer = GroupSoftmaxLayer(group_size=3, name="gsmax")
-        layer.setup(input)
+        layer.forward(input)
 
         with tf.Session():
             out = layer.data.eval()
@@ -81,7 +81,7 @@ class TestActivationLayers(AKidTestCase):
         input = [tf.constant([log(3), log(3), log(3)]),
                  tf.constant([log(3), log(3), log(3)])]
         layer = GroupSoftmaxLayer(group_size=3, name="gsmax")
-        layer.setup(input)
+        layer.forward(input)
 
         with tf.Session():
             out = layer.data.eval()
@@ -143,7 +143,7 @@ class TestActivationLayers(AKidTestCase):
 
         # Test Maxout
         layer = CollapseOutLayer(group_size=2, type="maxout", name="maxout")
-        layer.setup(input)
+        layer.forward(input)
         with tf.Session():
             output = layer.data.eval()
             assert output == 1
@@ -152,7 +152,7 @@ class TestActivationLayers(AKidTestCase):
         layer = CollapseOutLayer(group_size=2,
                                type="average_out",
                                name="average_out")
-        layer.setup(input)
+        layer.forward(input)
         with tf.Session():
             output = layer.data.eval()
             assert output == 0.5
@@ -162,7 +162,7 @@ class TestActivationLayers(AKidTestCase):
         # Test Maxout
         layer = CollapseOutLayer(group_size=2, type="maxout", name="maxout")
         input = [tf.constant([1., 0.]), tf.constant([2., 0.])]
-        layer.setup(input)
+        layer.forward(input)
         with tf.Session():
             output = layer.data.eval()
             out_ref = np.array([1., 2.])
@@ -173,7 +173,7 @@ class TestActivationLayers(AKidTestCase):
         layer = CollapseOutLayer(group_size=2,
                                type="average_out",
                                name="average_out")
-        layer.setup(input)
+        layer.forward(input)
         with tf.Session():
             output = layer.data.eval()
             out_ref = np.array([0.5, 1.])

@@ -173,7 +173,7 @@ class Cifar100TFSource(ClassificationTFSource):
 
         return DataSet(data, labels)
 
-    def _setup(self):
+    def _forward(self):
         """
         Construct input for CIFAR100 evaluation using the Reader ops.
         """
@@ -383,7 +383,7 @@ class HCifar100TFSource(ClassificationTFSource):
 
         return fine_labels, coarse_labels
 
-    def _setup(self):
+    def _forward(self):
         """
         Construct input for CIFAR100 evaluation using the Reader ops.
         """

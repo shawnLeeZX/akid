@@ -20,7 +20,7 @@ class TestSource(AKidTestCase):
             num_val=5000,
             scale=True)
 
-        source.setup()
+        source.forward()
         imgs, labels = source.get_batch(1, True)
         img = np.squeeze(imgs)
         plt.imshow(img)
@@ -42,7 +42,7 @@ class TestSource(AKidTestCase):
             num_val=50000,
             scale=True)
 
-        source.setup()
+        source.forward()
         imgs, labels = source.get_batch(1, True)
         img = np.squeeze(imgs)
         plt.imshow(img)
@@ -64,7 +64,7 @@ class TestSource(AKidTestCase):
             num_train=50000,
             num_val=10000)
 
-        source.setup()
+        source.forward()
         imgs, labels = source.get_batch(1, True)
         plt.imshow(imgs[0, ...])
         print("The class label is {}.".format(labels[0]))
@@ -85,7 +85,7 @@ class TestSource(AKidTestCase):
             num_train=50000,
             num_val=10000)
 
-        source.setup()
+        source.forward()
         imgs, labels = source.get_batch(1, True)
         for c in xrange(0, 3):
             plt.imshow(imgs[0, ..., c])
@@ -179,7 +179,7 @@ class TestSource(AKidTestCase):
             work_dir=AKID_DATA_PATH + '/cifar100',
             num_train=50000,
             num_val=10000)
-        source.setup()
+        source.forward()
 
         sensor = IntegratedSensor(source_in=source,
                                   batch_size=128,
@@ -229,7 +229,7 @@ class TestSource(AKidTestCase):
             work_dir=AKID_DATA_PATH + "/small_imagenet",
             num_train=84321,
             num_val=3300)
-        source.setup()
+        source.forward()
 
         with tf.Session() as sess:
             sess.run([source.training_datum,
@@ -245,7 +245,7 @@ class TestSource(AKidTestCase):
             work_dir=AKID_DATA_PATH + "/imagenet",
             num_train=1281167,
             num_val=50000)
-        source.setup()
+        source.forward()
 
         with tf.Session() as sess:
             sess.run([source.training_datum,

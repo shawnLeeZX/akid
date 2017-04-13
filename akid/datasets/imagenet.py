@@ -130,7 +130,7 @@ class ImagenetTFSource(ClassificationTFSource):
         super(ImagenetTFSource, self).__init__(**kwargs)
         self.has_super_label = has_super_label
 
-    def _setup(self):
+    def _forward(self):
         """
         Read, and crop images using bounding boxes. The cropped images and its
         labels are the output of this source. In this case of validation

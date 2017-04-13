@@ -319,7 +319,7 @@ class Observer(object):
 
         try:
             if not self.kid.sensor.is_setup:
-                self.kid.sensor.setup()
+                self.kid.sensor.forward()
 
             with tf.Session(graph=self.kid.graph) as sess:
 

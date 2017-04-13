@@ -273,7 +273,7 @@ class ConvolutionLayer(SynapseLayer):
                 [self.shape[-1]],
                 initializer=tf.constant_initializer(self.initial_bias_value))
 
-    def _setup(self, input):
+    def _forward(self, input):
         self._para_init(input)
 
         self.log("Padding method {}.".format(self.padding), debug=True)
@@ -288,7 +288,7 @@ class ConvolutionLayer(SynapseLayer):
 
 
 class InnerProductLayer(SynapseLayer):
-    def _setup(self, input):
+    def _forward(self, input):
         input = self._reshape(input)
         self._para_init(input)
 
@@ -344,7 +344,7 @@ class InvariantInnerProductLayer(SynapseLayer):
     """
     NAME = "Invariant_IP"
 
-    def _setup(self, input):
+    def _forward(self, input):
         object_vector = self._preprocess(input)
         self._para_init(object_vector)
         ip = tf.matmul(object_vector, self.weights)

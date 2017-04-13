@@ -69,7 +69,7 @@ class KongFu(ShadowableBlock):
         super(KongFu, self).__init__(**kwargs)
         self.lr_scheme = lr_scheme
 
-    def _setup(self, loss):
+    def _forward(self, loss):
         """
         Build and return training ops according to the loss.
         """

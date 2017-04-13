@@ -104,8 +104,8 @@ class SingleGPUEngine(Engine):
         system_in = [data]
         system_in.extend(label) if type(label) is list \
             else system_in.append(label)
-        self.brain.setup(system_in)
-        self.kongfu.setup(self.brain.loss)
+        self.brain.forward(system_in)
+        self.kongfu.forward(self.brain.loss)
 
         return self.kongfu.data
 
@@ -115,7 +115,7 @@ class SingleGPUEngine(Engine):
         system_in = [data]
         system_in.extend(label) if type(label) is list \
             else system_in.append(label)
-        self.val_brain.setup(system_in)
+        self.val_brain.forward(system_in)
 
     def loss(self, get_val=False):
         if not get_val:
@@ -292,7 +292,7 @@ class DataParallelEngine(Engine):
                 # Set up a tower
                 system_in = self._setup_system_in(splitted_data[i],
                                                   splitted_labels[i])
-                tower.setup(system_in)
+                tower.forward(system_in)
 
                 # Keep track of the new tower.
                 self.train_towers.append(tower)
@@ -300,7 +300,7 @@ class DataParallelEngine(Engine):
                 # Set up KongFu (optimizer).
                 # For now, we do not need to keep track of Kongfu, so just set
                 # it up multiple times.
-                kongfu.setup(tower.loss)
+                kongfu.forward(tower.loss)
 
                 # Create the next tower.
                 # Do not do copy at the last tower.
@@ -331,7 +331,7 @@ class DataParallelEngine(Engine):
             with tf.device('/gpu:{}'.format(i)):
                 system_in = self._setup_system_in(splitted_data[i],
                                                   splitted_labels[i])
-                tower.setup(system_in)
+                tower.forward(system_in)
                 self.val_towers.append(tower)
                 if i is not self.num_gpu - 1:
                     tower = tower.get_shadow_copy()

@@ -22,7 +22,7 @@ class PoolingLayer(ProcessingLayer):
         self.padding = padding
         self.type = type
 
-    def _setup(self, input):
+    def _forward(self, input):
         self.log("Padding method {}.".format(self.padding), debug=True)
         self.log("Pooling method {}.".format(self.type), debug=True)
         if self.type == "max":
@@ -41,12 +41,12 @@ class PoolingLayer(ProcessingLayer):
 
 
 class ReLULayer(ProcessingLayer):
-    def _setup(self, input):
+    def _forward(self, input):
         self._data = tf.nn.relu(input)
 
 
 class SigmoidLayer(ProcessingLayer):
-    def _setup(self, input):
+    def _forward(self, input):
         self._data = tf.nn.sigmoid(input)
 
 
@@ -63,7 +63,7 @@ class LRNLayer(ProcessingLayer):
         self.alpha = alpha
         self.beta = beta
 
-    def _setup(self, input):
+    def _forward(self, input):
         self._data = tf.nn.lrn(input,
                                self.depth_radius,
                                self.bias,
@@ -80,7 +80,7 @@ class SoftmaxNormalizationLayer(ProcessingLayer):
         self.use_temperature = use_temperature
         self.group_size = group_size
 
-    def _setup(self, input):
+    def _forward(self, input):
         shape = input.get_shape().as_list()
         data = tf.reshape(input, [-1, shape[-1]])
         if self.use_temperature:
@@ -90,7 +90,7 @@ class SoftmaxNormalizationLayer(ProcessingLayer):
             data /= T
         if shape[-1] % self.group_size is not 0:
             raise Exception("Group size {} should evenly divide output channel"
-                      " number {}".format(self.group_size, shape[-1]))
+                            " number {}".format(self.group_size, shape[-1]))
         num_split = shape[-1] // self.group_size
         self.log("Feature maps of layer {} is divided into {} group".format(
             self.name, num_split))
@@ -107,7 +107,7 @@ class SoftmaxNormalizationLayer(ProcessingLayer):
 class GroupProcessingLayer(ProcessingLayer):
     """
     A abstract layer that processes layer by group. This is a meta class
-    (`_setup` is not implemented).
+    (`_forward` is not implemented).
 
     Two modes are possible for this layer. The first is to divide the
     neurons of this layer evenly using `group_size`. The second mode the
@@ -144,8 +144,8 @@ class GroupProcessingLayer(ProcessingLayer):
             self.rank = len(self.output_shape)
             if self.output_shape[-1] % self.group_size is not 0:
                 self.log.error("Group size {} should evenly divide output channel"
-                          " number {}".format(self.group_size,
-                                              self.output_shape[-1]))
+                               " number {}".format(self.group_size,
+                                                   self.output_shape[-1]))
                 sys.exit()
             out_channel_num = self.output_shape[-1]
             self.num_group = out_channel_num // self.group_size
@@ -168,7 +168,7 @@ class GroupSoftmaxLayer(GroupProcessingLayer):
         self.use_temperature = use_temperature
         self.concat_output = concat_output
 
-    def _setup(self, input):
+    def _forward(self, input):
         # Divide the input into list if not already.
         if type(input) is list:
             splitted_input = input
@@ -229,7 +229,7 @@ class CollapseOutLayer(GroupProcessingLayer):
         super(CollapseOutLayer, self).__init__(**kwargs)
         self.type = type
 
-    def _setup(self, input):
+    def _forward(self, input):
         if type(input) is list:
             # process each tensor once by one and combine them
             reduced_t_list = []
@@ -281,7 +281,7 @@ class BatchNormalizationLayer(ProcessingLayer):
         self.share_gamma = share_gamma
         self.use_reference_bn = use_reference_bn
 
-    def _setup(self, input):
+    def _forward(self, input):
         if self.use_reference_bn:
             self.log("Using reference BN. `beta_init` is fixed to 0;"
                      " `gamma_init` to 1.")
@@ -447,7 +447,7 @@ class DropoutLayer(ProcessingLayer):
         super(DropoutLayer, self).__init__(**kwargs)
         self.keep_prob = keep_prob
 
-    def _setup(self, input):
+    def _forward(self, input):
         if self.is_val:
             self._data = tf.identity(input)
         else:

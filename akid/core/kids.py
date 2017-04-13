@@ -375,7 +375,7 @@ class Kid(Block):
 
     def _setup_sensor(self):
         # Build training graph.
-        self.sensor.setup()
+        self.sensor.forward()
 
     def _setup_engine(self):
         if type(self.engine_para) is str:

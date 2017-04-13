@@ -16,7 +16,7 @@ class TestLossLayers(AKidTestCase):
         labels = tf.constant([[1, 0, 0], [0, 1, 0]], dtype=tf.float32)
         logits = tf.constant([[1, 2, 0], [1, 2, 0]], dtype=tf.float32)
         l = SoftmaxWithLossLayer(class_num=3, name="loss")
-        l.setup([logits, labels])
+        l.forward([logits, labels])
         with tf.Session():
             assert l.eval.eval() == 0.5
 

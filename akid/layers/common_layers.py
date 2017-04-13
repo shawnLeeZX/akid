@@ -20,7 +20,7 @@ class ReshapeLayer(ProcessingLayer):
         super(ReshapeLayer, self).__init__(**kwargs)
         self.intrinsic_shape = shape
 
-    def _setup(self, input):
+    def _forward(self, input):
         batch_size = input.get_shape().as_list()[0]
         if self.intrinsic_shape:
             shape = list(self.intrinsic_shape)
@@ -53,7 +53,7 @@ class PaddingLayer(ProcessingLayer, Joker):
         super(PaddingLayer, self).__init__(**kwargs)
         self.padding = padding
 
-    def _setup(self, input):
+    def _forward(self, input):
         shape = input.get_shape().as_list()
         assert len(shape) is 4 or 3,\
             "Shapes other than 4 or 3 are not supported."
@@ -95,7 +95,7 @@ class MergeLayer(ProcessingLayer):
     """
     Merge layers with the same shape by element-wise addition.
     """
-    def _setup(self, inputs):
+    def _forward(self, inputs):
         shape = inputs[0].get_shape().as_list()
         for t in inputs:
             t_shape = t.get_shape().as_list()
@@ -130,7 +130,7 @@ class ScatterLayer(ProcessingLayer):
             kwargs["name"] = "scatter"
         super(ScatterLayer, self).__init__(**kwargs)
 
-    def _setup(self, input):
+    def _forward(self, input):
         scattered_list = []
         start_idx = 0
         for length in self.scatter_len_list:

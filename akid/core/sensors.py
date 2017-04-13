@@ -161,12 +161,12 @@ class Sensor(ProcessingBlock):
                              image_batch,
                              collections=[collection])
 
-    def _setup(self):
+    def _forward(self):
         """
         Generate placeholder or tensor variables to represent the the input
         data.
         """
-        self.source.setup()
+        self.source.forward()
 
         self.log("Setting up training sensor ... ")
         if issubclass(type(self.source), sources.SupervisedSource):
@@ -228,7 +228,7 @@ class IntegratedSensor(ShuffleQueueSensor):
 
     def _setup_training_data(self):
         # TODO(Shuai): Handle the case where the source has no labels.
-        self.training_jokers.setup(self.source.training_datum)
+        self.training_jokers.forward(self.source.training_datum)
         augmented_training_datum = self.training_jokers.data
         min_queue_examples = int(self.source.num_train *
                                  self.min_fraction_of_examples_in_queue)
@@ -246,7 +246,7 @@ class IntegratedSensor(ShuffleQueueSensor):
 
     def _setup_val_data(self):
         # TODO(Shuai): Handle the case where the source has no labels.
-        self.val_jokers.setup(self.source.val_datum)
+        self.val_jokers.forward(self.source.val_datum)
         processed_val_datum = self.val_jokers.data
         min_queue_examples = int(self.source.num_val *
                                  self.min_fraction_of_examples_in_queue)

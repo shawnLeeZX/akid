@@ -4,7 +4,7 @@ Tensor can be taken as the media/formalism signal propagates in digital world,
 while Block is the data processing entity that processes inputs and emits
 outputs.
 
-It coincides with a branch of "ideology" called dataism that takes everything
+It coincides with a branch of "philosophy" called dataism that takes everything
 in this world is a data processing entity. An interesting one that may come
 from *A Brief History of Tomorrow* by Yuval Noah Harari.
 
@@ -84,20 +84,23 @@ class ProcessingBlock(Block):
     sub-classes of this class.
 
     A `ProcessingBlock` should try to implement most of its functionality only
-    with what it owns, and ask for communication(which in implementation is to
+    with what it owns, and ask for communication (which in implementation is to
     provide interfaces) as little as possible.
 
     Outputs of a block is in form of properties. `ProcessingBlock` has an
     abstract property data which sub-class should implement to provide the
     processed outputs.
 
-    `setup` is the interface for any containers, such as a `Brain` class, that
-    hold this block, to call to set up this block. It is a wrapper for the
-    actual abstract `_setup` method which should be implemented by concrete
-    layer, and other pre-setup and post-setup methods. The caller is
-    responsible for passing in the right data for the `setup` method.
+    `forward` is the interface for any containers, such as a `Brain` class,
+    that hold this block, to call to do posterior probability inference (the
+    statement may not hold exactly when the neural network does not learn a
+    probability, but I believe in long term a unified view about what neural
+    network is doing will agree with the ambiguity here). It is a wrapper for
+    the actual abstract `_forward` method which should be implemented by
+    concrete layer, and other pre-forward and post-forward methods. The caller
+    is responsible for passing in the right data for the `forward` method.
 
-    Call `setup` of each block before using it.
+    Call `forward` of each block before using it.
     """
 
     def __init__(self, do_summary=True, name=None, bag=None, **kwargs):
@@ -146,15 +149,17 @@ class ProcessingBlock(Block):
         """
         An abstract method to enforce all sub-classes to provide their
         processed data through this interface.
+
+        Note that the data is the data obtained through `forward`.
         """
         raise NotImplementedError("Each concrete block needs to implement this"
                                   " method to provide an interface to offer"
                                   " data!")
 
-    def setup(self, *args, **kwargs):
+    def forward(self, *args, **kwargs):
         """
-        Common wrapper of all kinds of layers' `_setup` to do stat and
-        visualization related logistics. If `_setup` has any output, it would
+        Common wrapper of all kinds of layers' `_forward` to do stat and
+        visualization related logistics. If `_forward` has any output, it would
         be returned.
 
         A `ProcessingBlock` could be set up any times one wants. Each time it
@@ -162,7 +167,7 @@ class ProcessingBlock(Block):
         and any variables are shared.
 
         Args:
-            All arguments will be passed to the actual `_setup` function.
+            All arguments will be passed to the actual `_forward` function.
         """
         if self.var_scope:
             var_scope = self.var_scope
@@ -173,11 +178,16 @@ class ProcessingBlock(Block):
         # has value, however, to make sure the first time assignment works,
         # this is the best way I can think of.
         with tf.variable_scope(var_scope) as self.var_scope:
+            # TODO: the way how pre and post set up should be changed. Deferred
+            # due to time budget. I am thinking actually implement it using
+            # hooks, which makes things clearer. Or some part of the pre_setup
+            # should be in a separate step, since setup now is changed to
+            # forward.
             if not self._skip_pre_post_setup():
                 self._pre_setup(*args, **kwargs)
             if not self._skip_pre_post_shared_setup():
                 self._pre_setup_shared()
-            self._setup(*args, **kwargs)
+            self._forward(*args, **kwargs)
             if not self._skip_pre_post_setup():
                 self._post_setup()
             if not self._skip_pre_post_shared_setup():
@@ -185,6 +195,8 @@ class ProcessingBlock(Block):
 
         self.is_setup = True
         self.var_scope.reuse_variables()
+
+        return self.data
 
     def _pre_setup(self, *args, **kwargs):
         """
@@ -235,7 +247,7 @@ class ProcessingBlock(Block):
         return self.is_setup
 
     @abc.abstractmethod
-    def _setup(self):
+    def _forward(self):
         """
         An abstract method that must be overrided.
         """

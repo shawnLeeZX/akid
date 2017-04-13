@@ -11,10 +11,10 @@ blocks. Some pre-specified brains are available under `akid.models.brains`. An
 example that sets up a brain using existing brains is::
 
     # ... first get a feed sensor
-    sensor.setup()
+    sensor.forward()
     brain = OneLayerBrain(name="brain")
     input = [sensor.data(), sensor.labels()]
-    brain.setup(input)
+    brain.forward(input)
 
 Note in this case, `data()` and `labels()` of `sensor` returns tensors. It is
 not always the case. If it does not, saying return a list of tensors, you need
@@ -93,7 +93,7 @@ class Brain(GraphSystem, ProcessingLayer):
             name="loss"))
 
     `Brain` supports variable sharing layer copy. By calling `get_copy` of the
-    brain and call `setup` again, you will get a brain with the same
+    brain and call `forward` again, you will get a brain with the same
     configuration and that shares any variables original brain has.
 
     Note if `do_summary` and `moving_average_decay` are specified, it would
@@ -196,7 +196,7 @@ class Brain(GraphSystem, ProcessingLayer):
 
         return filter_list
 
-    def _setup(self, data_in):
+    def _forward(self, data_in):
         """
         Set up the computational graph.
 
