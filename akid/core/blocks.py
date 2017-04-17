@@ -46,6 +46,7 @@ from .common import (
     VALID_SUMMARY_COLLECTION,
     SPARSITY_SUMMARY_SUFFIX
 )
+from .. import backend as A
 
 
 class Block(object):
@@ -98,13 +99,13 @@ class ProcessingBlock(Block):
     processed outputs.
 
     `forward` is the interface for any containers, such as a `Brain` class,
-    that hold this block, to call to do posterior probability inference (the
-    statement may not hold exactly when the neural network does not learn a
-    probability, but I believe in long term a unified view about what neural
-    network is doing will agree with the ambiguity here). It is a wrapper for
-    the actual abstract `_forward` method which should be implemented by
-    concrete layer, and other pre-forward and post-forward methods. The caller
-    is responsible for passing in the right data for the `forward` method.
+    that hold this block, to call to do build computational graph that normally
+    leads to a forward propagation in neural networks to do posterior
+    inference (the statement may not hold exactly when the neural network does
+    not learn a probability). It is a wrapper for the actual abstract
+    `_forward` method which should be implemented by concrete layer, and other
+    pre-forward and post-forward methods. The caller is responsible for passing
+    in the right data for the `forward` method.
 
     Call `forward` of each block before using it.
     """
@@ -302,7 +303,32 @@ class ShadowableBlock(ProcessingBlock):
             super(ShadowableBlock, self).log(msg, *args, **kwargs)
 
 
-class ProcessingLayer(ShadowableBlock):
+class GenerativeBlock(ShadowableBlock):
+    """
+    Block that optionally supports a backward pass.
+
+    It aims to model generative modeling instead of just discriminative
+    training. It supports a `backward` that normally does generative
+    reconstruction according to the forward propagation (posterior inference)
+    results.
+    """
+    def backward(self, X):
+        """
+        According to the top-down inference results, reconstruct the input.
+
+        TODO: should call _backward somehow maybe
+        """
+        raise NotImplementedError("This block does not support backward pass.")
+
+    @property
+    def data_g(self):
+        if hasattr(self, "_data_g"):
+            return self._data_g
+        else:
+            raise NotImplemented("This block does not have generated data.")
+
+
+class ProcessingLayer(GenerativeBlock):
     """
     An abstract layer for data processing layer in the brain.
 
@@ -531,10 +557,10 @@ class ProcessingLayer(ShadowableBlock):
         to `tf.get_variable()` to the details of a shared variable in
         tensorflow.
         """
-        var = tf.get_variable(name,
-                              shape,
-                              initializer=initializer,
-                              trainable=trainable)
+        var = A.get_variable(name,
+                             shape,
+                             initializer=initializer,
+                             trainable=trainable)
 
         if self.is_setup:
             if self.moving_average_decay:

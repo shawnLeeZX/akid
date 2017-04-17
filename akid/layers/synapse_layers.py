@@ -7,12 +7,11 @@ import tensorflow as tf
 
 from ..core.blocks import ProcessingLayer
 from ..core.common import (
-    SEED,
     FILTER_WEIGHT_COLLECTION,
     AUXILLIARY_SUMMARY_COLLECTION,
     AUXILLIARY_STAT_COLLECTION
 )
-from ..ops import msra_initializer
+from ..core import initializers
 
 
 class SynapseLayer(ProcessingLayer):
@@ -187,70 +186,19 @@ class SynapseLayer(ProcessingLayer):
 
         return var, weight_decay
 
-    def _get_default_initializer(self):
-        # By default, we use the most preliminary initialization (for
-        # conforming with torch).
-        self.log("Weights of {} uses default initialization.".format(
-            self.name))
-        # The strange factor here is to make variance `1/sqrt(dim)`. For
-        # the meaning of `dim`, see the doc of
-        # `tf.uniform_unit_scaling_initializer`.
-        return tf.uniform_unit_scaling_initializer(factor=1.0/(3)**0.5,
-                                                   seed=SEED)
-
     def _get_initializer(self):
         if not self.init_para:
-            return self._get_default_initializer()
+            init = initializers.get("default")
         else:
-            try:
-                name = self.init_para["name"]
-                if name is "default":
-                    return self._get_default_initializer()
-                elif name is "truncated_normal":
-                    self.log("Weights of {} uses truncated normal initializer"
-                             " with stddev {}".format(
-                                 self.name, self.init_para["stddev"]))
-                    return tf.truncated_normal_initializer(
-                        stddev=self.init_para["stddev"],
-                        seed=SEED)
-                elif name is "uniform":
-                    range = self.init_para["range"]
-                    self.log("Weights of {} uses uniform initializer with"
-                             " stddev {}".format(self.name, range))
-                    return tf.random_uniform_initializer(minval=-range,
-                                                         maxval=range,
-                                                         seed=SEED)
-                elif name is "uniform_unit_scaling":
-                    try:
-                        factor = self.init_para["factor"]
-                    except KeyError as e:
-                        self.log("Key factor is not found in `init_para`. Use"
-                                 " 1")
-                        factor = 1
-                    self.log("Weights of {} uses uniform unit scaling"
-                             " initializer of factor {}".format(
-                                 self.name, factor))
-                    return tf.uniform_unit_scaling_initializer(factor=factor,
-                                                               seed=SEED)
-                elif name is "msra_init":
-                    try:
-                        factor = self.init_para["factor"]
-                    except KeyError as e:
-                        self.log("Key factor is not found in `init_para`. Use"
-                                 " 1")
-                        factor = 1
-                    self.log("Weights of {} uses unit gradient (msra"
-                             " initializer) initializer with factor {}".format(
-                                 self.name, factor))
-                    return msra_initializer(factor=factor, seed=SEED)
-                else:
-                    self.log.error("{} is not supported!".format(name))
-                    sys.exit(0)
-            except KeyError as e:
-                self.error("`{}` not found in the provided initialization"
-                           " parameters, `init_para`. Perhaps you have some"
-                           " typos.".format(e.message))
-                sys.exit(1)
+            name = self.init_para["name"]
+            kwargs = self.init_para.copy()
+            kwargs.pop("name")
+            init = initializers.get(name, **kwargs)
+
+        self.log("Weights of {} uses initializer {} with arguments {}".format(
+            self.name, name, kwargs))
+
+        return init
 
 
 class ConvolutionLayer(SynapseLayer):
@@ -261,9 +209,9 @@ class ConvolutionLayer(SynapseLayer):
         self.ksize = ksize
 
     def _para_init(self, input):
-        input_shape = input.get_shape().as_list()
+        self.input_shape = input.get_shape().as_list()
         self.shape = [self.ksize[0], self.ksize[1],
-                      input_shape[-1], self.out_channel_num]
+                      self.input_shape[-1], self.out_channel_num]
         self.weights, self._loss \
             = self._variable_with_weight_decay("weights", self.shape)
 
@@ -285,6 +233,19 @@ class ConvolutionLayer(SynapseLayer):
             output = conv
 
         self._data = output
+
+    def backward(self, X_in):
+        """
+        According to the top-down inference results, reconstruct the input.
+        """
+        # Deconvolve.
+        # Create reconstruction loss.
+        self._data_g = tf.nn.conv2d_transpose(X_in,
+                                             self.weights,
+                                             self.input_shape,
+                                             self.strides,
+                                             self.padding)
+        return self.data_g
 
 
 class InnerProductLayer(SynapseLayer):
