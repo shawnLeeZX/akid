@@ -17,6 +17,8 @@ import tensorflow as tf
 # Should be fixed by now: https://github.com/tensorflow/tensorflow/issues/3388
 sess = tf.Session()
 
+float32 = tf.float32
+
 
 def init():
     init  = tf.group(tf.global_variables_initializer(),
@@ -49,3 +51,19 @@ def eval(V):
     Convert variable to numpy array.
     """
     return sess.run(V)
+
+
+def split(split_dim, num_split, value, name="split"):
+    return tf.split(split_dim, num_split, value, name="split")
+
+
+def reshape(tensor, shape, name=None):
+    return tf.reshape(tensor, shape, name)
+
+
+def reduce_sum(input_tensor, axis=None, keep_dims=False, name=None, reduction_indices=None):
+    tf.reduce_sum(input_tensor, axis, keep_dims, name, reduction_indices)
+
+
+def cast(x, dtype, name=None):
+    return tf.cast(x, dtype, name)
