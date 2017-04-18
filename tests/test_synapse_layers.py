@@ -27,6 +27,7 @@ class TestSynapseLayers(AKidTestCase):
         X_in = np.array([[[[1, 0],
                          [0, 2]]]],
                         dtype=np.float32)
+        X_in += 1  # Add bias to substract
         X_in = np.einsum('nchw->nhwc', X_in)
         out_channel_1_ref = np.array([[1, 1, 1, 0],
                                       [1, 1, 1, 0],

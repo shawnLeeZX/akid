@@ -241,12 +241,18 @@ class ConvolutionLayer(SynapseLayer):
         According to the top-down inference results, reconstruct the input.
         """
         # Deconvolve.
-        # Create reconstruction loss.
+        if self.initial_bias_value is not None:
+            X_in = tf.nn.bias_add(X_in, -self.biases)
+
         self._data_g = tf.nn.conv2d_transpose(X_in,
-                                             self.weights,
-                                             self.input_shape,
-                                             self.strides,
-                                             self.padding)
+                                              self.weights,
+                                              self.input_shape,
+                                              self.strides,
+                                              self.padding,
+                                              name="deconv")
+
+        # TODO: Create reconstruction loss.
+
         return self.data_g
 
 
