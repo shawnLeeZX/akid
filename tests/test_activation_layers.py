@@ -7,6 +7,7 @@ from akid import Brain
 from akid.sugar import cnn_block
 from akid import sugar
 from akid.layers import SoftmaxWithLossLayer
+from akid import backend as A
 
 
 log.init()
@@ -179,6 +180,23 @@ class TestActivationLayers(AKidTestCase):
             out_ref = np.array([0.5, 1.])
             assert np.sum(abs(output - out_ref)) <= 1e-4,\
                 "output: {}, out_ref {}.".format(output, out_ref)
+
+
+    def test_relu_backward(self):
+        X_forward_in = A.Tensor(np.array([1, -1], dtype=np.float32))
+        X_backward_in = A.Tensor(np.array([2, 3], dtype=np.float32))
+
+        X_backward_out_ref = np.array([2, 0], dtype=np.float32)
+
+        from akid.layers import ReLULayer
+        l = ReLULayer(name="relu")
+        l.forward(X_forward_in)
+        X_backward_out = l.backward(X_backward_in)
+
+        A.init()
+        X_backward_out_eval = A.eval(X_backward_out)
+        assert (X_backward_out_eval == X_backward_out_ref).all(),\
+            "output: {}, out_ref: {}.".format(X_backward_out_eval, X_backward_out_ref)
 
 
 if __name__ == "__main__":

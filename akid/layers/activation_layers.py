@@ -6,6 +6,7 @@ from tensorflow.python.training import moving_averages
 
 from ..core.blocks import ProcessingLayer
 from ..core import common
+from .. import backend as A
 
 
 class PoolingLayer(ProcessingLayer):
@@ -43,6 +44,17 @@ class PoolingLayer(ProcessingLayer):
 class ReLULayer(ProcessingLayer):
     def _forward(self, input):
         self._data = tf.nn.relu(input)
+
+    def backward(self, X_in):
+        assert hasattr(self, "_data") and self._data is not None,\
+            "Call forward first prior to backward"
+
+        sign = A.cast(self._data > 10e-6, dtype=A.float32)  # Weed out very small values
+        # NOTE: This can also implemented using backward propagated gradient of
+        # ReLU. Try changing it when things go slow.
+        self._data_g = X_in * sign
+
+        return self._data_g
 
 
 class SigmoidLayer(ProcessingLayer):
