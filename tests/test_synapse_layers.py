@@ -27,18 +27,18 @@ class TestSynapseLayers(AKidTestCase):
                          [0, 2]]]],
                         dtype=np.float32)
         X_in = np.einsum('nchw->nhwc', X_in)
-        in_channel_1_ref = np.array([[1, 1, 1, 0],
-                              [1, 1, 1, 0],
-                              [1, 1, 1, 0],
-                                     [0, 0, 0, 0],],
-                                    dtype=np.float32) +\
+        out_channel_1_ref = np.array([[1, 1, 1, 0],
+                                      [1, 1, 1, 0],
+                                      [1, 1, 1, 0],
+                                      [0, 0, 0, 0],],
+                                     dtype=np.float32) +\
             np.array([[0, 0, 0, 0],
                       [0, 2, 2, 2],
                       [0, 2, 2, 2],
                       [0, 2, 2, 2],],
                      dtype=np.float32)
-        in_channel_2_ref = in_channel_1_ref * 2
-        X_out_ref = np.array([in_channel_1_ref, in_channel_2_ref])
+        out_channel_2_ref = out_channel_1_ref * 2
+        X_out_ref = np.array([out_channel_1_ref, out_channel_2_ref])
         X_out_ref = np.array([X_out_ref])
         X_out_ref = np.einsum('nchw->nhwc', X_out_ref)
         # Convert to H X W X IN_CHANNEL X OUT_CHANNEL

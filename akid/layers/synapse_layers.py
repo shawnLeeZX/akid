@@ -221,10 +221,11 @@ class ConvolutionLayer(SynapseLayer):
                 [self.shape[-1]],
                 initializer=tf.constant_initializer(self.initial_bias_value))
 
+        self.log("Padding method {}.".format(self.padding), debug=True)
+
     def _forward(self, input):
         self._para_init(input)
 
-        self.log("Padding method {}.".format(self.padding), debug=True)
         conv = tf.nn.conv2d(input, self.weights, self.strides, self.padding)
 
         if self.initial_bias_value is not None:
