@@ -3,8 +3,9 @@ import numpy as np
 from akid.utils.test import AKidTestCase, main, TestFactory
 from akid.sugar import cnn_block
 from akid import sugar
+from akid import Brain
 from akid.layers import SoftmaxWithLossLayer
-from akid.layers import ConvolutionLayer
+from akid.layers import ConvolutionLayer, SLUConvLayer
 from akid import backend as A
 
 
@@ -103,6 +104,54 @@ class TestSynapseLayers(AKidTestCase):
 
         loss = kid.practice()
         assert loss < 13
+
+
+    def test_slu_conv(self):
+        filter = np.array([
+            [[[1, 1, 1],
+              [1, 1, 1],
+              [1, 1, 1]],
+             [[-1, -1, -1],
+              [-1, -1, -1],
+              [-1, -1, -1]]],
+            [[[-1, -1, -1],
+              [-1, -1, -1],
+              [-1, -1, -1]],
+             [[1, 1, 1],
+              [1, 1, 1],
+              [1, 1, 1]]]
+        ],
+                          dtype=np.float32)
+        # Convert to H X W X IN_CHANNEL X OUT_CHANNEL
+        filter = np.einsum('oihw->hwio', filter)
+        X_in = np.array([[
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]],
+            [[-1, -1, -1],
+             [-1, -1, -1],
+             [-1, -1, -1]]]],
+                        dtype=np.float32)
+        X_in = np.einsum('nchw->nhwc', X_in)
+        X_out_ref = np.array([[[[10.]], [[10.]]]])
+        X_out_ref = np.einsum('nchw->nhwc', X_out_ref)
+
+        l = SLUConvLayer(ksize=[3, 3],
+                         strides=[1, 1, 1, 1],
+                         out_channel_num=2,
+                         padding="VALID",
+                         initial_bias_value=1.,
+                         init_para={"name": "tensor",
+                                    "value": filter},
+                         name="test_slu_conv")
+        # TODO: Ideally no forward should be needed, but now (2b1416) setup is
+        # coupled with forward, so we do forward here. What is forwarded does
+        # not matter, since we do not need to use them.
+        X_out = l.forward(A.Tensor(X_in))
+
+        A.init()
+        X_out_eval = A.eval(X_out)
+        assert (X_out_eval == X_out_ref).all(), "X_out_eval: {} while X_out_ref: {}".format(X_out_eval, X_out_ref)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ from ..core.common import (
     AUXILLIARY_STAT_COLLECTION
 )
 from ..core import initializers
+from .. import backend as A
 
 
 class SynapseLayer(ProcessingLayer):
@@ -247,6 +248,42 @@ class ConvolutionLayer(SynapseLayer):
                                              self.strides,
                                              self.padding)
         return self.data_g
+
+
+class SLUConvLayer(ConvolutionLayer):
+    """
+    Deprecated.
+
+    This is a wrong idea. It tests sign after convolution, but it should be
+    done before. Also, the sign test depends on the top down reconstruction
+    value, which is a latent variable.
+
+    Convolution layer preceded by Switchable Linear Unit, activation function
+    developed by properly doing posterior inference in DRMM.
+    """
+    def _forward(self, X_in):
+        # TODO: this should be a setup. Fix after refactoring the code to
+        # decouple forward and setup.
+        super(SLUConvLayer, self)._para_init(X_in)
+
+        depthwise = A.nn.depthwise_conv2d(X_in, self.weights, self.strides, self.padding)
+        # Compute the sign of each pixel.
+        sign = A.cast(depthwise > 0, A.float32)
+        # Drop negative value.
+        conv = depthwise * sign
+        # Collapse dimensions.
+        shape = conv.get_shape().as_list()
+        shape.pop()
+        shape.extend([self.out_channel_num, self.input_shape[-1]])
+        conv = A.reshape(conv, shape=shape)
+        conv = tf.reduce_sum(conv, axis=-1, name="slu_conv")
+
+        if self.initial_bias_value is not None:
+            output = tf.nn.bias_add(conv, self.biases, name="slu_conv_bias")
+        else:
+            output = conv
+
+        self._data = output
 
 
 class InnerProductLayer(SynapseLayer):
