@@ -199,5 +199,64 @@ class TestActivationLayers(AKidTestCase):
             "output: {}, out_ref: {}.".format(X_backward_out_eval, X_backward_out_ref)
 
 
+    def test_max_pooling(self):
+        X_in = np.array([[[1., 2],
+                          [3, 4]],
+                         [[5, 6],
+                          [7, 8]]], dtype=np.float32)
+        X_in = np.einsum("chw->hwc", X_in)
+        X_in = np.expand_dims(X_in, axis=0)
+
+        X_out_ref = np.array([[[4.]], [[8]]], dtype=np.float32)
+        X_out_ref = np.einsum("chw->hwc", X_out_ref)
+        X_out_ref = np.expand_dims(X_out_ref, axis=1)
+
+        A.init()
+        from akid.layers import MaxPoolingLayer
+        l = MaxPoolingLayer(ksize=[2, 2],
+                            strides=[1, 1, 1, 1],
+                            padding="VALID",
+                            name="max_pool")
+        X_out = l.forward(X_in)
+        X_out_eval = A.eval(X_out)
+        assert (X_out_eval == X_out_ref).all(),\
+            "X_out_eval: {}; X_out_ref: {}".format(X_out_eval, X_out_ref)
+
+        from akid.layers import MaxPoolingLayer
+        l = MaxPoolingLayer(ksize=[2, 2],
+                            strides=[1, 1, 1, 1],
+                            padding="VALID",
+                            get_argmax_idx=True,
+                            name="max_pool")
+        X_out = l.forward(X_in)
+
+        X_out_eval, X_out_indices_eval = A.eval([X_out, l.in_group_indices])
+
+        X_out_indices_ref = np.array([[[6]], [[7]]], dtype=np.int)
+        X_out_indices_ref = np.einsum("chw->hwc", X_out_indices_ref)
+        X_out_indices_ref = np.expand_dims(X_out_indices_ref, axis=1)
+
+        assert (X_out_eval == X_out_ref).all(),\
+            "X_out_eval: {}; X_out_ref: {}".format(X_out_eval, X_out_ref)
+        assert (X_out_indices_eval == X_out_indices_ref).all(),\
+            "X_out_indices_eval: {}; X_out_indices_ref: {}".format(X_out_indices_eval, X_out_indices_ref)
+
+        X_out_ref = np.array([[[0, 0],
+                               [0, 4]],
+                              [[0, 0],
+                               [0, 8]]], dtype=np.float32)
+        X_out_ref = np.einsum("chw->hwc", X_out_ref)
+        X_out_ref = np.expand_dims(X_out_ref, axis=0)
+
+        X_in = np.array([[[4.]], [[8]]], dtype=np.float32)
+        X_in = np.einsum("chw->hwc", X_in)
+        X_in = np.expand_dims(X_in, axis=0)
+
+        X_out = l.backward(A.Tensor(X_in))
+
+        X_out_eval = A.eval(X_out)
+        assert (X_out_eval == X_out_ref).all(),\
+            "X_out_eval: {}; X_out_ref: {}".format(X_out_eval, X_out_ref)
+
 if __name__ == "__main__":
     main()

@@ -10,6 +10,11 @@ from .. import backend as A
 
 
 class PoolingLayer(ProcessingLayer):
+    """
+    Pooling layer that supports a type to choose what pooling methods to use.
+
+    It is deprecated. Use specialized layer, e.g. `MaxpoolingLayer` instead.
+    """
     def __init__(self, ksize, strides, padding="VALID", type="max", **kwargs):
         """
         Args:
@@ -39,6 +44,50 @@ class PoolingLayer(ProcessingLayer):
         else:
             raise Exception("Type `{}` pooling is not supported.".format(
                 self.type))
+
+
+class MaxPoolingLayer(ProcessingLayer):
+    def __init__(self, ksize, strides, padding="VALID", get_argmax_idx=False, **kwargs):
+        """
+        Args:
+        get_argmax_idx: Bool
+                Compute the indices where the max has been obtained or not. The
+                indices is saved in `self.in_group_indices`.
+        """
+        super(MaxPoolingLayer, self).__init__(**kwargs)
+
+        if len(ksize) == 1:
+            self.ksize = [1, ksize[0], ksize[0], 1]
+        elif len(ksize) == 2:
+            self.ksize = [1, ksize[0], ksize[1], 1]
+        else:
+            self.ksize = ksize
+
+        self.strides = strides
+        self.padding = padding
+        self.get_argmax_idx = get_argmax_idx
+
+    def _forward(self, X_in):
+        self.log("Padding method {}.".format(self.padding), debug=True)
+
+        if self.get_argmax_idx:
+            self._data, self.in_group_indices = A.nn.max_pool_with_argmax(
+                X_in, self.ksize, self.strides, self.padding)
+        else:
+            self._data = A.nn.max_pool(X_in,
+                                       self.ksize,
+                                       self.strides,
+                                       self.padding)
+
+        return self._data
+
+    def backward(self, X_in):
+        if not self.get_argmax_idx:
+            raise Exception("Set `get_argmax_idx` to True to use backward.")
+
+        self._data_g = A.nn.max_unpooling(X_in, self.in_group_indices, self.ksize)
+
+        return self._data_g
 
 
 class ReLULayer(ProcessingLayer):
