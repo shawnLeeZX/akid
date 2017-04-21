@@ -217,7 +217,7 @@ class Brain(GraphSystem, ProcessingLayer):
         """
         Build the net up to where it may be used for inference.
         """
-        self._link_blocks(data_in)
+        super(Brain, self)._forward(data_in)
 
     def _gather_loss_graphs(self):
         """
