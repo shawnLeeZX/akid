@@ -448,6 +448,14 @@ class BatchNormalizationLayer(ProcessingLayer):
 
         return bn_input
 
+    def backward(self, X_in):
+        """
+        Just pass the data back for now.
+        """
+        self._data = X_in
+
+        return self._data
+
     def _ref_batch_norm(self, x):
         """
         Batch normalization from
