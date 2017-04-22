@@ -13,6 +13,7 @@ from ..core.common import (
 )
 from ..core import initializers
 from .. import backend as A
+import helper_methods
 
 
 class SynapseLayer(ProcessingLayer):
@@ -205,7 +206,8 @@ class SynapseLayer(ProcessingLayer):
 class ConvolutionLayer(SynapseLayer):
     def __init__(self, ksize, strides, padding, **kwargs):
         super(ConvolutionLayer, self).__init__(**kwargs)
-        self.strides = strides
+        self.ksize = helper_methods.expand_kernel(ksize)
+        self.strides = helper_methods.expand_kernel(strides)
         self.padding = padding
         self.ksize = ksize
 

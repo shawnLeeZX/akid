@@ -7,6 +7,7 @@ from tensorflow.python.training import moving_averages
 from ..core.blocks import ProcessingLayer
 from ..core import common
 from .. import backend as A
+import helper_methods
 
 
 class PoolingLayer(ProcessingLayer):
@@ -56,14 +57,9 @@ class MaxPoolingLayer(ProcessingLayer):
         """
         super(MaxPoolingLayer, self).__init__(**kwargs)
 
-        if len(ksize) == 1:
-            self.ksize = [1, ksize[0], ksize[0], 1]
-        elif len(ksize) == 2:
-            self.ksize = [1, ksize[0], ksize[1], 1]
-        else:
-            self.ksize = ksize
+        self.ksize = helper_methods.expand_kernel(ksize)
+        self.strides = helper_methods.expand_kernel(strides)
 
-        self.strides = strides
         self.padding = padding
         self.get_argmax_idx = get_argmax_idx
 
