@@ -1,4 +1,4 @@
-from akid import Brain
+from akid import GraphBrain
 from akid.layers import (
     ConvolutionLayer,
     PoolingLayer,
@@ -16,7 +16,7 @@ from akid.layers import (
 )
 
 
-class AlexNet(Brain):
+class AlexNet(GraphBrain):
     """
     A class for alex net specifically.
     """
@@ -86,7 +86,7 @@ class AlexNet(Brain):
             name="loss"))
 
 
-class OneLayerBrain(Brain):
+class OneLayerBrain(GraphBrain):
     def __init__(self, **kwargs):
         super(OneLayerBrain, self).__init__(**kwargs)
         self.attach(
@@ -113,7 +113,7 @@ class OneLayerBrain(Brain):
             name="loss"))
 
 
-class LeNet(Brain):
+class LeNet(GraphBrain):
     """
     A rough LeNet. It is supposed to copy the example from Caffe, but for the
     time being it has not been checked whether they are exactly the same.
@@ -154,7 +154,7 @@ class LeNet(Brain):
             name="loss"))
 
 
-class MnistTfTutorialNet(Brain):
+class MnistTfTutorialNet(GraphBrain):
     """
     A multiple layer network with parameters from the MNIST tutorial of
     tensorflow.
@@ -214,7 +214,7 @@ class MnistTfTutorialNet(Brain):
             name="loss"))
 
 
-class VGGNet(Brain):
+class VGGNet(GraphBrain):
     def __init__(self,
                  class_num=10,
                  padding="SAME",
@@ -334,7 +334,7 @@ class VGGNet(Brain):
         self.attach(ReLULayer(name="relu{}".format(self.top_layer_No)))
 
 
-class ResNet(Brain):
+class ResNet(GraphBrain):
     def __init__(self,
                  depth=28,
                  width=2,

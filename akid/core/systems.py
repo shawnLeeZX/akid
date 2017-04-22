@@ -6,6 +6,7 @@ holds, but only concerns the mathematical topology how they connect.
 import copy
 
 from .blocks import GenerativeBlock
+import abc
 
 
 class System(GenerativeBlock):
@@ -33,15 +34,6 @@ class System(GenerativeBlock):
 
         self.do_stat_on_norm = do_stat_on_norm
 
-
-class LinkedSystem(System):
-    """
-    A system that links blocks one by one sequentially, like the linked list
-    structure in Computer Science Data Structure.
-    """
-    def __init__(self, **kwargs):
-        super(LinkedSystem, self).__init__(**kwargs)
-
         self.blocks = []
         self.block_names = []
 
@@ -53,12 +45,6 @@ class LinkedSystem(System):
             self_copy.blocks.append(b.get_copy())
 
         return self_copy
-
-    def attach(self, block_in):
-        """
-        Attach a block to the system.
-        """
-        self.blocks.append(block_in)
 
     def get_last_layer_name(self):
         """
@@ -92,14 +78,35 @@ class LinkedSystem(System):
         """
         return self._data
 
+    def attach(self, block_in):
+        self.blocks.append(block_in)
+
     def _forward(self, data_in):
+        """
+        Call the underlying system forwarding route to avoid multi-inheritance
+        conflict arising, since `System` is made to be along with other
+        classes.
+        """
+        return self._forward_actual(data_in)
+
+    @abc.abstractmethod
+    def _forward_actual(self, data_in):
+        raise NotImplementedError("Each concrete `System` should implement the actual forward propagation.")
+
+
+class SequentialSystem(System):
+    """
+    A system that links blocks one by one sequentially, like the linked list
+    structure in Computer Science Data Structure.
+    """
+    def _forward_actual(self, data_in):
         """
         Link the blocks linearly together. It takes exact one argument and
         apply processing blocks to it one by one, and return the final
         processed data.
 
-        A `LinkedSystem` could be used standalone. However, another typical use
-        of `LinkedSystem` is inherit it to make something more complex, such as
+        A `SequentialSystem` could be used standalone. However, another typical use
+        of `SequentialSystem` is inherit it to make something more complex, such as
         creating a `Brain` sequentially linking layers together. In that case,
         `_forward` and `backward` would be overrided.
         """
@@ -125,35 +132,8 @@ class LinkedSystem(System):
 
         return self._data
 
-    def backward(self, X_in):
-        """
-        Call `backward` in each linked block in reverse order.
 
-        NOTE: The sequentially linked version is written first given a topology
-        order may need to be inferred if we want to do arbitrary connectivity.
-        """
-        data = X_in
-        try:
-            shape = data.get_shape().as_list()
-        except ValueError:
-            shape = None
-
-        self.log("Doing backward propagation.")
-        self.log("System input shape: {}".format(shape))
-        for l in reversed(self.blocks):
-            l.backward(data)
-            self.log("Connected: {} -> {}".format(data.name,
-                                                  l.data_g.name))
-            if shape:
-                self.log("Top shape: {}".format(l.data.get_shape().as_list()))
-            data = l.data_g
-
-        self._data_g = data
-
-        return self._data_g
-
-
-class GraphSystem(LinkedSystem):
+class GraphSystem(SequentialSystem):
     """
     A system that is capable to handle arbitrary graph style connections
     between blocks.
@@ -176,7 +156,7 @@ class GraphSystem(LinkedSystem):
     `_forward` method of a block, inputs feeds to a block is a tensor (if there
     is only one input) or a list of tensors (if there are multiple inputs.)
     """
-    def _forward(self, data_in):
+    def _forward_actual(self, data_in):
         """
         Method overrode to handle arbitrary layer interconnections.
         """
@@ -264,3 +244,42 @@ class GraphSystem(LinkedSystem):
             data = l.data if dtype is tuple or dtype is list else [l.data]
 
         self._data = data
+
+
+class SequentialGSystem(GraphSystem):
+    """
+    A `System` that supports arbitrary connectivity forward propagation, but
+    backward propagation only supports sequentially connected blocks. Roughly,
+    it is a generative system that supports `GraphSystem` way of specifying
+    labels.
+    """
+    def backward(self, X_in):
+        """
+        Call `backward` in each linked block in reverse order.
+
+        NOTE: The sequentially linked version is written first given a topology
+        order may need to be inferred if we want to do arbitrary connectivity.
+        """
+        # Assume only one input
+        if type(X_in) is list:
+            X_in = X_in[0]
+
+        data = X_in
+        try:
+            shape = data.get_shape().as_list()
+        except ValueError:
+            shape = None
+
+        self.log("Doing backward propagation.")
+        self.log("System input shape: {}".format(shape))
+        for l in reversed(self.blocks):
+            l.backward(data)
+            self.log("Connected: {} -> {}".format(data.name,
+                                                  l.data_g.name))
+            if shape:
+                self.log("Top shape: {}".format(l.data.get_shape().as_list()))
+            data = l.data_g
+
+        self._data_g = data
+
+        return self._data_g

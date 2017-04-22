@@ -30,7 +30,7 @@ Similarly, all blocks work this way.
 A brain provides easy ways to connect blocks. For example, a one layer brain
 can be built through the following::
 
-    class OneLayerBrain(Brain):
+    class OneLayerBrain(GraphBrain):
         def __init__(self, **kwargs):
             super(OneLayerBrain, self).__init__(**kwargs)
             self.attach(
@@ -74,24 +74,11 @@ import tensorflow as tf
 
 from ..layers.synapse_layers import SynapseLayer
 from .blocks import ProcessingLayer
-from .systems import GraphSystem
+from .systems import System, SequentialSystem, GraphSystem, SequentialGSystem
 
 
-class Brain(GraphSystem, ProcessingLayer):
+class Brain(System, ProcessingLayer):
     """
-    A concrete class to build signal processing system (specifically neural
-    network).
-
-    To use the input data in a block using `inputs`, its name is
-    "system_in". For example, say that the following layer uses the labels
-    passed in::
-
-        brain.attach(SoftmaxWithLossLayer(
-            class_num=10,
-            inputs=[{"name": "ip1", "idxs": [0]},
-                    {"name": "system_in", "idxs": [1]}],
-            name="loss"))
-
     `Brain` supports variable sharing layer copy. By calling `get_copy` of the
     brain and call `forward` again, you will get a brain with the same
     configuration and that shares any variables original brain has.
@@ -100,49 +87,8 @@ class Brain(GraphSystem, ProcessingLayer):
     override that option of any layers attached to this brain.
     """
     def __init__(self, do_stat_on_norm=False, **kwargs):
-        """
-        Note a `Brain` contains a tensorflow `Graph` class. It is used to build
-        a graph when doing visualization. When visualization is factored out,
-        the graph member should be deleted as well.
-
-        TODO(Shuai): think a more elegant way to handle polymorphism
-        To get around the issues that Brain cannot inherit constructors of both
-        ancestor, the paras of `LinkedSystem` is re-coded here.
-        """
-        ProcessingLayer.__init__(self, **kwargs)
-        self.blocks = []
+        super(Brain, self).__init__(**kwargs)
         self.do_stat_on_norm = do_stat_on_norm
-
-    def attach(self, block_in):
-        """
-        Attach a layer or a block to the brain.
-
-        As for adding a layer, if it is an intermediate processing layer, it
-        will be appended to previous layers; If it is a loss layer, well, it is
-        added as a loss layer.
-
-        As for adding a block, a block should be a list of layers. Layers in
-        the list will be added by the order they appear in the list.
-
-        For now only one loss layer at the end of a network is supported.
-
-        Args:
-            block_in: a `ProcessingLayer` or a list of it.
-
-        """
-        if type(block_in) is list:
-            for l in block_in:
-                self.attach(l)
-        else:
-            # A brain should only contain data processing layers.
-            assert issubclass(type(block_in), ProcessingLayer), \
-                "A `Brain` should only contain `ProcessingLayer`s."
-            super(Brain, self).attach(block_in)
-            # Pass options down.
-            if self.moving_average_decay:
-                # Only pass it down when it is not None.
-                block_in.moving_average_decay = self.moving_average_decay
-            block_in.do_stat_on_norm = self.do_stat_on_norm
 
     def get_val_copy(self):
         """
@@ -217,7 +163,7 @@ class Brain(GraphSystem, ProcessingLayer):
         """
         Build the net up to where it may be used for inference.
         """
-        super(Brain, self)._forward(data_in)
+        self._forward_actual(data_in)
 
     def _gather_loss_graphs(self):
         """
@@ -279,6 +225,48 @@ class Brain(GraphSystem, ProcessingLayer):
             self.max_norm_clip_op = tf.group(*clipped_filters)
         else:
             self.max_norm_clip_op = None
+
+    def attach(self, block_in):
+        if type(block_in) is list:
+            for l in block_in:
+                self.attach(l)
+        else:
+            # A brain should only contain data processing layers.
+            assert issubclass(type(block_in), ProcessingLayer), \
+                "A `Brain` should only contain `ProcessingLayer`s."
+            super(Brain, self).attach(block_in)
+            # Pass options down.
+            if self.moving_average_decay:
+                # Only pass it down when it is not None.
+                block_in.moving_average_decay = self.moving_average_decay
+            block_in.do_stat_on_norm = self.do_stat_on_norm
+
+
+class SequentialBrain(Brain, SequentialSystem):
+    pass
+
+
+class GraphBrain(Brain, GraphSystem):
+    """
+    A concrete class to build signal processing system (specifically neural
+    network).
+
+    To use the input data in a block using `inputs`, its name is
+    "system_in". For example, say that the following layer uses the labels
+    passed in::
+
+        brain.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[{"name": "ip1", "idxs": [0]},
+                    {"name": "system_in", "idxs": [1]}],
+            name="loss"))
+    """
+    pass
+
+
+class SeqentialGBrain(Brain, SequentialGSystem):
+    pass
+
 
 __all__ = [name for name, x in locals().items() if
            not inspect.ismodule(x) and not inspect.isabstract(x)]

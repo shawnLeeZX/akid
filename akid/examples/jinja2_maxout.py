@@ -31,12 +31,12 @@ opt_paras_list.append({"lr": 0.05})
 
 def setup(graph):
     from akid import AKID_DATA_PATH
-    from akid import Brain, Cifar10FeedSource, FeedSensor, Kid
+    from akid import GraphBrain, Cifar10FeedSource, FeedSensor, Kid
     from akid import MomentumKongFu
     from akid.layers import DropoutLayer
     from akid.sugar import cnn_block
 
-    brain = Brain(name="maxout")
+    brain = GraphBrain(name="maxout")
 
     brain.attach(DropoutLayer(keep_prob=0.8, name='dropout0'))
 

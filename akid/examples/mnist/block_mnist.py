@@ -1,12 +1,12 @@
 from akid.sugar.block_templates import cnn_block
 from akid import AKID_DATA_PATH
-from akid import Brain, MNISTFeedSource, FeedSensor, Kid, MomentumKongFu
+from akid import GraphBrain, MNISTFeedSource, FeedSensor, Kid, MomentumKongFu
 from akid.layers import SoftmaxWithLossLayer
 from akid import LearningRateScheme
 
 
 def setup(bn=None, activation_before_pooling=False):
-    brain = Brain(name="sugar_mnist")
+    brain = GraphBrain(name="sugar_mnist")
 
     brain.attach(cnn_block(ksize=[5, 5],
                            initial_bias_value=0.,

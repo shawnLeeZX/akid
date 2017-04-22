@@ -2,7 +2,7 @@ from akid import AKID_DATA_PATH
 from akid.core import kids, kongfus
 from akid.datasets import Cifar10FeedSource
 from akid.core.sensors import FeedSensor
-from akid.core.brains import Brain
+from akid.core.brains import GraphBrain
 from akid.layers import (
     ConvolutionLayer,
     PoolingLayer,
@@ -16,7 +16,7 @@ from akid.layers import (
 def setup(graph, lr):
     # Set up brain
     # #########################################################################
-    brain = Brain(name='maxout-relu-cifar10')
+    brain = GraphBrain(name='maxout-relu-cifar10')
 
     brain.attach(ConvolutionLayer([8, 8],
                                   [1, 1, 1, 1],

@@ -1,12 +1,12 @@
 def setup(graph=None):
 
-    from akid import Brain
+    from akid import GraphBrain
     from akid.sugar import cnn_block
     from akid import AKID_DATA_PATH
     from akid import Cifar10FeedSource, FeedSensor, Kid
     from akid import MomentumKongFu
 
-    brain = Brain(name="spcnn")
+    brain = GraphBrain(name="spcnn")
 
     out_channel_num_list = [64, 128, 256, 512]
     group_size_list = [2, 4, 8, 16]

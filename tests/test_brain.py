@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from akid.utils.test import AKidTestCase, TestFactory, main
-from akid import Brain, FeedSensor, MomentumKongFu, Kid
+from akid import GraphBrain, FeedSensor, MomentumKongFu, Kid
 from akid.layers import (
     ConvolutionLayer,
     PoolingLayer,
@@ -45,7 +45,7 @@ class TestBrain(AKidTestCase):
         This is to test initialization could be properly set up. It does not
         involve run time things.
         """
-        brain = Brain(name="Test")
+        brain = GraphBrain(name="Test")
         brain.attach(
             ConvolutionLayer(ksize=[5, 5],
                              strides=[1, 1, 1, 1],
@@ -76,7 +76,7 @@ class TestBrain(AKidTestCase):
         kid.setup()
 
     def test_max_norm(self):
-        brain = Brain(name="Test")
+        brain = GraphBrain(name="Test")
         brain.attach(
             ConvolutionLayer(ksize=[5, 5],
                              strides=[1, 1, 1, 1],

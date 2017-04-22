@@ -11,7 +11,7 @@ import inspect
 import tensorflow as tf
 
 from .blocks import ShadowableBlock
-from .systems import LinkedSystem
+from .systems import SequentialSystem
 import akid
 
 
@@ -50,7 +50,7 @@ class Joker(ShadowableBlock):
         return self._data
 
 
-class JokerSystem(LinkedSystem):
+class JokerSystem(SequentialSystem):
     """
     A system consists of linearly linked jokers to do data augmentation.
     """

@@ -3,7 +3,7 @@ import numpy as np
 from akid.utils import glog as log
 
 from akid.utils.test import AKidTestCase, main, TestFactory
-from akid import Brain
+from akid import GraphBrain
 from akid.sugar import cnn_block
 from akid import sugar
 from akid.layers import SoftmaxWithLossLayer
@@ -19,7 +19,7 @@ class TestActivationLayers(AKidTestCase):
         sugar.init()
 
     def test_softmax_normalization(self):
-        brain = Brain(name="test_brain")
+        brain = GraphBrain(name="test_brain")
         brain.attach(cnn_block(ksize=[5, 5],
                                initial_bias_value=0.,
                                init_para={"name": "truncated_normal",
@@ -91,7 +91,7 @@ class TestActivationLayers(AKidTestCase):
             assert np.sum(abs(out - out_ref)) <= 10e-4
 
     def test_bn(self):
-        brain = Brain(name="test_brain")
+        brain = GraphBrain(name="test_brain")
         brain.attach(cnn_block(ksize=[5, 5],
                                initial_bias_value=0.,
                                init_para={"name": "truncated_normal",

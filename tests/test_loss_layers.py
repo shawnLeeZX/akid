@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from akid.utils.test import AKidTestCase, main, TestFactory
-from akid import Brain
+from akid import GraphBrain
 from akid.sugar import cnn_block
 from akid import sugar
 from akid.layers import SoftmaxWithLossLayer
@@ -21,7 +21,7 @@ class TestLossLayers(AKidTestCase):
             assert l.eval.eval() == 0.5
 
     def test_multiplier(self):
-        brain = Brain(name="test_brain")
+        brain = GraphBrain(name="test_brain")
         brain.attach(cnn_block(ksize=[5, 5],
                                initial_bias_value=0.,
                                init_para={"name": "truncated_normal",
