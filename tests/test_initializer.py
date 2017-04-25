@@ -24,6 +24,7 @@ class TestInitializer(AKidTestCase):
                                init_para={"name": "uniform_unit_scaling",
                                           "factor": 1.43},
                                wd={"type": "l2", "scale": 0.0005},
+                               in_channel_num=1,
                                out_channel_num=32,
                                pool_size=[5, 5],
                                pool_stride=[5, 5],
@@ -34,6 +35,7 @@ class TestInitializer(AKidTestCase):
                                init_para={"name": "uniform_unit_scaling",
                                           "factor": 1.43},
                                wd={"type": "l2", "scale": 0.0005},
+                               in_channel_num=1152,
                                out_channel_num=512,
                                activation={"type": "relu"}))
 
@@ -42,6 +44,7 @@ class TestInitializer(AKidTestCase):
                                init_para={"name": "uniform_unit_scaling",
                                           "factor": 1.43},
                                wd={"type": "l2", "scale": 0.0005},
+                               in_channel_num=512,
                                out_channel_num=10,
                                activation=None))
         loss_layer_name = brain.get_last_layer_name()
@@ -64,6 +67,7 @@ class TestInitializer(AKidTestCase):
                                initial_bias_value=0.,
                                init_para={"name": "msra"},
                                wd={"type": "l2", "scale": 0.0005},
+                               in_channel_num=1,
                                out_channel_num=32,
                                pool_size=[5, 5],
                                pool_stride=[5, 5],
@@ -73,6 +77,7 @@ class TestInitializer(AKidTestCase):
                                initial_bias_value=0.,
                                init_para={"name": "msra"},
                                wd={"type": "l2", "scale": 0.0005},
+                               in_channel_num=1152,
                                out_channel_num=512,
                                activation={"type": "relu"}))
 
@@ -80,6 +85,7 @@ class TestInitializer(AKidTestCase):
                                initial_bias_value=0.,
                                init_para={"name": "msra"},
                                wd={"type": "l2", "scale": 0.0005},
+                               in_channel_num=512,
                                out_channel_num=10,
                                activation=None))
         loss_layer_name = brain.get_last_layer_name()

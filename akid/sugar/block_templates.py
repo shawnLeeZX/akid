@@ -43,6 +43,7 @@ def cnn_block(ksize=None,
                          "stddev": 0.1},
               wd={"type": "l2", "scale": 5e-4},
               max_norm=None,
+              in_channel_num=32,
               out_channel_num=32,
               pool_size=[2, 2],
               pool_stride=[2, 2],
@@ -62,6 +63,7 @@ def cnn_block(ksize=None,
                                       init_para=init_para,
                                       wd=wd,
                                       max_norm=max_norm,
+                                      in_channel_num=in_channel_num,
                                       out_channel_num=out_channel_num,
                                       name="conv{}".format(counter)))
         if pool_size:
@@ -75,6 +77,7 @@ def cnn_block(ksize=None,
                                       name="pool{}".format(counter)))
     else:
         block.append(InnerProductLayer(out_channel_num=out_channel_num,
+                                       in_channel_num=in_channel_num,
                                        initial_bias_value=initial_bias_value,
                                        init_para=init_para,
                                        wd=wd,

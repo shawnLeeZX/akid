@@ -13,14 +13,8 @@ class TestTemplate(AKidTestCase):
         loss = kid.practice()
         assert loss < 2.5
 
-    def test_bn(self):
-        kid = block_mnist.setup(bn={"gamma_init": 1})
-        loss = kid.practice()
-        assert loss < 2.5
-
     def test_activation_before_pooling(self):
-        kid = block_mnist.setup(
-            bn={"gamma_init": 1}, activation_before_pooling=True)
+        kid = block_mnist.setup(activation_before_pooling=True)
         loss = kid.practice()
         assert loss < 2.5
 

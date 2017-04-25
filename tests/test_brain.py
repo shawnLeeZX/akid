@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from akid.utils.test import AKidTestCase, TestFactory, main
+from akid.utils.test import AKidTestCase, TestFactory, main, debug_on
 from akid import GraphBrain, FeedSensor, MomentumKongFu, Kid
 from akid.layers import (
     ConvolutionLayer,
@@ -12,6 +12,7 @@ from akid.layers import (
 
 
 class TestBrain(AKidTestCase):
+    @debug_on(Exception)
     def test_moving_average(self):
         brain = TestFactory.get_test_brain(using_moving_average=True)
         source = TestFactory.get_test_feed_source()
@@ -52,6 +53,7 @@ class TestBrain(AKidTestCase):
                              padding="SAME",
                              init_para={"name": "truncated_normal",
                                         "stddev": 0.1},
+                             in_channel_num=1,
                              out_channel_num=32,
                              name="conv1")
         )
@@ -63,7 +65,7 @@ class TestBrain(AKidTestCase):
                          name="pool1")
         )
 
-        brain.attach(InnerProductLayer(out_channel_num=10, name="ip1"))
+        brain.attach(InnerProductLayer(in_channel_num=1152, out_channel_num=10, name="ip1"))
 
         brain.attach(SoftmaxWithLossLayer(
             class_num=10,
@@ -83,6 +85,7 @@ class TestBrain(AKidTestCase):
                              padding="SAME",
                              init_para={"name": "truncated_normal",
                                         "stddev": 0.1},
+                             in_channel_num=1,
                              out_channel_num=32,
                              max_norm=1,
                              # Do not use bias since we only care about the
@@ -90,7 +93,7 @@ class TestBrain(AKidTestCase):
                              initial_bias_value=None,
                              name="conv1")
         )
-        brain.attach(InnerProductLayer(out_channel_num=10, name="ip1"))
+        brain.attach(InnerProductLayer(in_channel_num=25088, out_channel_num=10, name="ip1"))
         brain.attach(SoftmaxWithLossLayer(
             class_num=10,
             inputs=[{"name": "ip1", "idxs": [0]},

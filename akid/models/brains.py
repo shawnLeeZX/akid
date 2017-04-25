@@ -20,7 +20,7 @@ class AlexNet(GraphBrain):
     """
     A class for alex net specifically.
     """
-    def __init__(self, **kwargs):
+    def __init__(self, in_channel_num,  **kwargs):
         super(AlexNet, self).__init__(**kwargs)
 
         self.attach(ConvolutionLayer([5, 5],
@@ -30,6 +30,7 @@ class AlexNet(GraphBrain):
                                          "name": "truncated_normal",
                                          "stddev": 1e-4},
                                      wd={"type": "l2", "scale": 0},
+                                     in_channel_num=3,
                                      out_channel_num=64,
                                      name='conv1'))
         self.attach(ReLULayer(name='relu1'))
@@ -47,6 +48,7 @@ class AlexNet(GraphBrain):
                                          "name": "truncated_normal",
                                          "stddev": 1e-4},
                                      wd={"type": "l2", "scale": 0},
+                                     in_channel_num=64,
                                      out_channel_num=64,
                                      name='conv2'))
         self.attach(ReLULayer(name='relu2'))
@@ -60,6 +62,7 @@ class AlexNet(GraphBrain):
                                           "name": "truncated_normal",
                                           "stddev": 0.04},
                                       wd={"type": "l2", "scale": 0.004},
+                                      in_channel_num=in_channel_num,
                                       out_channel_num=384,
                                       name='ip1'))
         self.attach(ReLULayer(name='relu3'))
@@ -69,6 +72,7 @@ class AlexNet(GraphBrain):
                                           "name": "truncated_normal",
                                           "stddev": 0.04},
                                       wd={"type": "l2", "scale": 0.004},
+                                      in_channel_num=384,
                                       out_channel_num=192,
                                       name='ip2'))
         self.attach(InnerProductLayer(initial_bias_value=0,
@@ -76,6 +80,7 @@ class AlexNet(GraphBrain):
                                           "name": "truncated_normal",
                                           "stddev": 1/192.0},
                                       wd={"type": "l2", "scale": 0},
+                                      in_channel_num=192,
                                       out_channel_num=10,
                                       name='softmax_linear'))
 
@@ -93,6 +98,7 @@ class OneLayerBrain(GraphBrain):
             ConvolutionLayer(ksize=[5, 5],
                              strides=[1, 1, 1, 1],
                              padding="SAME",
+                             in_channel_num=1,
                              out_channel_num=32,
                              name="conv1")
         )
@@ -104,7 +110,7 @@ class OneLayerBrain(GraphBrain):
                          name="pool1")
         )
 
-        self.attach(InnerProductLayer(out_channel_num=10, name="ip1"))
+        self.attach(InnerProductLayer(in_channel_num=1152, out_channel_num=10, name="ip1"))
         self.attach(SoftmaxWithLossLayer(
             class_num=10,
             inputs=[
@@ -168,6 +174,7 @@ class MnistTfTutorialNet(GraphBrain):
                                      init_para={"name": "truncated_normal",
                                                 "stddev": 0.1},
                                      wd={"type": "l2", "scale": 5e-4},
+                                     in_channel_num=1,
                                      out_channel_num=32,
                                      name="conv1"))
         self.attach(ReLULayer(name="relu1"))
@@ -183,6 +190,7 @@ class MnistTfTutorialNet(GraphBrain):
                                      init_para={"name": "truncated_normal",
                                                 "stddev": 0.1},
                                      wd={"type": "l2", "scale": 5e-4},
+                                     in_channel_num=32,
                                      out_channel_num=64,
                                      name="conv2"))
         self.attach(ReLULayer(name="relu2"))
@@ -191,7 +199,8 @@ class MnistTfTutorialNet(GraphBrain):
                                  padding="SAME",
                                  name="pool2"))
 
-        self.attach(InnerProductLayer(out_channel_num=512,
+        self.attach(InnerProductLayer(in_channel_num=3136,
+                                      out_channel_num=512,
                                       initial_bias_value=0.1,
                                       init_para={"name": "truncated_normal",
                                                  "stddev": 0.1},
@@ -200,7 +209,8 @@ class MnistTfTutorialNet(GraphBrain):
         self.attach(ReLULayer(name="relu3"))
         self.attach(DropoutLayer(keep_prob=0.5, name="dropout1"))
 
-        self.attach(InnerProductLayer(out_channel_num=10,
+        self.attach(InnerProductLayer(in_channel_num=512,
+                                      out_channel_num=10,
                                       initial_bias_value=0.1,
                                       init_para={"name": "truncated_normal",
                                                  "stddev": 0.1},
@@ -235,43 +245,43 @@ class VGGNet(GraphBrain):
         # is used to give a easily told name to each layer.
         self.top_layer_No = 0
 
-        self.attach_conv_bn_relu(64)
+        self.attach_conv_bn_relu(3, 64)
         self.attach(DropoutLayer(keep_prob=0.7,
                                  name="dropout{}".format(self.top_layer_No)))
-        self.attach_conv_bn_relu(64)
+        self.attach_conv_bn_relu(64, 64)
         self.attach(PoolingLayer(ksize=[1, 2, 2, 1],
                                  strides=[1, 2, 2, 1],
                                  padding=self.padding,
                                  name="pool{}".format(self.top_layer_No)))
 
-        self.attach_conv_bn_relu(128)
+        self.attach_conv_bn_relu(64, 128)
         self.attach(DropoutLayer(keep_prob=0.6,
                                  name="dropout{}".format(self.top_layer_No)))
-        self.attach_conv_bn_relu(128)
+        self.attach_conv_bn_relu(128, 128)
         self.attach(PoolingLayer(ksize=[1, 2, 2, 1],
                                  strides=[1, 2, 2, 1],
                                  padding=self.padding,
                                  name="pool{}".format(self.top_layer_No)))
 
-        self.attach_conv_bn_relu(256)
+        self.attach_conv_bn_relu(128, 256)
         self.attach(DropoutLayer(keep_prob=0.6,
                                  name="dropout{}".format(self.top_layer_No)))
-        self.attach_conv_bn_relu(256)
+        self.attach_conv_bn_relu(256, 256)
         self.attach(DropoutLayer(keep_prob=0.6,
                                  name="dropout{}".format(self.top_layer_No)))
-        self.attach_conv_bn_relu(256)
+        self.attach_conv_bn_relu(256, 256)
         self.attach(PoolingLayer(ksize=[1, 2, 2, 1],
                                  strides=[1, 2, 2, 1],
                                  padding=self.padding,
                                  name="pool{}".format(self.top_layer_No)))
 
-        self.attach_conv_bn_relu(512)
+        self.attach_conv_bn_relu(256, 512)
         self.attach(DropoutLayer(keep_prob=0.6,
                                  name="dropout{}".format(self.top_layer_No)))
-        self.attach_conv_bn_relu(512)
+        self.attach_conv_bn_relu(512, 512)
         self.attach(DropoutLayer(keep_prob=0.6,
                                  name="dropout{}".format(self.top_layer_No)))
-        self.attach_conv_bn_relu(512)
+        self.attach_conv_bn_relu(512, 512)
         self.attach(PoolingLayer(ksize=[1, 2, 2, 1],
                                  strides=[1, 2, 2, 1],
                                  padding=self.padding,
@@ -280,26 +290,34 @@ class VGGNet(GraphBrain):
         self.top_layer_No += 1
         self.attach(DropoutLayer(keep_prob=0.5,
                                  name="dropout{}".format(self.top_layer_No)))
-        self.attach(InnerProductLayer(out_channel_num=512,
-                                      init_para={
-                                          "name": "truncated_normal",
-                                          "stddev": 1e-4},
-                                      name="ip1"))
+        self.attach(InnerProductLayer(
+            in_channel_num=2048,
+            out_channel_num=512,
+            init_para={
+                "name": "truncated_normal",
+                "stddev": 1e-4},
+            name="ip1"))
         self.attach(
-            BatchNormalizationLayer(name="bn{}".format(self.top_layer_No)))
+            BatchNormalizationLayer(
+                channel_num=512,
+                name="bn{}".format(self.top_layer_No)))
         self.attach(ReLULayer(name="relu{}".format(self.top_layer_No)))
 
         self.top_layer_No += 1
         self.attach(DropoutLayer(keep_prob=0.5,
                                  name="dropout{}".format(self.top_layer_No)))
 
-        self.attach(InnerProductLayer(out_channel_num=class_num,
-                                      init_para={
-                                          "name": "truncated_normal",
-                                          "stddev": 1e-4},
-                                      name="ip2"))
+        self.attach(InnerProductLayer(
+            in_channel_num=512,
+            out_channel_num=class_num,
+            init_para={
+                "name": "truncated_normal",
+                "stddev": 1e-4},
+            name="ip2"))
         self.attach(
-            BatchNormalizationLayer(name="bn{}".format(self.top_layer_No)))
+            BatchNormalizationLayer(
+                channel_num=class_num,
+                name="bn{}".format(self.top_layer_No)))
 
         if loss_layer:
             self.attach(loss_layer[0](
@@ -313,7 +331,7 @@ class VGGNet(GraphBrain):
                         {"name": "system_in", "idxs": [1]}],
                 name="loss"))
 
-    def attach_conv_bn_relu(self, out_channel_num):
+    def attach_conv_bn_relu(self, in_channel_num, out_channel_num):
         """
         This method attach a block of layer, aka convolution, batch
         normalization, and ReLU, to the brain. It also maintains
@@ -327,9 +345,11 @@ class VGGNet(GraphBrain):
                                          "name": "truncated_normal",
                                          "stddev": 1e-4},
                                      wd={"type": "l2", "scale": 5e-4},
+                                     in_channel_num=in_channel_num,
                                      out_channel_num=out_channel_num,
                                      name="conv{}".format(self.top_layer_No)))
         self.attach(BatchNormalizationLayer(
+            channel_num=out_channel_num,
             name="bn{}".format(self.top_layer_No)))
         self.attach(ReLULayer(name="relu{}".format(self.top_layer_No)))
 

@@ -77,6 +77,16 @@ class Sensor(ProcessingBlock):
         self.val_batch_size = val_batch_size
         self.source = source_in
 
+        if issubclass(type(self.source), sources.StaticSource):
+            self.num_batches_per_epoch_train \
+                = (self.source.num_train - 1) // self.batch_size + 1
+            self.num_batches_per_epoch_val \
+                = (self.source.num_val - 1) // self.val_batch_size + 1
+            self.log("A epoch of training set contains {} batches".format(
+                self.num_batches_per_epoch_train))
+            self.log("A epoch of validation set contains {} batches".format(
+                self.num_batches_per_epoch_val))
+
     def data(self, get_val=False):
         """
         Args:
@@ -133,18 +143,8 @@ class Sensor(ProcessingBlock):
                                   " to actually provide data as tensors.")
         sys.exit()
 
-    def _pre_setup(self):
-        if issubclass(type(self.source), sources.StaticSource):
-            self.num_batches_per_epoch_train \
-                = (self.source.num_train - 1) // self.batch_size + 1
-            self.num_batches_per_epoch_val \
-                = (self.source.num_val - 1) // self.val_batch_size + 1
-            self.log("A epoch of training set contains {} batches".format(
-                self.num_batches_per_epoch_train))
-            self.log("A epoch of validation set contains {} batches".format(
-                self.num_batches_per_epoch_val))
-
-    def _post_setup_shared(self):
+    def _post_forward(self):
+        super(Sensor, self)._post_forward()
         if self.do_summary:
             self._image_summary(self.training_data.op.name,
                                 self.training_data,
@@ -272,8 +272,8 @@ class IntegratedSensor(ShuffleQueueSensor):
         else:
             self.training_jokers.attach(joker)
 
-    def _post_setup_shared(self):
-        super(IntegratedSensor, self)._post_setup_shared()
+    def _post_forward(self):
+        super(IntegratedSensor, self)._post_forward()
         if self.do_summary:
             # Do image summary on raw images if we have done data augmentation.
             if not self.training_jokers.is_empty:

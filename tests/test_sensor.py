@@ -67,7 +67,7 @@ class TestIntegratedSensor(AKidTestCase):
         super(TestIntegratedSensor, self).setUp()
         # TODO(Shuai): This test is supposed to test on MNIST with
         # integrated sensor instead of using data augmented cifar10.
-        self.brain = AlexNet(name="AlexNet")
+        self.brain = AlexNet(in_channel_num=2304, name="AlexNet")
         source = TestFactory.get_test_tf_source()
 
         sensor = IntegratedSensor(source_in=source,

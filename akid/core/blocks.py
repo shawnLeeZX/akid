@@ -52,8 +52,60 @@ from .. import backend as A
 class Block(object):
     """
     The top level class. Everything should be its sub-class.
+
+    A `Block` holds computational graph. Sub-class should implement `_setup` to
+    build the graph. It does not enforce how the computational graph should be
+    used, which should be the responsibility of sub classes.
+
+    `Block` supports add arbitrary code after setup by offering
+    `post_setup_hook`. All functions added in the hook will be called after
+    setup. `self` is passed as an argument to functions in the hook.
+
+    Call `setup` of each block before using it.
     """
     __metaclass__ = abc.ABCMeta
+
+    def __init__(self, name=None):
+        self.name = name
+
+        if not name:
+            raise Exception(
+                "{}'s `name` argument cannot be None! It serves as an"
+                " identifier, also is used in visualization and"
+                " summary etc.".format(type(self)))
+
+        # Hooks that are called after setup.
+        self.post_setup_hook = []
+        self.pre_setup_hook = []
+
+        # Variable scope to give unique names.
+        # TODO: it adds an  unnecessary underscore each time we entering the
+        # scope, which is not desirable. Implement my own variable scope when
+        # having time.
+        with tf.variable_scope(name) as self.var_scope:
+            pass
+
+        self.is_setup = None
+
+    def setup(self):
+        with tf.variable_scope(self.var_scope):
+            self._pre_setup()
+            self._setup()
+            self._post_setup()
+
+        self.is_setup = True
+        self.var_scope.reuse_variables()
+
+    def _setup(self):
+        pass
+
+    def _pre_setup(self):
+        for f in self.pre_setup_hook:
+            f(self)
+
+    def _post_setup(self):
+        for f in self.post_setup_hook:
+            f(self)
 
     def log(self, message, debug=False):
         """
@@ -100,17 +152,16 @@ class ProcessingBlock(Block):
 
     `forward` is the interface for any containers, such as a `Brain` class,
     that hold this block, to call to do build computational graph that normally
-    leads to a forward propagation in neural networks to do posterior
-    inference (the statement may not hold exactly when the neural network does
-    not learn a probability). It is a wrapper for the actual abstract
-    `_forward` method which should be implemented by concrete layer, and other
-    pre-forward and post-forward methods. The caller is responsible for passing
-    in the right data for the `forward` method.
-
-    Call `forward` of each block before using it.
+    leads to a forward propagation in neural networks to do posterior inference
+    (the statement may not hold exactly when the neural network does not learn
+    a probability). The concrete forward propagation of sub-classes should be
+    implemented in `_forward` method. To add arbitrary code before and after
+    `_forward`, use `pre_forward_hook`; to add after, use
+    `post_forward_hook`. All arguments passed to `_forward` are also available
+    in functions in the hooks.
     """
 
-    def __init__(self, do_summary=True, name=None, bag=None, **kwargs):
+    def __init__(self, do_summary=True, bag=None, **kwargs):
         """
         Create a layer and name it.
 
@@ -129,27 +180,13 @@ class ProcessingBlock(Block):
         """
         super(ProcessingBlock, self).__init__(**kwargs)
 
-        if not name:
-            raise Exception(
-                "{}'s `name` argument cannot be None! It serves as an"
-                " identifier, also is used in visualization and"
-                " summary etc.".format(type(self)))
-
-        self.name = name
         self.do_summary = do_summary
-        self.log("{} has bag: {}".format(name, bag))
+        self.log("{} has bag: {}".format(self.name, bag))
         self.bag = bag
 
-        # Variable scope to give unique names.
-        self.var_scope = None
-
-        # Boolean flag to indicate whether this layer has been built before. It
-        # is used for determining whether we should share variables of this
-        # layer later in `setup`. We need this for creating validation brain or
-        # others network structures need sharing learnable variables.  It is
-        # also useful to other things, such as determining whether to add
-        # tensorboard summary etc.
-        self.is_setup = None
+        # Hooks
+        self.pre_forward_hook = []
+        self.post_forward_hook = []
 
     @abc.abstractmethod
     def data(self):
@@ -165,93 +202,26 @@ class ProcessingBlock(Block):
 
     def forward(self, *args, **kwargs):
         """
-        Common wrapper of all kinds of layers' `_forward` to do stat and
-        visualization related logistics. If `_forward` has any output, it would
-        be returned.
-
-        A `ProcessingBlock` could be set up any times one wants. Each time it
-        would build computational graph to process input provided this time,
-        and any variables are shared.
-
         Args:
             All arguments will be passed to the actual `_forward` function.
         """
-        if self.var_scope:
-            var_scope = self.var_scope
-        else:
-            var_scope = self.name
+        if not self.is_setup:
+            self.setup()
 
-        # Note an assignment operation will be wasted if self.var_scope already
-        # has value, however, to make sure the first time assignment works,
-        # this is the best way I can think of.
-        with tf.variable_scope(var_scope) as self.var_scope:
-            # TODO: the way how pre and post set up should be changed. Deferred
-            # due to time budget. I am thinking actually implement it using
-            # hooks, which makes things clearer. Or some part of the pre_setup
-            # should be in a separate step, since setup now is changed to
-            # forward.
-            if not self._skip_pre_post_setup():
-                self._pre_setup(*args, **kwargs)
-            if not self._skip_pre_post_shared_setup():
-                self._pre_setup_shared()
+        with tf.variable_scope(self.var_scope):
+            self._pre_forward(*args, **kwargs)
             self._forward(*args, **kwargs)
-            if not self._skip_pre_post_setup():
-                self._post_setup()
-            if not self._skip_pre_post_shared_setup():
-                self._post_setup_shared()
-
-        self.is_setup = True
-        self.var_scope.reuse_variables()
+            self._post_forward(*args, **kwargs)
 
         return self.data
 
-    def _pre_setup(self, *args, **kwargs):
-        """
-        Some setting won't be determined till the time to call setup. This is
-        the place to set up the those settings. See `moving_averages` of
-        `ProcessingLayer` for an example.
-        """
-        pass
+    def _pre_forward(self, *args, **kwargs):
+        for f in self.pre_forward_hook:
+            f(*args, **kwargs)
 
-    def _pre_setup_shared(self):
-        """
-        This is the place to do pre-setups on shared components. This method
-        would only be called at the first time this block is setup. Refer to
-        `_pre_setup` to see what pre-setups is for.
-        """
-        pass
-
-    def _post_setup_shared(self):
-        """
-        This is the place to do post-setups on shared components. This method
-        would only be called at the first time this block is setup. Refer to
-        `_post_setup` to see what post-setups is for.
-        """
-        pass
-
-    def _post_setup(self):
-        """
-        Some setting cannot be set up until the whole setup has been done. This
-        is the place to set up those settings. See `moving_averages` of
-        `ProcessingLayer` for an example.
-        """
-        pass
-
-    def _skip_pre_post_setup(self):
-        """
-        Whether to skip `_pre_setup` and `_post_setup`. This method serves to
-        provide a finer granularity control in `setup`. To change the behavior
-        of any sub-classes, just override this method.
-        """
-        return False
-
-    def _skip_pre_post_shared_setup(self):
-        """
-        Whether to skip `_pre_setup_shared` and `_post_setup_shared`. This
-        method serves to provide a finer granularity control in `setup`. To
-        change the behavior of any sub-classes, just override this method.
-        """
-        return self.is_setup
+    def _post_forward(self, *args, **kwargs):
+        for f in self.post_forward_hook:
+            f(*args, **kwargs)
 
     @abc.abstractmethod
     def _forward(self):
@@ -276,8 +246,15 @@ class ShadowableBlock(ProcessingBlock):
         # Whether this processing block is a shallow replica.
         self.is_shadow = False
 
-    def _skip_pre_post_setup(self):
-        return self.is_shadow
+    def _pre_forward(self, *args, **kwargs):
+        if not self.is_shadow:
+            for f in self.pre_forward_hook:
+                f(*args, **kwargs)
+
+    def _post_forward(self, *args, **kwargs):
+        if not self.is_shadow:
+            for f in self.post_forward_hook:
+                f(*args, **kwargs)
 
     def set_shadow(self):
         """
@@ -390,14 +367,12 @@ class ProcessingLayer(GenerativeBlock):
     def set_val(self):
         self.is_val = True
 
-    def _pre_setup(self, *arg, **kwargs):
+    def _pre_setup(self):
         super(ProcessingLayer, self)._pre_setup()
+
         if self.is_val:
             self.var_scope.reuse_variables()
 
-    def _pre_setup_shared(self):
-        # Moving averages are supposed be shared so it would only be set up
-        # once.
         if self.moving_average_decay:
             # We pass current training step to moving average to speed up
             # updates moving average of variables at the beginning of the
@@ -407,7 +382,9 @@ class ProcessingLayer(GenerativeBlock):
             self.moving_averages = tf.train.ExponentialMovingAverage(
                 self.moving_average_decay, step)
 
-    def _post_setup(self):
+    def _post_forward(self, *args, **kwargs):
+        super(ProcessingLayer, self)._post_forward(*args, **kwargs)
+
         # TODO: ideally, we want to control how many summaries we gather.
         if self.do_summary:
             log.info("Do tensorboard summary on outputs of {}".format(
@@ -451,27 +428,21 @@ class ProcessingLayer(GenerativeBlock):
                           tf.nn.zero_fraction(data),
                           collections=[collection])
 
-    def _post_setup_shared(self):
+    def _post_setup(self):
+        super(ProcessingLayer, self)._post_setup()
         # Maintain moving averages of variables.
         if self.moving_average_decay and len(self.var_list) is not 0:
             self.moving_averages_op = self.moving_averages.apply(self.var_list)
-            with tf.control_dependencies([self.moving_averages_op]):
-                self._data = tf.identity(
-                    self._data,
-                    # We add one underscore to the original data's name to the
-                    # has-to existing identity data due to the need of control
-                    # dependency.
-                    name=self._data.op.name.split('/')[-1] + "_")
+
+            for var in self.var_list:
+                var_average = self.moving_averages.average(var)
+                self._var_summary(var.op.name + "_average", var_average)
 
         if self.do_summary:
             log.info("Do tensorboard summary on variables of {}".format(
                 self.name))
             for var in self.var_list:
                 self._var_summary(var.op.name, var)
-        if self.moving_average_decay:
-            for var in self.var_list:
-                var_average = self.moving_averages.average(var)
-                self._var_summary(var.op.name + "_average", var_average)
 
         # Log parameter number of this layer.
         total_para_num = 0
@@ -483,6 +454,18 @@ class ProcessingLayer(GenerativeBlock):
             total_para_num += para_num
         log.info("This layer has {} parameters.".format(total_para_num))
 
+    def on_para_update(self):
+        """
+        Operations to run after parameter update.
+
+        Returns:
+            A list of ops.
+        """
+        if hasattr(self, "moving_average_op"):
+            return [self.moving_averages_op]
+        else:
+            return []
+
     def _var_summary(self, tag, var):
         if len(var.get_shape().as_list()) is 0:
             tf.summary.scalar(tag, var, collections=[TRAIN_SUMMARY_COLLECTION])
@@ -490,14 +473,6 @@ class ProcessingLayer(GenerativeBlock):
             tf.summary.histogram(tag,
                                  var,
                                  collections=[TRAIN_SUMMARY_COLLECTION])
-
-    def _skip_pre_post_shared_setup(self):
-        """
-        Whether to skip `_pre_setup_shared` and `_post_setup_shared`. This
-        method serves to provide a finer granularity control in `setup`. To
-        change the behavior of any sub-classes, just override this method.
-        """
-        return self.is_setup or self.is_val
 
     @property
     def data(self):

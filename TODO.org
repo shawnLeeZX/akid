@@ -99,3 +99,4 @@
      instead of all the syntax sugar of tensorflow that saves all trainable
      variables.
      It also should be moved to brain instead of staying in Survivor.
+*** TODO implement variable scope since tensorflow add an underscore each time entering a scope for non-shareable variables

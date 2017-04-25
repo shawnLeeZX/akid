@@ -37,6 +37,7 @@ class SynapseLayer(ProcessingLayer):
               1 will have uniform distribution U(-1, 1).
     """
     def __init__(self,
+                 in_channel_num,
                  out_channel_num,
                  initial_bias_value=0,
                  init_para={"name": "truncated_normal", "stddev": 0.1},
@@ -46,9 +47,10 @@ class SynapseLayer(ProcessingLayer):
                  **kwargs):
         """
         Args:
-            out_channel_num: an int
-                How many channels this synapse layer has. This is a positional
-                and required parameter.
+            in_channel_num: int
+                How many in channels this synapse layer has.
+            out_channel_num: int
+                How many out channels this synapse layer has.
             init_bias_value: a real number
                 If bias is unwanted, set it to None explicitly.
             init_para: dict
@@ -71,6 +73,7 @@ class SynapseLayer(ProcessingLayer):
                 dead during training.
         """
         super(SynapseLayer, self).__init__(**kwargs)
+        self.in_channel_num = in_channel_num
         self.out_channel_num = out_channel_num
         self.init_para = init_para
         self.wd = wd
@@ -82,9 +85,9 @@ class SynapseLayer(ProcessingLayer):
             if initial_bias_value is not None else None
 
     @abc.abstractmethod
-    def _para_init(self, input):
+    def _para_init(self):
         """
-        Allocate learnable parameters, do stat and visualizations logistics.
+        Allocate learnable parameters.
 
         Every learnable layer should implement this method. It is made an
         abstract method here just to regularize the internal implementation of
@@ -92,7 +95,7 @@ class SynapseLayer(ProcessingLayer):
 
         Args:
             input: tensor
-                The to be processed input in proper shape(it may be processed
+                The to be processed input in proper shape (it may be processed
                 by the layer), will be passed to `_para_init` to do actual
                 initialization.
 
@@ -102,16 +105,33 @@ class SynapseLayer(ProcessingLayer):
         raise NotImplementedError("Each learnable layer needs to implement"
                                   " this method to allocate and init"
                                   " parameters!")
-        sys.exit()
 
-    def _pre_setup(self, *args, **kwargs):
-        super(SynapseLayer, self)._pre_setup(*args, **kwargs)
+    def _setup(self):
+        self._para_init()
+
+    def _post_setup(self):
+        super(SynapseLayer, self)._post_setup()
+        if self.do_stat_on_norm:
+            for v in self.var_list:
+                # Do not apply on biases.
+                shape = v.get_shape().as_list()
+                if len(shape) > 1:
+                    _ = tf.reduce_sum(tf.square(v), range(0, len(shape)-1))
+                    v_norms = tf.sqrt(_, name="l2norm")
+                    tf.add_to_collection(AUXILLIARY_STAT_COLLECTION,
+                                         v_norms)
+                    tf.summary.histogram(
+                        v.op.name + "l2norm",
+                        v_norms,
+                        collections=[AUXILLIARY_SUMMARY_COLLECTION])
+
+    def _pre_forward(self, *args, **kwargs):
+        super(SynapseLayer, self)._pre_forward(*args, **kwargs)
 
         if not self.initial_bias_value:
             self.log("Bias is disabled.")
 
-    def _post_setup_shared(self):
-        super(SynapseLayer, self)._post_setup_shared()
+    def on_para_update(self):
         if self.max_norm:
             self.log("Using max norm constrain of {}.".format(self.max_norm))
             # Create the op to apply max norm clip on weights.
@@ -130,22 +150,10 @@ class SynapseLayer(ProcessingLayer):
                                           clipped_filter_list)
                     self.clipped_filters.append(tf.assign(v, clipped_v))
         else:
-            self.clipped_filters = None
+            self.clipped_filters = []
 
-        if self.do_stat_on_norm:
-            for v in self.var_list:
-                # Do not apply on biases.
-                shape = v.get_shape().as_list()
-                if len(shape) > 1:
-                    out_channel_dim = len(shape) - 1
-                    _ = tf.reduce_sum(tf.square(v), range(0, len(shape)-1))
-                    v_norms = tf.sqrt(_, name="l2norm")
-                    tf.add_to_collection(AUXILLIARY_STAT_COLLECTION,
-                                         v_norms)
-                    tf.summary.histogram(
-                        v.op.name + "l2norm",
-                        v_norms,
-                        collections=[AUXILLIARY_SUMMARY_COLLECTION])
+        return self.clipped_filters
+
 
     def _variable_with_weight_decay(self, name, shape):
         """Helper to create an initialized Variable with weight decay.
@@ -211,10 +219,9 @@ class ConvolutionLayer(SynapseLayer):
         self.padding = padding
         self.ksize = ksize
 
-    def _para_init(self, input):
-        self.input_shape = input.get_shape().as_list()
+    def _para_init(self):
         self.shape = [self.ksize[0], self.ksize[1],
-                      self.input_shape[-1], self.out_channel_num]
+                      self.in_channel_num, self.out_channel_num]
         self.weights, self._loss \
             = self._variable_with_weight_decay("weights", self.shape)
 
@@ -224,11 +231,12 @@ class ConvolutionLayer(SynapseLayer):
                 [self.shape[-1]],
                 initializer=tf.constant_initializer(self.initial_bias_value))
 
+    def _pre_forward(self, input, *args, **kwargs):
+        super(ConvolutionLayer, self)._pre_forward(*args, **kwargs)
         self.log("Padding method {}.".format(self.padding), debug=True)
+        self.input_shape = input.get_shape().as_list()
 
     def _forward(self, input):
-        self._para_init(input)
-
         conv = tf.nn.conv2d(input, self.weights, self.strides, self.padding)
 
         if self.initial_bias_value is not None:
@@ -270,10 +278,6 @@ class SLUConvLayer(ConvolutionLayer):
     developed by properly doing posterior inference in DRMM.
     """
     def _forward(self, X_in):
-        # TODO: this should be a setup. Fix after refactoring the code to
-        # decouple forward and setup.
-        super(SLUConvLayer, self)._para_init(X_in)
-
         depthwise = A.nn.depthwise_conv2d(X_in, self.weights, self.strides, self.padding)
         # Compute the sign of each pixel.
         sign = A.cast(depthwise > 0, A.float32)
@@ -297,8 +301,6 @@ class SLUConvLayer(ConvolutionLayer):
 class InnerProductLayer(SynapseLayer):
     def _forward(self, input):
         input = self._reshape(input)
-        self._para_init(input)
-
         ip = tf.matmul(input, self.weights)
         if self.initial_bias_value is not None:
             ip = tf.nn.bias_add(ip, self.biases)
@@ -328,14 +330,13 @@ class InnerProductLayer(SynapseLayer):
             flattened = tf.reshape(input, [input_shape[0], in_channel_num])
             reshaped_input = flattened
 
-        self.shape = [in_channel_num, self.out_channel_num]
-
         # Hold another addition info about the shape of input feature maps.
         self.in_shape = input_shape[1:]
 
         return reshaped_input
 
-    def _para_init(self, input):
+    def _para_init(self):
+        self.shape = [self.in_channel_num, self.out_channel_num]
         self.weights, self._loss = self._variable_with_weight_decay(
             'weights', self.shape)
         if self.initial_bias_value is not None:
@@ -353,7 +354,6 @@ class InvariantInnerProductLayer(SynapseLayer):
 
     def _forward(self, input):
         object_vector = self._preprocess(input)
-        self._para_init(object_vector)
         ip = tf.matmul(object_vector, self.weights)
         ip_plus_bias = tf.nn.bias_add(ip,
                                       self.biases,
@@ -377,8 +377,8 @@ class InvariantInnerProductLayer(SynapseLayer):
         object_vector = tf.reshape(object_vector, [batch_size, in_channel_num])
         return object_vector
 
-    def _para_init(self, input):
-        self.shape = [input.get_shape().as_list()[1], self.out_channel_num]
+    def _para_init(self):
+        self.shape = [self.in_channel_num, self.out_channel_num]
         self.weights, self._loss = self._variable_with_weight_decay(
             'weights', self.shape)
         self.biases = self._get_variable(

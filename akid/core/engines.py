@@ -25,12 +25,16 @@ import tensorflow as tf
 
 from .common import TRAINING_DYNAMICS_COLLECTION
 from . import common
-from .blocks import Block
+from .blocks import ProcessingBlock
 
 
-class Engine(Block):
+class Engine(ProcessingBlock):
     """
     The class that abstracts parallel scheme of network training.
+
+    TODO: A better way of abstraction is to pass in already built sensor and
+    brain, then offer a property called loss. The parallelism should be done at
+    batch dimension.
 
     An `Engine` is responsible for setting up computational graph of a `Brain`
     on proper devices, and the coordination between devices (if there is any).
@@ -40,13 +44,13 @@ class Engine(Block):
     to devices according to the parallel scheme, gathers and processes the
     results, and provides the end result as if no parallelism exists.
     """
-    def __init__(self, kid):
+    def __init__(self, kid, **kwargs):
+        super(Engine, self).__init__(**kwargs)
         self.kid = kid
 
         self.sensor = kid.sensor
         self.brain = kid.brain
         self.kongfu = kid.kongfu
-        self.val_brain = kid.val_brain
 
     @abc.abstractmethod
     def loss(self, get_val=False):
@@ -66,23 +70,30 @@ class Engine(Block):
         raise NotImplementedError("Each engine should implement the interface"
                                   " to provide evaluation.")
 
-    def setup(self):
-        grads = self._setup_train_towers()
-        self._post_setup_train(grads)
-        self._setup_val_towers()
+    @property
+    def data(self):
+        """
+        Placeholder. Do not return anything. Ideally, it should return whatever
+        data the brain it contains. But it does not of use for now. So just
+        skip.
+        """
+        return None
 
-    def _post_setup_train(self, grads):
+    def _post_forward(self):
         apply_grad_op = self.kongfu.opt.apply_gradients(
-            grads, global_step=common.global_step_tensor)
+            self.grads, global_step=common.global_step_tensor)
 
-        with tf.control_dependencies([apply_grad_op]):
-            self.brain.on_batch_finishes()
-            if self.brain.max_norm_clip_op:
-                self.train_op = self.brain.max_norm_clip_op
+        self.train_op_list.append(apply_grad_op)
+        train_op = tf.group(*self.train_op_list)
+
+        with tf.control_dependencies([train_op]):
+            update_op = self.brain.on_para_update()
+            if update_op:
+                self.train_op = tf.group(*update_op)
             else:
-                self.train_op = apply_grad_op
+                self.train_op = train_op
 
-        for grad, var in grads:
+        for grad, var in self.grads:
             if grad is not None:
                 tf.summary.histogram(
                     var.op.name + '/gradients',
@@ -91,7 +102,17 @@ class Engine(Block):
 
 
 class SingleGPUEngine(Engine):
-    def _setup_train_towers(self):
+    def _setup(self):
+        self.brain.setup()
+        self.val_brain = self.brain.get_val_copy()
+
+    def _forward(self):
+        self.log("Build training phase ...")
+        self._forward_train()
+        self.log("Build validation phase ...")
+        self._forward_val()
+
+    def _forward_train(self):
         # TODO(Shuai): here is a temporary solution. Since sensor is actually
         # just a system with two outputs, `GraphSystem` could handle it, but it
         # would make many changes, for now, I just settle with the not-so
@@ -105,11 +126,17 @@ class SingleGPUEngine(Engine):
         system_in.extend(label) if type(label) is list \
             else system_in.append(label)
         self.brain.forward(system_in)
-        self.kongfu.forward(self.brain.loss)
 
-        return self.kongfu.data
+        if type(self.brain.train_op) is list:
+            self.train_op_list = list(self.brain.train_op)
+        else:
+            self.train_op_list = [self.brain.train_op]
 
-    def _setup_val_towers(self):
+        self.grads = self.kongfu.forward(self.brain.loss)
+
+        return self.grads
+
+    def _forward_val(self):
         data = self.sensor.data(get_val=True)
         label = self.sensor.labels(get_val=True)
         system_in = [data]
@@ -171,6 +198,8 @@ class SingleGPUEngine(Engine):
 
 class DataParallelEngine(Engine):
     """
+    TODO: broken now.
+
     This engine will implement typical parallelism in training neural
     network. It splits the batch, and train a fraction of them in an individual
     computing devices.

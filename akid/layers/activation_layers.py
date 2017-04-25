@@ -181,7 +181,9 @@ class GroupProcessingLayer(ProcessingLayer):
         self.num_group = None
         self.shape_rank = None
 
-    def _pre_setup(self, input):
+    def _pre_forward(self, input):
+        super(GroupProcessingLayer, self)._pre_forward(input)
+
         if type(input) is list:
             # Get the shape for the final output tensor.
             last_dim = 0
@@ -325,6 +327,7 @@ class BatchNormalizationLayer(ProcessingLayer):
     NAME = "Batch_Normalization"
 
     def __init__(self,
+                 channel_num,
                  beta_init=0,
                  gamma_init=1,
                  fix_gamma=False,
@@ -332,13 +335,14 @@ class BatchNormalizationLayer(ProcessingLayer):
                  use_reference_bn=False,
                  **kwargs):
         super(BatchNormalizationLayer, self).__init__(**kwargs)
+        self.channel_num = channel_num
         self.beta_init = float(beta_init)
         self.gamma_init = float(gamma_init)
         self.fix_gamma = fix_gamma
         self.share_gamma = share_gamma
         self.use_reference_bn = use_reference_bn
 
-    def _forward(self, input):
+    def _setup(self):
         if self.use_reference_bn:
             self.log("Using reference BN. `beta_init` is fixed to 0;"
                      " `gamma_init` to 1.")
@@ -355,24 +359,19 @@ class BatchNormalizationLayer(ProcessingLayer):
         else:
             self.log("Gamma is not used during training.")
 
-        input_shape = input.get_shape().as_list()
-        if len(input_shape) is 2:
-            mean, variance = tf.nn.moments(input, [0])
-        else:
-            mean, variance = tf.nn.moments(input, [0, 1, 2])
-        beta = self._get_variable(
+        self.beta = self._get_variable(
             'beta',
-            shape=[input_shape[-1]],
+            shape=[self.channel_num],
             initializer=tf.constant_initializer(self.beta_init))
         if self.fix_gamma:
-            gamma = tf.constant(
+            self.gamma = tf.constant(
                 self.gamma_init,
-                shape=[] if self.share_gamma else [input_shape[-1]],
+                shape=[] if self.share_gamma else [self.channel_num],
                 name="gamma")
         else:
-            gamma = self._get_variable(
+            self.gamma = self._get_variable(
                 'gamma',
-                shape=[] if self.share_gamma else [input_shape[-1]],
+                shape=[] if self.share_gamma else [self.channel_num],
                 initializer=tf.constant_initializer(self.gamma_init))
 
         # Bookkeeping a moving average for inference.
@@ -385,7 +384,15 @@ class BatchNormalizationLayer(ProcessingLayer):
         # mechanism provided by tensorflow, by passing current step in.
         with tf.variable_scope(common.global_var_scope, reuse=True):
             step = tf.get_variable(common.GLOBAL_STEP)
-        ema = tf.train.ExponentialMovingAverage(0.9, step)
+        self.ema = tf.train.ExponentialMovingAverage(0.9, step)
+
+
+    def _forward(self, input):
+        input_shape = input.get_shape().as_list()
+        if len(input_shape) is 2:
+            mean, variance = tf.nn.moments(input, [0])
+        else:
+            mean, variance = tf.nn.moments(input, [0, 1, 2])
 
         with tf.variable_scope(tf.get_variable_scope(), reuse=False):
             # NOTE: Prior to tf 0.12, I did not need the variable scope above
@@ -395,12 +402,11 @@ class BatchNormalizationLayer(ProcessingLayer):
             # is a temporary fix, waiting for solutions in issues:
             # https://github.com/tensorflow/tensorflow/issues/6270 and
             # https://github.com/tensorflow/tensorflow/issues/5827
-            ema_apply_op = ema.apply([mean, variance])
-        ema_mean, ema_var = ema.average(mean), ema.average(variance)
+            ema_apply_op = self.ema.apply([mean, variance])
+        ema_mean, ema_var = self.ema.average(mean), self.ema.average(variance)
         # Add the moving average to var list, for purposes such as
         # visualization.
         self.var_list.extend([ema_mean, ema_var])
-
         with tf.control_dependencies(
                 [ema_apply_op]):
             if self.is_val:
@@ -408,16 +414,16 @@ class BatchNormalizationLayer(ProcessingLayer):
                     input,
                     ema_mean,
                     ema_var,
-                    beta,
-                    gamma,
+                    self.beta,
+                    self.gamma,
                     1e-5)
             else:
                 bn_input = self._bn(
                     input,
                     mean,
                     variance,
-                    beta,
-                    gamma,
+                    self.beta,
+                    self.gamma,
                     1e-5)
 
         self._data = bn_input

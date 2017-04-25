@@ -48,6 +48,7 @@ class TestSynapseLayers(AKidTestCase):
 
         l = ConvolutionLayer(ksize=[3, 3],
                              strides=[1, 1, 1, 1],
+                             in_channel_num=2,
                              out_channel_num=1,
                              padding="VALID",
                              initial_bias_value=1.,
@@ -71,6 +72,7 @@ class TestSynapseLayers(AKidTestCase):
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l1", "scale": 0.0005},
+                               in_channel_num=1,
                                out_channel_num=32,
                                pool_size=[5, 5],
                                pool_stride=[5, 5],
@@ -82,6 +84,7 @@ class TestSynapseLayers(AKidTestCase):
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l1", "scale": 0.0005},
+                               in_channel_num=1152,
                                out_channel_num=512,
                                activation={"type": "gsmax",
                                            "group_size": 8}))
@@ -91,6 +94,7 @@ class TestSynapseLayers(AKidTestCase):
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l1", "scale": 0.0005},
+                               in_channel_num=512,
                                out_channel_num=10,
                                activation=None))
         brain.attach(SoftmaxWithLossLayer(
@@ -105,7 +109,6 @@ class TestSynapseLayers(AKidTestCase):
 
         loss = kid.practice()
         assert loss < 13
-
 
     def test_slu_conv(self):
         filter = np.array([
@@ -139,6 +142,7 @@ class TestSynapseLayers(AKidTestCase):
 
         l = SLUConvLayer(ksize=[3, 3],
                          strides=[1, 1, 1, 1],
+                         in_channel_num=2,
                          out_channel_num=2,
                          padding="VALID",
                          initial_bias_value=1.,

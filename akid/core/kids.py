@@ -142,7 +142,6 @@ class Kid(Block):
         """
         self.sensor = sensor_in
         self.brain = brain_in
-        self.val_brain = self.brain.get_val_copy()
         self.kongfu = kongfu_in
         self.engine_para = engine
         self.sess = sess
@@ -269,13 +268,6 @@ class Kid(Block):
             self._setup_sensor()
             self._setup_engine()
             self._setup_summary()
-            # Group train ops.
-            if type(self.brain.train_op) is list:
-                train_op_list = list(self.brain.train_op)
-            else:
-                train_op_list = [self.brain.train_op]
-            train_op_list.append(self.engine.train_op)
-            self.train_op = tf.group(*train_op_list)
             self.saver = tf.train.Saver(tf.global_variables())
             if self.sess is None:
                 config = tf.ConfigProto(allow_soft_placement=True)
@@ -388,7 +380,7 @@ class Kid(Block):
                 raise e
 
         if engine_name == "single":
-            self.engine = engines.SingleGPUEngine(self)
+            self.engine = engines.SingleGPUEngine(self, name="SEngine")
         elif engine_name == "data_parallel":
             if type(self.engine_para) is str:
                 # TODO: automatically use the maximal even number of gpus.
@@ -400,7 +392,7 @@ class Kid(Block):
             raise Exception('No engine "{}". Perhaps you have a typo.'.format(
                 engine_name))
 
-        self.engine.setup()
+        self.engine.forward()
 
     def init(self, continue_from_chk_point=None):
         """
@@ -490,7 +482,7 @@ class Kid(Block):
 
         self.fill_train_feed_dict()
 
-        fetch = [self.train_op, self.engine.loss()]
+        fetch = [self.engine.train_op, self.engine.loss()]
         fetch.extend(self.engine.eval())
         start_time = time.time()
         result = self.sess.run(fetch, feed_dict=self.feed_dict)

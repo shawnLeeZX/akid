@@ -13,7 +13,7 @@ class TestJoker(AKidTestCase):
     def test_rescale_joker(self):
         # TODO(Shuai): This test is supposed to test on MNIST with integrated
         # sensor instead of using cifar10.
-        brain = AlexNet(name="AlexNet")
+        brain = AlexNet(in_channel_num=4096, name="AlexNet")
         source = TestFactory.get_test_tf_source()
 
         sensor = IntegratedSensor(source_in=source,

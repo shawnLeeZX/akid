@@ -27,6 +27,7 @@ class TestLossLayers(AKidTestCase):
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 0.0005},
+                               in_channel_num=1,
                                out_channel_num=32,
                                pool_size=[5, 5],
                                pool_stride=[5, 5],
@@ -38,6 +39,7 @@ class TestLossLayers(AKidTestCase):
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 0.0005},
+                               in_channel_num=1152,
                                out_channel_num=512,
                                activation={"type": "gsmax",
                                            "group_size": 8}))
@@ -47,6 +49,7 @@ class TestLossLayers(AKidTestCase):
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 0.0005},
+                               in_channel_num=512,
                                out_channel_num=10,
                                activation=None))
         brain.attach(SoftmaxWithLossLayer(

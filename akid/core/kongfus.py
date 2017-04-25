@@ -69,10 +69,7 @@ class KongFu(ShadowableBlock):
         super(KongFu, self).__init__(**kwargs)
         self.lr_scheme = lr_scheme
 
-    def _forward(self, loss):
-        """
-        Build and return training ops according to the loss.
-        """
+    def _setup(self):
         if self.lr_scheme["name"] is LearningRateScheme.exp_decay:
             base_lr = float(self.lr_scheme["base_lr"])
             decay_rate = self.lr_scheme["decay_rate"]
@@ -87,14 +84,14 @@ class KongFu(ShadowableBlock):
             with tf.variable_scope(common.global_var_scope, reuse=True):
                 step = tf.get_variable(common.GLOBAL_STEP)
 
-            learning_rate = tf.train.exponential_decay(
+            self.learning_rate = tf.train.exponential_decay(
                 base_lr,
                 step,
                 decay_steps,
                 decay_rate,
                 staircase=True)
         elif self.lr_scheme["name"] is LearningRateScheme.placeholder:
-            learning_rate = tf.placeholder(tf.float32,
+            self.learning_rate = tf.placeholder(tf.float32,
                                            shape=[],
                                            name='lrn')
             self.lr_value = None
@@ -102,8 +99,12 @@ class KongFu(ShadowableBlock):
             raise Exception("Learning rate scheme is not supported. Please"
                             " specify one from `LearningRateScheme`.")
 
-        self.learning_rate = learning_rate
-        self.opt = self._get_optimizer(learning_rate)
+        self.opt = self._get_optimizer(self.learning_rate)
+
+    def _forward(self, loss):
+        """
+        Build and return training ops according to the loss.
+        """
         self._data = self.opt.compute_gradients(loss)
 
     def _post_setup(self):

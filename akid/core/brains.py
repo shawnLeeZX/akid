@@ -142,28 +142,26 @@ class Brain(System, ProcessingLayer):
 
         return filter_list
 
-    def _forward(self, data_in):
-        """
-        Set up the computational graph.
-
-        Args:
-            data_in: a list of tensors or placeholders
-                Data supplied by `Sensor`, including labels.
-        """
+    def _pre_setup(self):
+        super(Brain, self)._pre_setup()
         if self.is_val:
             self.log("Setting up val brain {} ...".format(self.name))
         else:
             self.log("Setting up brain {} ...".format(self.name))
-        self._setup_graph(data_in)
+
+    def _pre_forward(self, *args, **kwargs):
+        super(Brain, self)._pre_forward(*args, **kwargs)
+        self.log("Building forward propagation computational graph ...")
+
+    def _post_forward(self, *args, **kwargs):
+        super(Brain, self)._post_forward(*args, **kwargs)
+
         self._gather_loss_graphs()
         self._gather_eval_graphs()
         self._gather_train_ops()
 
-    def _setup_graph(self, data_in):
-        """
-        Build the net up to where it may be used for inference.
-        """
-        self._forward_actual(data_in)
+        if self.do_summary:
+            tf.summary.scalar(self.loss.op.name, self.loss)
 
     def _gather_loss_graphs(self):
         """
@@ -209,22 +207,12 @@ class Brain(System, ProcessingLayer):
 
         self._train_op = train_op_list
 
-    def _post_setup(self):
-        if self.do_summary:
-            tf.summary.scalar(self.loss.op.name, self.loss)
-
-    def on_batch_finishes(self):
-        # Max norm constrain.
-        clipped_filters = []
+    def on_para_update(self):
+        ops = []
         for b in self.blocks:
-            if issubclass(type(b), SynapseLayer):
-                if b.clipped_filters:
-                    clipped_filters.extend(b.clipped_filters)
+            ops.extend(b.on_para_update())
 
-        if len(clipped_filters) is not 0:
-            self.max_norm_clip_op = tf.group(*clipped_filters)
-        else:
-            self.max_norm_clip_op = None
+        return ops
 
     def attach(self, block_in):
         if type(block_in) is list:

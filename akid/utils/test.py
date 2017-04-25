@@ -1,6 +1,11 @@
 """
 This module offer a top level class for testing.
 """
+import sys
+import pdb
+import functools
+import traceback
+
 import unittest
 from unittest import TestCase
 
@@ -68,4 +73,20 @@ class TestFactory(object):
             FeedSensor(source_in=source, name='data'),
             brain,
             MomentumKongFu(),
+            debug=True,
             max_steps=900)
+
+def debug_on(*exceptions):
+    if not exceptions:
+        exceptions = (AssertionError, )
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            try:
+                return f(*args, **kwargs)
+            except exceptions:
+                info = sys.exc_info()
+                traceback.print_exception(*info)
+                pdb.post_mortem(info[2])
+        return wrapper
+    return decorator

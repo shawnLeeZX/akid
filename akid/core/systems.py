@@ -81,25 +81,17 @@ class System(GenerativeBlock):
     def attach(self, block_in):
         self.blocks.append(block_in)
 
-    def _forward(self, data_in):
-        """
-        Call the underlying system forwarding route to avoid multi-inheritance
-        conflict arising, since `System` is made to be along with other
-        classes.
-        """
-        return self._forward_actual(data_in)
-
-    @abc.abstractmethod
-    def _forward_actual(self, data_in):
-        raise NotImplementedError("Each concrete `System` should implement the actual forward propagation.")
-
 
 class SequentialSystem(System):
     """
     A system that links blocks one by one sequentially, like the linked list
     structure in Computer Science Data Structure.
     """
-    def _forward_actual(self, data_in):
+    def _setup(self):
+        for b in self.blocks:
+            b.setup()
+
+    def _forward(self, data_in):
         """
         Link the blocks linearly together. It takes exact one argument and
         apply processing blocks to it one by one, and return the final
@@ -156,7 +148,7 @@ class GraphSystem(SequentialSystem):
     `_forward` method of a block, inputs feeds to a block is a tensor (if there
     is only one input) or a list of tensors (if there are multiple inputs.)
     """
-    def _forward_actual(self, data_in):
+    def _forward(self, data_in):
         """
         Method overrode to handle arbitrary layer interconnections.
         """

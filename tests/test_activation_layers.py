@@ -25,6 +25,7 @@ class TestActivationLayers(AKidTestCase):
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
+                               in_channel_num=1,
                                out_channel_num=32,
                                pool_size=[5, 5],
                                pool_stride=[5, 5],
@@ -36,6 +37,7 @@ class TestActivationLayers(AKidTestCase):
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
+                               in_channel_num=1152,
                                out_channel_num=512,
                                activation={"type": "ngsmax",
                                            "group_size": 8}))
@@ -45,6 +47,7 @@ class TestActivationLayers(AKidTestCase):
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
+                               in_channel_num=512,
                                out_channel_num=10,
                                activation=None))
         brain.attach(SoftmaxWithLossLayer(
@@ -97,29 +100,32 @@ class TestActivationLayers(AKidTestCase):
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
+                               in_channel_num=1,
                                out_channel_num=32,
                                pool_size=[5, 5],
                                pool_stride=[5, 5],
                                activation={"type": "relu"},
-                               bn={"gamma_init": 1., "share_gamma": True}))
+                               bn={"channel_num": 32, "gamma_init": 1., "share_gamma": True}))
 
         brain.attach(cnn_block(ksize=None,
                                initial_bias_value=0.1,
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
+                               in_channel_num=1152,
                                out_channel_num=512,
                                activation={"type": "relu"},
-                               bn={"gamma_init": 1., "share_gamma": True}))
+                               bn={"channel_num": 512, "gamma_init": 1., "share_gamma": True}))
 
         brain.attach(cnn_block(ksize=None,
                                initial_bias_value=0.1,
                                init_para={"name": "truncated_normal",
                                           "stddev": 0.1},
                                wd={"type": "l2", "scale": 5e-4},
+                               in_channel_num=512,
                                out_channel_num=10,
                                activation=None,
-                               bn={"gamma_init": 1., "share_gamma": True}))
+                               bn={"channel_num":10, "gamma_init": 1., "share_gamma": True}))
 
         brain.attach(SoftmaxWithLossLayer(
             class_num=10,
