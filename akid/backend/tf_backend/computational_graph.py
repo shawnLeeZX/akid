@@ -67,3 +67,7 @@ def reduce_sum(input_tensor, axis=None, keep_dims=False, name=None, reduction_in
 
 def cast(x, dtype, name=None):
     return tf.cast(x, dtype, name)
+
+
+def concat(concat_dim, values, name="concat"):
+    return tf.concat(concat_dim, values, name=name)

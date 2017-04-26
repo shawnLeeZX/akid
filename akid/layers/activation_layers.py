@@ -102,6 +102,22 @@ class ReLULayer(ProcessingLayer):
         return self._data_g
 
 
+class ColorizationReLULayer(ProcessingLayer):
+    def _forward(self, X_in):
+        """
+        This layer takes two inputs, the convoluted feature map and the color
+        map that is downsampled accordingly to match the shape of the feature
+        map.
+        """
+        F, C = X_in[0], X_in[1]
+        F = A.nn.relu(F)
+        self._data = A.concat(
+            concat_dim=-1,
+            values=[F * C[..., 0], F * C[..., 1], F * C[..., 2]])
+
+        return self._data
+
+
 class SigmoidLayer(ProcessingLayer):
     def _forward(self, input):
         self._data = tf.nn.sigmoid(input)

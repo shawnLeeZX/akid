@@ -264,5 +264,80 @@ class TestActivationLayers(AKidTestCase):
         assert (X_out_eval == X_out_ref).all(),\
             "X_out_eval: {}; X_out_ref: {}".format(X_out_eval, X_out_ref)
 
+    def test_colorization_relu(self):
+        F = np.array([
+            [
+                [
+                    [1, -1],
+                    [1, -1],
+                ],
+                [
+                    [1, -1],
+                    [1, -1]
+                ]],
+            [
+                [
+                    [1, -1],
+                    [1, -1],
+                ],
+                [
+                    [1, -1],
+                    [1, -1]
+                ]]
+        ])
+        F = np.einsum("nchw->nhwc", F)
+        F = A.Tensor(F)
+        C = np.array([
+            [
+                [[1, 1],
+                 [1, 1]],
+                [[0, 0],
+                 [0, 0]],
+                [[0, 0],
+                 [0, 0]]
+            ],
+            [
+                [[1, 1],
+                 [1, 1]],
+                [[0, 0],
+                 [0, 0]],
+                [[0, 0],
+                 [0, 0]]
+            ]
+        ])
+        C = np.einsum("nchw->nhwc", C)
+        C = A.Tensor(C)
+        X_out_ref = np.array([
+            [
+                [
+                    [1, 0],
+                    [1, 0],
+                ],
+                [
+                    [1, 0],
+                    [1, 0]
+                ]],
+            [
+                [
+                    [1, 0],
+                    [1, 0],
+                ],
+                [
+                    [1, 0],
+                    [1, 0]
+                ]]
+        ])
+        X_out_zero_channel = X_out_ref * 0
+        X_out_ref = np.concatenate([X_out_ref] + [X_out_zero_channel] * 2, axis=1)
+        X_out_ref = np.einsum("nchw->nhwc", X_out_ref)
+        from akid.layers import ColorizationReLULayer
+        l = ColorizationReLULayer(name="crelu")
+        X_out = l.forward([F, C])
+        A.init()
+        X_out_eval = A.eval(X_out)
+        assert (X_out_eval == X_out_ref).all(), \
+            "X_out_eval: {}; X_out_ref: {}".format(X_out_eval, X_out_ref)
+
+
 if __name__ == "__main__":
     main()

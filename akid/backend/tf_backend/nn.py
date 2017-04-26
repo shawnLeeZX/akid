@@ -70,3 +70,7 @@ def max_unpooling(X_in, mask, ksize=[1, 2, 2, 1]):
     X_out = tf.scatter_nd(indices, values, output_shape)
 
     return X_out
+
+
+def relu(X_in, name=None):
+    return tf.nn.relu(X_in, name)
