@@ -123,6 +123,10 @@ class ReLULayer(ProcessingLayer):
 
 
 class ColorizationReLULayer(ProcessingLayer):
+    def __init__(self, wipe_negative=False, **kwargs):
+        super(ColorizationReLULayer, self).__init__(**kwargs)
+        self.wipe_negative = wipe_negative
+
     def _forward(self, X_in):
         """
         This layer takes two inputs, the convoluted feature map and the color
@@ -134,9 +138,13 @@ class ColorizationReLULayer(ProcessingLayer):
         C_list = []
         for i in xrange(3):
             C_list.append(F * A.expand_dims(C[..., i], -1))
-        self._data = A.concat(
+        out = A.concat(
             concat_dim=3,
             values=C_list)
+        if self.wipe_negative:
+            out = A.nn.relu(out)
+
+        self._data = out
 
         return self._data
 
