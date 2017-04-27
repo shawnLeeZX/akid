@@ -66,16 +66,36 @@ class MaxPoolingLayer(ProcessingLayer):
     def _forward(self, X_in):
         self.log("Padding method {}.".format(self.padding), debug=True)
 
-        if self.get_argmax_idx:
-            self._data, self.in_group_indices = A.nn.max_pool_with_argmax(
-                X_in, self.ksize, self.strides, self.padding)
+        if type(X_in) is list:
+            ret = []
+            for X in X_in:
+                ret.append(self._max_pooling(X))
+
+            if self.get_argmax_idx:
+                ret = zip(*ret)
+                self._data, self.in_group_indices = ret[0], ret[1]
+            else:
+                self._data = ret
         else:
-            self._data = A.nn.max_pool(X_in,
-                                       self.ksize,
-                                       self.strides,
-                                       self.padding)
+            ret = self._max_pooling(X_in)
+            if self.get_argmax_idx:
+                self._data, self.in_group_indices = ret
+            else:
+                self._data = ret
 
         return self._data
+
+    def _max_pooling(self, X_in):
+        if self.get_argmax_idx:
+            return A.nn.max_pool_with_argmax(
+                X_in, self.ksize, self.strides, self.padding)
+        else:
+            return A.nn.max_pool(X_in,
+                                 self.ksize,
+                                 self.strides,
+                                 self.padding)
+
+
 
     def backward(self, X_in):
         if not self.get_argmax_idx:
@@ -111,9 +131,12 @@ class ColorizationReLULayer(ProcessingLayer):
         """
         F, C = X_in[0], X_in[1]
         F = A.nn.relu(F)
+        C_list = []
+        for i in xrange(3):
+            C_list.append(F * A.expand_dims(C[..., i], -1))
         self._data = A.concat(
-            concat_dim=-1,
-            values=[F * C[..., 0], F * C[..., 1], F * C[..., 2]])
+            concat_dim=3,
+            values=C_list)
 
         return self._data
 

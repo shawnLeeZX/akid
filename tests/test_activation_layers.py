@@ -187,7 +187,6 @@ class TestActivationLayers(AKidTestCase):
             assert np.sum(abs(output - out_ref)) <= 1e-4,\
                 "output: {}, out_ref {}.".format(output, out_ref)
 
-
     def test_relu_backward(self):
         X_forward_in = A.Tensor(np.array([1, -1], dtype=np.float32))
         X_backward_in = A.Tensor(np.array([2, 3], dtype=np.float32))
@@ -204,7 +203,6 @@ class TestActivationLayers(AKidTestCase):
         assert (X_backward_out_eval == X_backward_out_ref).all(),\
             "output: {}, out_ref: {}.".format(X_backward_out_eval, X_backward_out_ref)
 
-
     def test_max_pooling(self):
         X_in = np.array([[[1., 2],
                           [3, 4]],
@@ -218,6 +216,9 @@ class TestActivationLayers(AKidTestCase):
         X_out_ref = np.expand_dims(X_out_ref, axis=1)
 
         A.init()
+
+        # Test forward
+        # #################################################################
         from akid.layers import MaxPoolingLayer
         l = MaxPoolingLayer(ksize=[2, 2],
                             strides=[1, 1, 1, 1],
@@ -247,22 +248,39 @@ class TestActivationLayers(AKidTestCase):
         assert (X_out_indices_eval == X_out_indices_ref).all(),\
             "X_out_indices_eval: {}; X_out_indices_ref: {}".format(X_out_indices_eval, X_out_indices_ref)
 
-        X_out_ref = np.array([[[0, 0],
+        # Test backward
+        # #################################################################
+        X_out_b_ref = np.array([[[0, 0],
                                [0, 4]],
                               [[0, 0],
                                [0, 8]]], dtype=np.float32)
-        X_out_ref = np.einsum("chw->hwc", X_out_ref)
-        X_out_ref = np.expand_dims(X_out_ref, axis=0)
+        X_out_b_ref = np.einsum("chw->hwc", X_out_b_ref)
+        X_out_b_ref = np.expand_dims(X_out_b_ref, axis=0)
 
-        X_in = np.array([[[4.]], [[8]]], dtype=np.float32)
-        X_in = np.einsum("chw->hwc", X_in)
-        X_in = np.expand_dims(X_in, axis=0)
+        X_in_b = np.array([[[4.]], [[8]]], dtype=np.float32)
+        X_in_b = np.einsum("chw->hwc", X_in_b)
+        X_in_b = np.expand_dims(X_in_b, axis=0)
 
-        X_out = l.backward(A.Tensor(X_in))
+        X_out_b = l.backward(A.Tensor(X_in_b))
 
+        X_out_g_eval = A.eval(X_out_b)
+        assert (X_out_g_eval == X_out_b_ref).all(),\
+            "X_out_eval: {}; X_out_ref: {}".format(X_out_g_eval, X_out_b_ref)
+
+        # Test list pooling
+        # ###############################################################
+        X_in = [A.Tensor(X_in)] * 2
+        X_out_ref = [X_out_ref] * 2
+        X_out_indices_ref = [X_out_indices_ref] * 2
+        X_out = l.forward(X_in)
         X_out_eval = A.eval(X_out)
-        assert (X_out_eval == X_out_ref).all(),\
-            "X_out_eval: {}; X_out_ref: {}".format(X_out_eval, X_out_ref)
+        l_eval = A.eval(l.in_group_indices)
+        for X, X_ref in zip(X_out_eval, X_out_ref):
+            assert (X == X_ref).all(),\
+                "X_out_eval: {}; X_out_ref: {}".format(X, X_ref)
+        for I, I_ref in zip(l_eval, X_out_indices_ref):
+            assert (I == I_ref).all(),\
+                "I_out_eval: {}; I_out_ref: {}".format(I, I_ref)
 
     def test_colorization_relu(self):
         F = np.array([
@@ -277,12 +295,12 @@ class TestActivationLayers(AKidTestCase):
                 ]],
             [
                 [
-                    [1, -1],
-                    [1, -1],
+                    [-1, 1],
+                    [-1, 1],
                 ],
                 [
-                    [1, -1],
-                    [1, -1]
+                    [-1, 1],
+                    [-1, 1]
                 ]]
         ])
         F = np.einsum("nchw->nhwc", F)
@@ -319,12 +337,12 @@ class TestActivationLayers(AKidTestCase):
                 ]],
             [
                 [
-                    [1, 0],
-                    [1, 0],
+                    [0, 1],
+                    [0, 1],
                 ],
                 [
-                    [1, 0],
-                    [1, 0]
+                    [0, 1],
+                    [0, 1]
                 ]]
         ])
         X_out_zero_channel = X_out_ref * 0

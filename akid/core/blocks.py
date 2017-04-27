@@ -421,12 +421,15 @@ class ProcessingLayer(GenerativeBlock):
         assert collection is TRAIN_SUMMARY_COLLECTION or \
             collection is VALID_SUMMARY_COLLECTION, \
             "{} is not one of those defined in common.py. Some thing is wrong"
-        tf.summary.histogram(data.op.name + '/activations',
-                             data,
-                             collections=[collection])
-        tf.summary.scalar(data.op.name + '/' + SPARSITY_SUMMARY_SUFFIX,
-                          tf.nn.zero_fraction(data),
-                          collections=[collection])
+        if type(data) is not list and type(data) is not tuple:
+            data = [data]
+        for d in data:
+            tf.summary.histogram(d.op.name + '/activations',
+                                 d,
+                                 collections=[collection])
+            tf.summary.scalar(d.op.name + '/' + SPARSITY_SUMMARY_SUFFIX,
+                              tf.nn.zero_fraction(d),
+                              collections=[collection])
 
     def _post_setup(self):
         super(ProcessingLayer, self)._post_setup()

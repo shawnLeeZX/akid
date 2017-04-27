@@ -71,3 +71,7 @@ def cast(x, dtype, name=None):
 
 def concat(concat_dim, values, name="concat"):
     return tf.concat(concat_dim, values, name=name)
+
+
+def expand_dims(input, axis=None, name=None):
+    return tf.expand_dims(input, axis=axis, name=name)

@@ -7,6 +7,7 @@ import inspect
 from akid.ops import image_ops as image
 
 from akid.core.sources import *
+from akid import datasets
 from akid.datasets import *
 from akid.core.kongfus import *
 from akid.core.kids import *

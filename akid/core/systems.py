@@ -200,17 +200,8 @@ class GraphSystem(SequentialSystem):
                 else:
                     l.forward(inputs)
             else:
-                if len(data) == 1:
-                    l.forward(data[0])
-                else:
-                    if i == 0:
-                        # We deal with the first case specially, since the
-                        # first layer normally only takes the data as inputs
-                        # instead all the output. This is also for backward
-                        # compatibility.
-                        l.forward(data[0])
-                    else:
-                        l.forward(data)
+                # By default, we only pass the first tensor to the new layer.
+                l.forward(data[0])
 
             # Logging
             dtype = type(data)
