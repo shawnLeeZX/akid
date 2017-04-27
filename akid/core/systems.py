@@ -208,10 +208,7 @@ class GraphSystem(SequentialSystem):
             if inputs:
                 in_name = [i.name for i in inputs]
             else:
-                if dtype is list or dtype is tuple:
-                    in_name = [d.name for d in data]
-                else:
-                    in_name = data[0].name
+                in_name = data[0].name
             if l.data is not None:
                 dtype = type(l.data)
                 self.log("Connected: {} -> {}".format(
