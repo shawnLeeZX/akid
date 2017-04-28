@@ -293,7 +293,8 @@ class ColorfulConvLayer(ConvolutionLayer):
         shape = [self.ksize[0], self.ksize[1], 3, self.out_channel_num]
         self.color_W, c_W_loss = self._variable_with_weight_decay(
             "color_weights", shape, self.c_W_initializer)
-        self._loss += c_W_loss
+        if c_W_loss:
+            self._loss += c_W_loss
 
     def _forward(self, X_in):
         F = X_in[0]
