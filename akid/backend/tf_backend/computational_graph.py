@@ -75,3 +75,7 @@ def concat(concat_dim, values, name="concat"):
 
 def expand_dims(input, axis=None, name=None):
     return tf.expand_dims(input, axis=axis, name=name)
+
+
+def reduce_max(input_tensor, axis=None, keep_dims=False, name=None):
+    return tf.reduce_max(input_tensor, axis=axis, keep_dims=keep_dims, name=name, reduction_indices=None)

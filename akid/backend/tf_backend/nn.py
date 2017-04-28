@@ -74,3 +74,7 @@ def max_unpooling(X_in, mask, ksize=[1, 2, 2, 1]):
 
 def relu(X_in, name=None):
     return tf.nn.relu(X_in, name)
+
+
+def conv_2d(input, filter, strides, padding, name=None):
+    return tf.nn.conv2d(input, filter, strides, padding, use_cudnn_on_gpu=None, data_format=None, name=name)

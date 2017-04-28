@@ -154,8 +154,7 @@ class SynapseLayer(ProcessingLayer):
 
         return self.clipped_filters
 
-
-    def _variable_with_weight_decay(self, name, shape):
+    def _variable_with_weight_decay(self, name, shape, init_para=None):
         """Helper to create an initialized Variable with weight decay.
 
         Args:
@@ -166,7 +165,10 @@ class SynapseLayer(ProcessingLayer):
             (Variable Tensor, Weight Decay Loss) If `self.wd` is `None`, then
             the returned weight decay loss would be `None`.
         """
-        var = self._get_variable(name, shape, self._get_initializer())
+        if not init_para:
+            init_para = self.init_para
+
+        var = self._get_variable(name, shape, self._get_initializer(init_para))
         if len(shape) > 1:
             # Add non-bias filters to the collection.
             tf.add_to_collection(FILTER_WEIGHT_COLLECTION, var)
@@ -196,12 +198,12 @@ class SynapseLayer(ProcessingLayer):
 
         return var, weight_decay
 
-    def _get_initializer(self):
-        if not self.init_para:
+    def _get_initializer(self, init_para=None):
+        if not init_para:
             init = initializers.get("default")
         else:
-            name = self.init_para["name"]
-            kwargs = self.init_para.copy()
+            name = init_para["name"]
+            kwargs = init_para.copy()
             kwargs.pop("name")
             init = initializers.get(name, **kwargs)
 
@@ -212,12 +214,11 @@ class SynapseLayer(ProcessingLayer):
 
 
 class ConvolutionLayer(SynapseLayer):
-    def __init__(self, ksize, strides, padding, **kwargs):
+    def __init__(self, ksize, strides=1, padding="SAME", **kwargs):
         super(ConvolutionLayer, self).__init__(**kwargs)
         self.ksize = helper_methods.expand_kernel(ksize)
         self.strides = helper_methods.expand_kernel(strides)
         self.padding = padding
-        self.ksize = ksize
 
     def _para_init(self):
         self.shape = [self.ksize[0], self.ksize[1],
@@ -246,6 +247,8 @@ class ConvolutionLayer(SynapseLayer):
 
         self._data = output
 
+        return self._data
+
     def backward(self, X_in):
         """
         According to the top-down inference results, reconstruct the input.
@@ -264,6 +267,48 @@ class ConvolutionLayer(SynapseLayer):
         # TODO: Create reconstruction loss.
 
         return self.data_g
+
+
+class ColorfulConvLayer(ConvolutionLayer):
+    def __init__(self,
+                 c_W_initializer={"name": "uniform_unit_scaling", "factor": 1},
+                 **kwargs):
+        """
+        By default, uniform_unit_scaling_initializer is used. The rationale is
+        to make the output variance (ideally should be norm) of color map and
+        the feature map the same: the factor is set to 1 = 1/sqrt(3) *
+        sqrt(COLOR_CHANNEL_NUM) --- COLOR_CHANNEL_NUM is 3. It is mostly for ad
+        hoc experimental, which means this convolution layer should use default
+        initializers.
+        """
+        super(ColorfulConvLayer, self).__init__(**kwargs)
+        self.c_W_initializer = c_W_initializer
+
+    def _pre_forward(self, input, *args, **kwargs):
+        super(ConvolutionLayer, self)._pre_forward(*args, **kwargs)
+        self.input_shape = input[0].get_shape().as_list()
+
+    def _para_init(self):
+        super(ColorfulConvLayer, self)._para_init()
+        shape = [self.ksize[0], self.ksize[1], 3, self.out_channel_num]
+        self.color_W, c_W_loss = self._variable_with_weight_decay(
+            "color_weights", shape, self.c_W_initializer)
+        self._loss += c_W_loss
+
+    def _forward(self, X_in):
+        F = X_in[0]
+        C = X_in[1]
+        F_out = super(ColorfulConvLayer, self)._forward(F)
+
+        C_out = A.nn.depthwise_conv2d(C, self.color_W, self.strides, self.padding)
+        shape = C_out.get_shape().as_list()
+        shape = [shape[0], shape[1], shape[2], 3, self.out_channel_num]
+        C_out = A.reshape(C_out, shape)
+        C_max = A.reduce_max(C_out, axis=3)
+
+        self._data = F_out + C_max
+
+        return self._data
 
 
 class SLUConvLayer(ConvolutionLayer):

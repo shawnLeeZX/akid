@@ -158,6 +158,80 @@ class TestSynapseLayers(AKidTestCase):
         X_out_eval = A.eval(X_out)
         assert (X_out_eval == X_out_ref).all(), "X_out_eval: {} while X_out_ref: {}".format(X_out_eval, X_out_ref)
 
+    def test_colorful_conv(self):
+        filter = np.array([
+            [[[1, 1, 1],
+              [1, 1, 1],
+              [1, 1, 1]]]
+        ],
+                          dtype=np.float32)
+        filter = np.einsum('oihw->hwio', filter)
+        X_in = np.array([[
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]]
+        ]],
+                        dtype=np.float32)
+        X_in = np.einsum('nchw->nhwc', X_in)
+        C_in = np.array([[
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]],
+
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]],
+
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]],
+        ]],
+                        dtype=np.float32)
+        C_in = np.einsum('nchw->nhwc', C_in)
+        C_filter = np.array([
+            [
+                [[1, 1, 1],
+                 [1, 1, 1],
+                 [1, 1, 1]],
+
+                [[1, 1, 1],
+                 [1, 1, 1],
+                 [1, 1, 1]],
+
+                [[1, 1, 1],
+                 [1, 1, 1],
+                 [1, 1, 1]],
+         ]
+        ],
+                        dtype=np.float32)
+        C_filter = np.einsum('oihw->hwio', C_filter)
+        X_out_ref = np.array([[
+            [[18]],
+        ]],
+                        dtype=np.float32)
+        X_out_ref = np.einsum('nchw->nhwc', X_out_ref)
+
+        from akid.layers import ColorfulConvLayer
+        l = ColorfulConvLayer(in_channel_num=1,
+                              out_channel_num=1,
+                              init_para={
+                                  "name": "tensor",
+                                  "value": filter
+                              },
+                              ksize=3,
+                              padding="VALID",
+                              c_W_initializer={
+                                  "name": "tensor",
+                                  "value": C_filter
+                              },
+                              name="c_conv"
+        )
+        X_out = l.forward([A.Tensor(X_in), A.Tensor(C_in)])
+        A.init()
+        X_out_eval = A.eval(X_out)
+        assert X_out_ref == X_out_eval, \
+            "X_out_eval: {}; X_out_ref: {}".format(X_out_eval, X_out_ref)
+
 
 if __name__ == "__main__":
     main()
