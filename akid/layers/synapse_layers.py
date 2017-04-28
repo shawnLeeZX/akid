@@ -272,17 +272,24 @@ class ConvolutionLayer(SynapseLayer):
 class ColorfulConvLayer(ConvolutionLayer):
     def __init__(self,
                  c_W_initializer={"name": "uniform_unit_scaling", "factor": 1},
+                 verbose=False,
                  **kwargs):
         """
-        By default, uniform_unit_scaling_initializer is used. The rationale is
-        to make the output variance (ideally should be norm) of color map and
-        the feature map the same: the factor is set to 1 = 1/sqrt(3) *
-        sqrt(COLOR_CHANNEL_NUM) --- COLOR_CHANNEL_NUM is 3. It is mostly for ad
-        hoc experimental, which means this convolution layer should use default
-        initializers.
+        Args:
+            c_W_initializer: dict
+                By default, uniform_unit_scaling_initializer is used. The rationale is
+                to make the output variance (ideally should be norm) of color map and
+                the feature map the same: the factor is set to 1 = 1/sqrt(3) *
+                sqrt(COLOR_CHANNEL_NUM) --- COLOR_CHANNEL_NUM is 3. It is mostly for ad
+                hoc experimental, which means this convolution layer should use default
+                initializers.
+            verbose: bool
+                If True, do histogram summary on both convolution map and color
+                map.
         """
         super(ColorfulConvLayer, self).__init__(**kwargs)
         self.c_W_initializer = c_W_initializer
+        self.verbose = verbose
 
     def _pre_forward(self, input, *args, **kwargs):
         super(ConvolutionLayer, self)._pre_forward(*args, **kwargs)
@@ -300,12 +307,15 @@ class ColorfulConvLayer(ConvolutionLayer):
         F = X_in[0]
         C = X_in[1]
         F_out = super(ColorfulConvLayer, self)._forward(F)
+        self._data_summary(F_out)
 
         C_out = A.nn.depthwise_conv2d(C, self.color_W, self.strides, self.padding)
         shape = C_out.get_shape().as_list()
         shape = [shape[0], shape[1], shape[2], 3, self.out_channel_num]
         C_out = A.reshape(C_out, shape)
         C_max = A.reduce_max(C_out, axis=3)
+
+        self._data_summary(C_max)
 
         self._data = F_out + C_max
 

@@ -424,9 +424,9 @@ class ProcessingLayer(GenerativeBlock):
         if type(data) is not list and type(data) is not tuple:
             data = [data]
         for d in data:
-            tf.summary.histogram(d.op.name + '/activations',
-                                 d,
-                                 collections=[collection])
+            A.summary.histogram(d.op.name + '/activations',
+                                d,
+                                collections=[collection])
             tf.summary.scalar(d.op.name + '/' + SPARSITY_SUMMARY_SUFFIX,
                               tf.nn.zero_fraction(d),
                               collections=[collection])

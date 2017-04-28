@@ -6,3 +6,4 @@ arbitrary, and abstracted as backends.
 """
 from .tf_backend import *
 from .tf_backend import nn
+from .tf_backend import summary
