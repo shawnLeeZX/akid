@@ -307,7 +307,8 @@ class ColorfulConvLayer(ConvolutionLayer):
         F = X_in[0]
         C = X_in[1]
         F_out = super(ColorfulConvLayer, self)._forward(F)
-        self._data_summary(F_out)
+        if self.verbose:
+            self._data_summary(F_out)
 
         C_out = A.nn.depthwise_conv2d(C, self.color_W, self.strides, self.padding)
         shape = C_out.get_shape().as_list()
@@ -315,7 +316,8 @@ class ColorfulConvLayer(ConvolutionLayer):
         C_out = A.reshape(C_out, shape)
         C_max = A.reduce_max(C_out, axis=3)
 
-        self._data_summary(C_max)
+        if self.verbose:
+            self._data_summary(C_max)
 
         self._data = F_out + C_max
 
