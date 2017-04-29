@@ -100,18 +100,18 @@ class Engine(ProcessingBlock):
                     grad,
                     collections=[TRAINING_DYNAMICS_COLLECTION])
 
-
-class SingleGPUEngine(Engine):
-    def _setup(self):
-        self.brain.setup()
-        self.val_brain = self.brain.get_val_copy()
-
     def _forward(self):
         self.log("Build training phase ...")
         self._forward_train()
         self.log("Build validation phase ...")
         self._forward_val()
 
+    def _setup(self):
+        self.brain.setup()
+        self.val_brain = self.brain.get_val_copy()
+
+
+class SingleGPUEngine(Engine):
     def _forward_train(self):
         # TODO(Shuai): here is a temporary solution. Since sensor is actually
         # just a system with two outputs, `GraphSystem` could handle it, but it
@@ -198,8 +198,6 @@ class SingleGPUEngine(Engine):
 
 class DataParallelEngine(Engine):
     """
-    TODO: broken now.
-
     This engine will implement typical parallelism in training neural
     network. It splits the batch, and train a fraction of them in an individual
     computing devices.
@@ -295,7 +293,7 @@ class DataParallelEngine(Engine):
 
         return eval_list
 
-    def _setup_train_towers(self):
+    def _forward_train(self):
         # Split the data.
         data = self.sensor.data()
         label = self.sensor.labels()
@@ -315,6 +313,7 @@ class DataParallelEngine(Engine):
         tower_grads = []
         tower = self.brain
         kongfu = self.kongfu
+        self.train_op_list = []
         for i in xrange(0, self.num_gpu):
             self.log("Setting up tower {} for training".format(i))
             with tf.device('/gpu:{}'.format(i)):
@@ -322,6 +321,10 @@ class DataParallelEngine(Engine):
                 system_in = self._setup_system_in(splitted_data[i],
                                                   splitted_labels[i])
                 tower.forward(system_in)
+                if type(tower.train_op) is list:
+                     self.train_op_list.extend(tower.train_op)
+                else:
+                    self.train_op_list.append(self.brain.train_op)
 
                 # Keep track of the new tower.
                 self.train_towers.append(tower)
@@ -341,13 +344,13 @@ class DataParallelEngine(Engine):
 
         # Gather and reduce.
         with tf.device('/cpu:0'):
-            grads = self._average_grads(tower_grads)
+            self.grads = self._average_grads(tower_grads)
             self._train_loss = self._average_loss(self.train_towers)
             self._train_eval = self._average_eval(self.train_towers)
 
-        return grads
+        return self.grads
 
-    def _setup_val_towers(self):
+    def _forward_val(self):
         data = self.sensor.data(get_val=True)
         label = self.sensor.labels(get_val=True)
         splitted_data, splitted_labels = self._split_input(data, label)

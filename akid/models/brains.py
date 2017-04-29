@@ -129,6 +129,7 @@ class LeNet(GraphBrain):
         self.attach(ConvolutionLayer(ksize=[5, 5],
                                      strides=[1, 1, 1, 1],
                                      padding="SAME",
+                                     in_channel_num=1,
                                      out_channel_num=32,
                                      name="conv1"))
         self.attach(ReLULayer(name="relu1"))
@@ -140,6 +141,7 @@ class LeNet(GraphBrain):
         self.attach(ConvolutionLayer(ksize=[5, 5],
                                      strides=[1, 1, 1, 1],
                                      padding="SAME",
+                                     in_channel_num=32,
                                      out_channel_num=64,
                                      name="conv2"))
         self.attach(ReLULayer(name="relu2"))
@@ -148,10 +150,16 @@ class LeNet(GraphBrain):
                                  padding="SAME",
                                  name="pool2"))
 
-        self.attach(InnerProductLayer(out_channel_num=512, name="ip1"))
+        self.attach(InnerProductLayer(
+            in_channel_num=3136,
+            out_channel_num=512,
+            name="ip1"))
         self.attach(ReLULayer(name="relu3"))
 
-        self.attach(InnerProductLayer(out_channel_num=10, name="ip2"))
+        self.attach(InnerProductLayer(
+            in_channel_num=512,
+            out_channel_num=10,
+            name="ip2"))
 
         self.attach(SoftmaxWithLossLayer(
             class_num=10,

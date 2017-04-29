@@ -387,7 +387,7 @@ class Kid(Block):
                 num_gpu = 2
             else:
                 num_gpu = self.engine_para["num_gpu"]
-            self.engine = engines.DataParallelEngine(num_gpu, kid=self)
+            self.engine = engines.DataParallelEngine(num_gpu, kid=self, name="DEngine")
         else:
             raise Exception('No engine "{}". Perhaps you have a typo.'.format(
                 engine_name))
