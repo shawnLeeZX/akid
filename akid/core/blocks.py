@@ -387,8 +387,9 @@ class ProcessingLayer(GenerativeBlock):
 
         # TODO: ideally, we want to control how many summaries we gather.
         if self.do_summary:
-            log.info("Do tensorboard summary on outputs of {}".format(
+            self.log("Do tensorboard summary on outputs of {}".format(
                 self.name))
+
             collection_to_add = VALID_SUMMARY_COLLECTION if self.is_val \
                 else TRAIN_SUMMARY_COLLECTION
             if self.data is not None:

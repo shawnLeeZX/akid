@@ -293,7 +293,8 @@ class Kid(Block):
             continue_from_chk_point: Boolean
                 Setup configuration. Passed to `setup`
         Return:
-            None
+            loss: float
+                training loss of the final iteration.
         """
         try:
             self.init(continue_from_chk_point)

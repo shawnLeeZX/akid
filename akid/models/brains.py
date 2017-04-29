@@ -445,7 +445,13 @@ class ResNet(GraphBrain):
         is_bottleneck = False  # A flag for shortcut padding.
         for i, v in enumerate(conv_params):
             ksize, r_stride, padding = v
+
+            in_channel_num = n_output_plane
+            if i == 0:
+                in_channel_num = n_input_plane
+
             self.attach(BatchNormalizationLayer(
+                channel_num=in_channel_num,
                 name="bn_{}_{}".format(self.residual_block_No, i)))
 
             if self.use_gsmax and n_input_plane > 16:
@@ -484,9 +490,10 @@ class ResNet(GraphBrain):
             self.attach(ConvolutionLayer(ksize,
                                          [1, r_stride[0], r_stride[1], 1],
                                          padding=padding,
-                                         init_para={"name": "msra_init"},
+                                         init_para={"name": "msra"},
                                          initial_bias_value=self.use_bias,
                                          wd=self.wd,
+                                         in_channel_num=in_channel_num,
                                          out_channel_num=out_channel_num,
                                          name="conv_{}_{}".format(
                                              self.residual_block_No, i)))
@@ -500,9 +507,10 @@ class ResNet(GraphBrain):
                     [1, stride[0], stride[1], 1],
                     inputs=[{"name": main_branch_layer_name}],
                     padding="SAME",
-                    init_para={"name": "msra_init"},
+                    init_para={"name": "msra"},
                     initial_bias_value=self.use_bias,
                     wd=self.wd,
+                    in_channel_num=n_input_plane,
                     out_channel_num=out_channel_num,
                     name="conv_{}_shortcut".format(self.residual_block_No)))
             else:
@@ -534,6 +542,9 @@ class ResNet(GraphBrain):
 
 class CifarResNet(ResNet):
     def __init__(self,
+                 color_channel_num=3,
+                 pool_size=8,
+                 n_stages = None,
                  sub_class_multiplier_ratio=0.5,
                  h_loss=False,
                  **kwargs):
@@ -541,9 +552,11 @@ class CifarResNet(ResNet):
 
         depth = self.depth
 
-        assert((depth - 4) % 6 == 0)
+        assert((depth - 4) % 6 == 0), \
+            "Depth must be 6 * n + 4."
         k = self.width
-        n_stages = [16, 16*k, 32*k, 64*k]
+        if not n_stages:
+            n_stages = [16, 16*k, 32*k, 64*k]
         assert (depth - 4) % 6 is 0
         n = (depth - 4) / 6
         if self.projection_shortcut:
@@ -556,9 +569,10 @@ class CifarResNet(ResNet):
         self.attach(ConvolutionLayer([3, 3],
                                      [1, 1, 1, 1],
                                      padding="SAME",
-                                     init_para={"name": "msra_init"},
+                                     init_para={"name": "msra"},
                                      wd=self.wd,
-                                     out_channel_num=16,
+                                     in_channel_num=color_channel_num,
+                                     out_channel_num=n_stages[0],
                                      initial_bias_value=self.use_bias,
                                      name="conv0"))
 
@@ -577,14 +591,14 @@ class CifarResNet(ResNet):
                            count=n,
                            stride=(2, 2),
                            act_before_residual=act_before_residual[2])
-        self.attach(BatchNormalizationLayer(name="bn_out"))
+        self.attach(BatchNormalizationLayer(n_stages[3], name="bn_out"))
         if self.use_gsmax:
             self.attach(GroupSoftmaxLayer(
                 group_size=self.group_size*640/160,
                 name="gsmax_out"))
         else:
             self.attach(ReLULayer(name="relu_out"))
-        self.attach(PoolingLayer(ksize=[1, 8, 8, 1],
+        self.attach(PoolingLayer(ksize=[1, pool_size, pool_size, 1],
                                  strides=[1, 1, 1, 1],
                                  padding="VALID",
                                  type="avg",
@@ -593,6 +607,7 @@ class CifarResNet(ResNet):
         self.attach(InnerProductLayer(initial_bias_value=0,
                                       init_para={"name": "default"},
                                       wd=self.wd,
+                                      in_channel_num=n_stages[3],
                                       out_channel_num=self.class_num,
                                       name='ip'))
         if h_loss:
@@ -650,7 +665,7 @@ class ImagenetResNet(ResNet):
         self.attach(ConvolutionLayer([7, 7],
                                      [1, 2, 2, 1],
                                      padding="SAME",
-                                     init_para={"name": "msra_init"},
+                                     init_para={"name": "msra"},
                                      wd=self.wd,
                                      out_channel_num=64,
                                      initial_bias_value=self.use_bias,
