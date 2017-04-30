@@ -255,8 +255,7 @@ class Kid(Block):
         self.evals = eval_metric_values
         self.on_val_log_step()
 
-        return loss
-
+        return loss, eval_metric_values
     def setup(self):
         """
         Set up logging and the computation graph.
@@ -284,7 +283,7 @@ class Kid(Block):
         self.sess.close()
         self.sess.reset()
 
-    def practice(self, continue_from_chk_point=False):
+    def practice(self, continue_from_chk_point=False, return_eval=False):
         """
         Improve the performance of the kid's brain by practicing, aka
         applying back propagation to train neural network.
@@ -292,9 +291,11 @@ class Kid(Block):
         Args:
             continue_from_chk_point: Boolean
                 Setup configuration. Passed to `setup`
+            return_eval: bool
+                Return evaluation metric after trainning is finished.
         Return:
-            loss: float
-                training loss of the final iteration.
+            loss, [eval]: float, float
+                Final validation loss and optional evaluation metric.
         """
         try:
             self.init(continue_from_chk_point)
@@ -315,7 +316,7 @@ class Kid(Block):
                    self.step == self.max_steps:
                     if self.save_chk_point:
                         self.save_to_ckpt()
-                    loss = self.validate()
+                    loss, eval_ = self.validate()
 
                 self.forward_backward()
 
@@ -328,7 +329,7 @@ class Kid(Block):
                 if self.step % self.train_log_step == 0:
                     self.on_train_log_step()
 
-            return loss
+            return loss, eval_ if return_eval else loss
         except tf.OpError as e:
             self.log("Tensorflow error when running: {}".format(e.message))
             sys.exit(0)
