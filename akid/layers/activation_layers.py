@@ -46,6 +46,8 @@ class PoolingLayer(ProcessingLayer):
             raise Exception("Type `{}` pooling is not supported.".format(
                 self.type))
 
+        return self._data
+
 
 class MaxPoolingLayer(ProcessingLayer):
     def __init__(self, ksize, strides, padding="VALID", get_argmax_idx=False, **kwargs):
@@ -109,6 +111,7 @@ class MaxPoolingLayer(ProcessingLayer):
 class ReLULayer(ProcessingLayer):
     def _forward(self, input):
         self._data = tf.nn.relu(input)
+        return self._data
 
     def backward(self, X_in):
         assert hasattr(self, "_data") and self._data is not None,\

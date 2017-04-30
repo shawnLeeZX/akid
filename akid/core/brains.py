@@ -256,5 +256,4 @@ class SeqentialGBrain(Brain, SequentialGSystem):
     pass
 
 
-__all__ = [name for name, x in locals().items() if
-           not inspect.ismodule(x) and not inspect.isabstract(x)]
+__all__ = [name for name, x in locals().items() if not inspect.ismodule(x)]

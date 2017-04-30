@@ -200,6 +200,9 @@ class ProcessingBlock(Block):
                                   " method to provide an interface to offer"
                                   " data!")
 
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
     def forward(self, *args, **kwargs):
         """
         Args:

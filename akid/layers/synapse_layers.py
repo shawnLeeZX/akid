@@ -221,7 +221,7 @@ class ConvolutionLayer(SynapseLayer):
         self.padding = padding
 
     def _para_init(self):
-        self.shape = [self.ksize[0], self.ksize[1],
+        self.shape = [self.ksize[1], self.ksize[2],
                       self.in_channel_num, self.out_channel_num]
         self.weights, self._loss \
             = self._variable_with_weight_decay("weights", self.shape)
@@ -297,7 +297,7 @@ class ColorfulConvLayer(ConvolutionLayer):
 
     def _para_init(self):
         super(ColorfulConvLayer, self)._para_init()
-        shape = [self.ksize[0], self.ksize[1], 3, self.out_channel_num]
+        shape = [self.ksize[1], self.ksize[2], 3, self.out_channel_num]
         self.color_W, c_W_loss = self._variable_with_weight_decay(
             "color_weights", shape, self.c_W_initializer)
         if c_W_loss:

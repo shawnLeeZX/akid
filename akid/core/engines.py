@@ -127,10 +127,13 @@ class SingleGPUEngine(Engine):
             else system_in.append(label)
         self.brain.forward(system_in)
 
-        if type(self.brain.train_op) is list:
-            self.train_op_list = list(self.brain.train_op)
+        if self.brain.train_op is not None:
+            if type(self.brain.train_op) is list:
+                self.train_op_list = list(self.brain.train_op)
+            else:
+                self.train_op_list = [self.brain.train_op]
         else:
-            self.train_op_list = [self.brain.train_op]
+            self.train_op_list = []
 
         self.grads = self.kongfu.forward(self.brain.loss)
 

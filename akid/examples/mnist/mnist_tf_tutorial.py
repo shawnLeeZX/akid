@@ -13,7 +13,7 @@ def setup():
     source = MNISTFeedSource(name="MNIST",
                              url='http://yann.lecun.com/exdb/mnist/',
                              work_dir=AKID_DATA_PATH + '/mnist',
-                             num_train=50000,
+                             num_train=55000,
                              num_val=5000,
                              center=True,
                              scale=True)
@@ -33,7 +33,7 @@ def setup():
                 "num_batches_per_epoch": 468,
                 "decay_epoch_num": 1},
             momentum=0.9),
-        max_steps=4000)
+        max_steps=20000)
     kid.setup()
 
     return kid
