@@ -24,8 +24,8 @@ class PoolingLayer(ProcessingLayer):
                 for average pooling.
         """
         super(PoolingLayer, self).__init__(**kwargs)
-        self.ksize = ksize
-        self.strides = strides
+        self.ksize = helper_methods.expand_kernel(ksize)
+        self.strides = helper_methods.expand_kernel(strides)
         self.padding = padding
         self.type = type
 

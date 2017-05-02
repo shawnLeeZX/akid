@@ -214,11 +214,12 @@ class SynapseLayer(ProcessingLayer):
 
 
 class ConvolutionLayer(SynapseLayer):
-    def __init__(self, ksize, strides=1, padding="SAME", **kwargs):
+    def __init__(self, ksize, strides=1, padding="SAME", depthwise=False, **kwargs):
         super(ConvolutionLayer, self).__init__(**kwargs)
         self.ksize = helper_methods.expand_kernel(ksize)
         self.strides = helper_methods.expand_kernel(strides)
         self.padding = padding
+        self.depthwise = depthwise
 
     def _para_init(self):
         self.shape = [self.ksize[1], self.ksize[2],
@@ -229,7 +230,7 @@ class ConvolutionLayer(SynapseLayer):
         if self.initial_bias_value is not None:
             self.biases = self._get_variable(
                 'biases',
-                [self.shape[-1]],
+                [self.out_channel_num if not self.depthwise else self.out_channel_num * self.in_channel_num],
                 initializer=tf.constant_initializer(self.initial_bias_value))
 
     def _pre_forward(self, input, *args, **kwargs):
@@ -238,7 +239,10 @@ class ConvolutionLayer(SynapseLayer):
         self.input_shape = input.get_shape().as_list()
 
     def _forward(self, input):
-        conv = tf.nn.conv2d(input, self.weights, self.strides, self.padding)
+        if self.depthwise:
+            conv = A.nn.depthwise_conv2d(input, self.weights, self.strides, self.padding)
+        else:
+            conv = tf.nn.conv2d(input, self.weights, self.strides, self.padding)
 
         if self.initial_bias_value is not None:
             output = tf.nn.bias_add(conv, self.biases)
@@ -272,6 +276,8 @@ class ConvolutionLayer(SynapseLayer):
 class ColorfulConvLayer(ConvolutionLayer):
     def __init__(self,
                  c_W_initializer={"name": "uniform_unit_scaling", "factor": 1},
+                 equivariant=False,
+                 same_ksize=False,
                  verbose=False,
                  **kwargs):
         """
@@ -283,6 +289,11 @@ class ColorfulConvLayer(ConvolutionLayer):
                 sqrt(COLOR_CHANNEL_NUM) --- COLOR_CHANNEL_NUM is 3. It is mostly for ad
                 hoc experimental, which means this convolution layer should use default
                 initializers.
+            equivariant: bool
+                Generate equivariant feature map if True, otherwise, use max inference.
+            same_ksize: bool
+                Use the same ksize with the filter for color filtering. If
+                None, use 1 X 1 filter.
             verbose: bool
                 If True, do histogram summary on both convolution map and color
                 map.
@@ -290,6 +301,8 @@ class ColorfulConvLayer(ConvolutionLayer):
         super(ColorfulConvLayer, self).__init__(**kwargs)
         self.c_W_initializer = c_W_initializer
         self.verbose = verbose
+        self.equivariant = equivariant
+        self.same_ksize = same_ksize
 
     def _pre_forward(self, input, *args, **kwargs):
         super(ConvolutionLayer, self)._pre_forward(*args, **kwargs)
@@ -297,10 +310,13 @@ class ColorfulConvLayer(ConvolutionLayer):
 
     def _para_init(self):
         super(ColorfulConvLayer, self)._para_init()
-        shape = [self.ksize[1], self.ksize[2], 3, self.out_channel_num]
+        if self.same_ksize:
+            shape = [self.ksize[1], self.ksize[2], 3, self.out_channel_num]
+        else:
+            shape = [1, 1, 3, self.out_channel_num]
         self.color_W, c_W_loss = self._variable_with_weight_decay(
             "color_weights", shape, self.c_W_initializer)
-        if c_W_loss:
+        if c_W_loss is not None:
             self._loss += c_W_loss
 
     def _forward(self, X_in):
@@ -310,18 +326,63 @@ class ColorfulConvLayer(ConvolutionLayer):
         if self.verbose:
             self._data_summary(F_out)
 
-        C_out = A.nn.depthwise_conv2d(C, self.color_W, self.strides, self.padding)
+        C_out = A.nn.depthwise_conv2d(C, self.color_W, helper_methods.expand_kernel(1), self.padding)
         shape = C_out.get_shape().as_list()
         shape = [shape[0], shape[1], shape[2], 3, self.out_channel_num]
         C_out = A.reshape(C_out, shape)
-        C_max = A.reduce_max(C_out, axis=3)
+        if self.equivariant:
+            F_out = A.expand_dims(F_out, axis=-2)
+            out = F_out + C_out
+            out = A.reshape(out, [shape[0], shape[1], shape[2], -1])
 
-        if self.verbose:
-            self._data_summary(C_max)
+            if self.verbose:
+                self._data_summary(C_out)
+        else:
+            C_max = A.reduce_max(C_out, axis=3)
 
-        self._data = F_out + C_max
+            if self.verbose:
+                self._data_summary(C_max)
+
+            out = F_out + C_max
+
+        self._data = out
 
         return self._data
+
+
+class EquivariantProjectionLayer(SynapseLayer):
+    def __init__(self, g_size, strides=1,  **kwargs):
+        """
+        NOTE: for this layer, the input should be g_size * in_channel_num, so
+        is output.
+        """
+        super(EquivariantProjectionLayer, self).__init__(**kwargs)
+        self.g_size = g_size
+        self.strides = helper_methods.expand_kernel(strides)
+
+    def _para_init(self):
+        self.W, self._loss = self._variable_with_weight_decay(
+            "projection_weights", [self.g_size, 1, 1, self.in_channel_num, self.out_channel_num], self.init_para)
+
+    def _forward(self, X_in):
+        shape = X_in.get_shape().as_list()
+        new_shape = [shape[0], shape[1], shape[2], self.g_size, -1]
+        X_in = A.reshape(X_in, new_shape)
+        X_g = A.unstack(X_in, 3)
+        X_out_g = []
+        for i in xrange(self.g_size):
+            X_out_g.append(
+                A.nn.conv_2d(X_g[i],
+                             self.W[i, ...],
+                             strides=self.strides,
+                             padding="SAME"))
+
+        X_out = A.pack(X_out_g, axis=3)
+        shape = X_out.get_shape().as_list()
+        X_out = A.reshape(X_out, shape=[shape[0], shape[1], shape[2], -1])
+        self._data = X_out
+
+        return X_out
 
 
 class SLUConvLayer(ConvolutionLayer):

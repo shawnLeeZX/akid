@@ -17,7 +17,8 @@ class TestKid(AKidTestCase):
         kid.setup()
 
         loss = kid.practice()
-        assert loss < 0.2
+        assert loss < 0.2, \
+                "Loss: {}".format(loss)
 
     def test_saver(self):
         brain = TestFactory.get_test_brain()

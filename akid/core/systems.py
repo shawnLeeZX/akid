@@ -6,6 +6,7 @@ holds, but only concerns the mathematical topology how they connect.
 import copy
 
 from .blocks import GenerativeBlock
+from .. import backend as A
 import abc
 
 
@@ -144,6 +145,8 @@ class GraphSystem(SequentialSystem):
     outputs). The list of indices means the indices of outputs of that layer to
     use.
 
+    It also supports directly pass tensor in.
+
     NOTE: no matter how the inputs are specified (by `inputs` or not), in the
     `_forward` method of a block, inputs feeds to a block is a tensor (if there
     is only one input) or a list of tensors (if there are multiple inputs.)
@@ -166,7 +169,15 @@ class GraphSystem(SequentialSystem):
                 # Find inputs in the system to current block.
                 inputs = []
                 for input in l.inputs:
+                    if A.is_tensor(input):
+                        inputs.append(input)
+                        continue
+
                     input_num = len(inputs)
+
+                    # Pick the first output tensor, if not specifying idxs
+                    if not input.has_key("idxs"):
+                        input["idxs"] = [0]
 
                     # First check whether the input is from the system input.
                     if input["name"] == "system_in":

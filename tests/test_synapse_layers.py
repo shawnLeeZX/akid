@@ -14,6 +14,9 @@ class TestSynapseLayers(AKidTestCase):
         super(TestSynapseLayers, self).setUp()
         sugar.init()
 
+    def tearDown(self):
+        A.close()
+
     def test_conv_backward(self):
         filter = np.array([[
             [[1, 1, 1],
@@ -232,6 +235,168 @@ class TestSynapseLayers(AKidTestCase):
         assert X_out_ref == X_out_eval, \
             "X_out_eval: {}; X_out_ref: {}".format(X_out_eval, X_out_ref)
 
+    def test_colorful_conv_equivariant(self):
+        filter = np.array([
+            [[[1, 1, 1],
+              [1, 1, 1],
+              [1, 1, 1]]],
+            [[[2, 2, 2],
+              [2, 2, 2],
+              [2, 2, 2]]]
+        ],
+                          dtype=np.float32)
+        filter = np.einsum('oihw->hwio', filter)
+        X_in = np.array([[
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]]
+        ]],
+                        dtype=np.float32)
+        X_in = np.einsum('nchw->nhwc', X_in)
+        C_in = np.array([[
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]],
+
+            [[2, 2, 2],
+             [2, 2, 2],
+             [2, 2, 2]],
+
+            [[3, 3, 3],
+             [3, 3, 3],
+             [3, 3, 3]],
+        ]],
+                        dtype=np.float32)
+        C_in = np.einsum('nchw->nhwc', C_in)
+        C_filter = np.array([
+            [
+                [[1]],
+
+                [[1]],
+
+                [[1]],
+            ],
+            [
+                [[1]],
+
+                [[1]],
+
+                [[1]],
+            ]
+        ],
+                        dtype=np.float32)
+        C_filter = np.einsum('oihw->hwio', C_filter)
+        X_out_ref = np.array([[
+            [[4, 6, 4],
+             [6, 9, 6],
+             [4, 6, 4]],
+            [[8, 12, 8],
+             [12, 18, 12],
+             [8, 12, 8]],
+        ]],
+                        dtype=np.float32)
+        X_out_c_list = []
+        for i in xrange(3):
+            X_out_c = X_out_ref + i+1
+            X_out_c_list.append(X_out_c)
+        X_out_ref = np.concatenate(X_out_c_list, axis=1)
+        X_out_ref = np.einsum('nchw->nhwc', X_out_ref)
+
+        from akid.layers import ColorfulConvLayer
+        l = ColorfulConvLayer(in_channel_num=1,
+                              out_channel_num=2,
+                              init_para={
+                                  "name": "tensor",
+                                  "value": filter
+                              },
+                              equivariant=True,
+                              ksize=3,
+                              padding="SAME",
+                              c_W_initializer={
+                                  "name": "tensor",
+                                  "value": C_filter
+                              },
+                              name="c_conv"
+        )
+        X_out = l.forward([A.Tensor(X_in), A.Tensor(C_in)])
+        A.init()
+        X_out_eval = A.eval(X_out)
+        assert (X_out_ref == X_out_eval).all(), \
+            "X_out_eval: {}; X_out_ref: {}".format(
+                np.einsum('nhwc->nchw', X_out_eval),
+                np.einsum('nhwc->nchw', X_out_ref)
+                )
+
+    def test_equivariant_projection(self):
+        X_in = np.array([[
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]],
+            [[2, 2, 2],
+             [2, 2, 2],
+             [2, 2, 2]],
+            [[3, 3, 3],
+             [3, 3, 3],
+             [3, 3, 3]],
+        ]],
+                        dtype=np.float32)
+        X_in = np.einsum('nchw->nhwc', X_in)
+        f_list = []
+        for i in xrange(3):
+            filter = np.array([
+                [
+                    [[1]],
+                ],
+                [
+                    [[1]],
+                ]
+            ],
+                            dtype=np.float32)
+            filter *= i+1
+            f_list.append(filter)
+        filter = np.stack(f_list, axis=0)
+        filter = np.einsum('goihw->ghwio', filter)
+        X_out_ref = np.array([[
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]],
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]],
+            [[4, 4, 4],
+             [4, 4, 4],
+             [4, 4, 4]],
+            [[4, 4, 4],
+             [4, 4, 4],
+             [4, 4, 4]],
+            [[9, 9, 9],
+             [9, 9, 9],
+             [9, 9, 9]],
+            [[9, 9, 9],
+             [9, 9, 9],
+             [9, 9, 9]],
+        ]],
+                        dtype=np.float32)
+        X_out_ref = np.einsum('nchw->nhwc', X_out_ref)
+
+        from akid.layers import EquivariantProjectionLayer
+        l = EquivariantProjectionLayer(g_size=3,
+                                       in_channel_num=1,
+                                       out_channel_num=2,
+                                       init_para={
+                                           "name": "tensor",
+                                           "value": filter
+                                       },
+                                       name="c_conv"
+        )
+        X_out = l.forward(A.Tensor(X_in))
+        A.init()
+        X_out_eval = A.eval(X_out)
+        assert (X_out_ref == X_out_eval).all(), \
+            "X_out_eval: {}; X_out_ref: {}".format(
+                np.einsum('nhwc->nchw', X_out_eval),
+                np.einsum('nhwc->nchw', X_out_ref)
+                )
 
 if __name__ == "__main__":
     main()

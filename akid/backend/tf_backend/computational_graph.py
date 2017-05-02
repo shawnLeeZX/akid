@@ -15,15 +15,22 @@ import tensorflow as tf
 # TODO: think how to offer a way to close the session.
 # A bug in tensorflow: Exception AttributeError: "'NoneType' object has no attribute 'TF_DeleteStatus'" in <bound method Session.__del__ of <tensorflow.python.client.session.Session object at 0x7f43105e9dd0>> ignored
 # Should be fixed by now: https://github.com/tensorflow/tensorflow/issues/3388
-sess = tf.Session()
+sess = None
 
 float32 = tf.float32
 
 
 def init():
+    global sess
+    sess = tf.Session()
     init  = tf.group(tf.global_variables_initializer(),
               tf.local_variables_initializer())
     sess.run(init)
+
+
+def close():
+    sess.close()
+    tf.reset_default_graph()
 
 
 def get_variable(name, shape=None,
@@ -73,9 +80,25 @@ def concat(concat_dim, values, name="concat"):
     return tf.concat(concat_dim, values, name=name)
 
 
+def stack(values, axis=0, name="pack"):
+    return tf.stack(values, axis=axis, name=name)
+
+
+def unstack(values, axis=0, name="unstack"):
+    return tf.unstack(values, num=None, axis=axis, name=name)
+
+
+def pack(values, axis=0, name="pack"):
+    return tf.stack(values, axis=axis, name=name)
+
+
 def expand_dims(input, axis=None, name=None):
     return tf.expand_dims(input, axis=axis, name=name)
 
 
 def reduce_max(input_tensor, axis=None, keep_dims=False, name=None):
     return tf.reduce_max(input_tensor, axis=axis, keep_dims=keep_dims, name=name, reduction_indices=None)
+
+
+def is_tensor(T):
+    return type(T) is tf.Tensor

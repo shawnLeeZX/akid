@@ -256,6 +256,7 @@ class Kid(Block):
         self.on_val_log_step()
 
         return loss, eval_metric_values
+
     def setup(self):
         """
         Set up logging and the computation graph.
@@ -329,7 +330,11 @@ class Kid(Block):
                 if self.step % self.train_log_step == 0:
                     self.on_train_log_step()
 
-            return loss, eval_ if return_eval else loss
+            if return_eval:
+                return loss, eval_
+            else:
+                return loss
+
         except tf.OpError as e:
             self.log("Tensorflow error when running: {}".format(e.message))
             sys.exit(0)
