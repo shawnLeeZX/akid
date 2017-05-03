@@ -2,13 +2,17 @@
 An extension of `multiprocessing`'s `Semaphore` to provide batch acquire of
 semaphore.
 """
+from __future__ import print_function
 
 from multiprocessing import Semaphore as _Semaphore
+from multiprocessing import Lock
 
 
 class Semaphore(object):
     def __init__(self, count):
         self.semaphore = _Semaphore(count)
+        self.in_lock = Lock()
+        self.out_lock = Lock()
 
     def acquire(self, count):
         """
@@ -16,8 +20,10 @@ class Semaphore(object):
             count: int
                 The number of semaphores to acquire.
         """
-        for i in xrange(0, count):
-            self.semaphore.acquire()
+        with self.in_lock:
+            for i in xrange(0, count):
+                self.semaphore.acquire()
+                print ("Acquired semaphore.")
 
     def release(self, count):
         """
@@ -25,5 +31,7 @@ class Semaphore(object):
             count: int
                 The number of semaphores to acquire.
         """
-        for i in xrange(0, count):
-            self.semaphore.release()
+        with self.out_lock:
+            for i in xrange(0, count):
+                self.semaphore.release()
+                print ("Released semaphore.")

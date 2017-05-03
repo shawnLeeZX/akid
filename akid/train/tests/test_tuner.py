@@ -10,6 +10,13 @@ net_paras_list.append({
         {"type": "relu"},
         {"type": "relu"}],
     })
+net_paras_list.append({
+    "activation": [
+        {"type": "relu"},
+        {"type": "relu"},
+        {"type": "relu"},
+        {"type": "relu"}],
+    })
 
 opt_paras_list = []
 opt_paras_list.append({"lr": 0.025, "engine": {"name": "single"}})
@@ -95,7 +102,7 @@ class TestTuner(TestCase):
         tune(setup,
              opt_paras_list,
              net_paras_list,
-             gpu_num_per_instance=[1, 2])
+             gpu_num_per_instance=[1, 1, 2, 2])
 
 
 if __name__ == "__main__":

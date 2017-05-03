@@ -64,13 +64,13 @@ kid.practice()
 
 
 def spawn(s, l, gpu_mask, gpu_num, return_values, setup_func, repeat):
-    # Look up GPU(s) and mark it used.
-    # Given s.acquire() is not an atomic operation (it is a syntax sugar written
-    # by me), a lock is necessary to make it atomic.
-    with l:
-        s.acquire(gpu_num)
-        print ("Acquired resources. Remaining semaphore {}".format(s.semaphore))
+    s.acquire(gpu_num)
+    print ("Acquired resources. Remaining semaphore {}".format(s.semaphore))
 
+    with l:
+        # Look up GPU(s) and mark it used.
+        # The lock is to make sure the logging is not mixed.
+        print ("Entering critical region.")
         acquired_gpu = 0
         idxs = []
         for idx, avail in enumerate(gpu_mask):
@@ -84,24 +84,28 @@ def spawn(s, l, gpu_mask, gpu_num, return_values, setup_func, repeat):
         print("GPU mask {}.".format(gpu_mask))
         print("Using GPU {}.".format(idxs))
 
-        repeat_folder = str(repeat)
-        # Create folder to hold one training repeat.
-        if not os.path.exists(repeat_folder):
-            os.mkdir(repeat_folder)
-        work_dir = repeat_folder
+        print ("Exiting critical region.")
 
-        spawn_using_sub_shell(setup_func, work_dir, idxs)
+    repeat_folder = str(repeat)
+    # Create folder to hold one training repeat.
+    if not os.path.exists(repeat_folder):
+        os.mkdir(repeat_folder)
+    work_dir = repeat_folder
+
+    spawn_using_sub_shell(setup_func, work_dir, idxs)
 
     # Release the GPU.
     with l:
+        print ("Entering critical region.")
         for idx in idxs:
             print("Released GPU {}.".format(idx))
             gpu_mask[idx] = 1
             print("GPU mask {}.".format(gpu_mask))
 
-        s.release(gpu_num)
-        print ("Released resources. Remaining semaphore {}".format(s.semaphore))
+        print ("Exiting critical region.")
 
+    s.release(gpu_num)
+    print ("Released resources. Remaining semaphore {}".format(s.semaphore))
 
 def tune(template,
          opt_paras_list=[{}],
