@@ -34,7 +34,7 @@ def setup():
                   to_val=True)
     sensor.attach(WhitenJoker(name="per_image_whitening"), to_val=True)
 
-    sensor.attach(CropJoker(height=24, width=24, center=True, name="crop"))
+    sensor.attach(CropJoker(height=24, width=24, center=False, name="crop"))
     sensor.attach(FlipJoker(name="left_right_flip"))
     sensor.attach(LightJoker(name="brightness_contrast"))
     sensor.attach(WhitenJoker(name="per_image_whitening"))
