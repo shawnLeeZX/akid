@@ -64,13 +64,13 @@ kid.practice()
 
 
 def spawn(s, l, gpu_mask, gpu_num, return_values, setup_func, repeat):
-    s.acquire(gpu_num)
-
     # Look up GPU(s) and mark it used.
-    # A lock is unnecessary for manager list, but in order to let the
-    # printed information print right, a lock is used to control access to
-    # stdout.
+    # Given s.acquire() is not an atomic operation (it is a syntax sugar written
+    # by me), a lock is necessary to make it atomic.
     with l:
+        s.acquire(gpu_num)
+        print ("Acquired resources. Remaining semaphore {}".format(s.semaphore))
+
         acquired_gpu = 0
         idxs = []
         for idx, avail in enumerate(gpu_mask):
@@ -84,21 +84,23 @@ def spawn(s, l, gpu_mask, gpu_num, return_values, setup_func, repeat):
         print("GPU mask {}.".format(gpu_mask))
         print("Using GPU {}.".format(idxs))
 
-    repeat_folder = str(repeat)
-    # Create folder to hold one training repeat.
-    if not os.path.exists(repeat_folder):
-        os.mkdir(repeat_folder)
-    work_dir = repeat_folder
+        repeat_folder = str(repeat)
+        # Create folder to hold one training repeat.
+        if not os.path.exists(repeat_folder):
+            os.mkdir(repeat_folder)
+        work_dir = repeat_folder
 
-    spawn_using_sub_shell(setup_func, work_dir, idxs)
+        spawn_using_sub_shell(setup_func, work_dir, idxs)
 
     # Release the GPU.
     with l:
         for idx in idxs:
             print("Released GPU {}.".format(idx))
             gpu_mask[idx] = 1
+            print("GPU mask {}.".format(gpu_mask))
 
-    s.release(gpu_num)
+        s.release(gpu_num)
+        print ("Released resources. Remaining semaphore {}".format(s.semaphore))
 
 
 def tune(template,
