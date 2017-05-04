@@ -30,8 +30,9 @@ class TestKid(AKidTestCase):
         assert loss < 0.2
 
         kid.restore_from_ckpt()
-        loss = kid.validate()
-        assert loss < 0.2
+        loss, _ = kid.validate()
+        assert loss < 0.2, \
+                "Loss is {}".format(loss)
 
     def test_log_to_file_flag(self):
         brain = TestFactory.get_test_brain()
