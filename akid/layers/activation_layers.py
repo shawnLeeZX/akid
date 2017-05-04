@@ -201,11 +201,11 @@ class SoftmaxNormalizationLayer(ProcessingLayer):
         num_split = shape[-1] // self.group_size
         self.log("Feature maps of layer {} is divided into {} group".format(
             self.name, num_split))
-        data_split = tf.split(1, num_split, data)
+        data_split = tf.split(axis=1, num_or_size_splits=num_split, value=data)
         data_split = list(data_split)
         for i in xrange(0, len(data_split)):
             data_split[i] = tf.nn.softmax(data_split[i])
-        data = tf.concat(1, data_split,)
+        data = tf.concat(axis=1, values=data_split,)
         output = tf.reshape(data, shape, SoftmaxNormalizationLayer.NAME)
 
         self._data = output
@@ -289,7 +289,7 @@ class GroupSoftmaxLayer(GroupProcessingLayer):
                 self._data = tf.nn.sigmoid(input)
                 return
 
-            splitted_input = tf.split(self.rank-1, self.num_group, input)
+            splitted_input = tf.split(axis=self.rank-1, num_or_size_splits=self.num_group, value=input)
             splitted_input = list(splitted_input)
 
         # Add temperature if needed
@@ -308,14 +308,14 @@ class GroupSoftmaxLayer(GroupProcessingLayer):
             self.ground_state = tf.constant(1.0, shape=ground_state_shape)
 
             # Compute group softmax.
-            augmented_t = tf.concat(self.rank-1, [t, self.ground_state])
+            augmented_t = tf.concat(axis=self.rank-1, values=[t, self.ground_state])
             softmax_t = tf.nn.softmax(augmented_t)
             splitted_input[i] = softmax_t[..., 0:-1]
 
         output = splitted_input
 
         if self.concat_output:
-            output = tf.concat(self.rank-1, splitted_input)
+            output = tf.concat(axis=self.rank-1, values=splitted_input)
 
         self._data = output
 
@@ -346,7 +346,7 @@ class CollapseOutLayer(GroupProcessingLayer):
                 reduced_t = self._reduce(t)
                 reduced_t_list.append(reduced_t)
 
-            output = tf.pack(reduced_t_list, axis=-1)
+            output = tf.stack(reduced_t_list, axis=-1)
         else:
             shape_by_group = self.output_shape[:]
             shape_by_group[-1] = self.num_group
@@ -360,11 +360,11 @@ class CollapseOutLayer(GroupProcessingLayer):
         shape = tensor.get_shape().as_list()
         if self.type is "maxout":
             output = tf.reduce_max(tensor,
-                                   reduction_indices=len(shape)-1,
+                                   axis=len(shape)-1,
                                    name=CollapseOutLayer.MAXOUT_NAME)
         elif self.type is "average_out":
             output = tf.reduce_mean(tensor,
-                                    reduction_indices=len(shape)-1,
+                                    axis=len(shape)-1,
                                     name=CollapseOutLayer.AVEOUT_NAME)
         else:
             raise Exception("Type of `CollapseOutLayer` should be 'maxout' or"

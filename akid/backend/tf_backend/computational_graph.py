@@ -61,7 +61,7 @@ def eval(V):
 
 
 def split(split_dim, num_split, value, name="split"):
-    return tf.split(split_dim, num_split, value, name="split")
+    return tf.split(axis=split_dim, num_or_size_splits=num_split, value=value, name="split")
 
 
 def reshape(tensor, shape, name=None):
@@ -77,7 +77,7 @@ def cast(x, dtype, name=None):
 
 
 def concat(concat_dim, values, name="concat"):
-    return tf.concat(concat_dim, values, name=name)
+    return tf.concat(axis=concat_dim, values=values, name=name)
 
 
 def stack(values, axis=0, name="pack"):
@@ -97,7 +97,7 @@ def expand_dims(input, axis=None, name=None):
 
 
 def reduce_max(input_tensor, axis=None, keep_dims=False, name=None):
-    return tf.reduce_max(input_tensor, axis=axis, keep_dims=keep_dims, name=name, reduction_indices=None)
+    return tf.reduce_max(input_tensor, axis=axis, keep_dims=keep_dims, name=name)
 
 
 def is_tensor(T):

@@ -53,16 +53,16 @@ class SoftmaxWithLossLayer(LossLayer):
             batch_size = tf.size(labels)
             _labels = tf.expand_dims(labels, 1)
             indices = tf.expand_dims(tf.range(0, batch_size, 1), 1)
-            concated = tf.concat(1, [indices, _labels])
+            concated = tf.concat(axis=1, values=[indices, _labels])
             onehot_labels = tf.sparse_to_dense(
-                concated, tf.pack([batch_size, self.class_num]), 1.0, 0.0)
+                concated, tf.stack([batch_size, self.class_num]), 1.0, 0.0)
         else:
             # The labels has already been expanded, no need to do it again.
             onehot_labels = labels
 
         cross_entropy \
-            = tf.nn.softmax_cross_entropy_with_logits(logits,
-                                                      onehot_labels,
+            = tf.nn.softmax_cross_entropy_with_logits(logits=logits,
+                                                      labels=onehot_labels,
                                                       name='xentropy')
         cross_entropy_mean = tf.reduce_mean(cross_entropy,
                                             name='xentropy_mean')
@@ -77,8 +77,8 @@ class SoftmaxWithLossLayer(LossLayer):
             correct = tf.nn.in_top_k(logits, labels, 1)
             # Return the number of true entries.
         else:
-            truth = tf.argmax(labels, dimension=1)
-            predictions = tf.argmax(logits, dimension=1)
+            truth = tf.argmax(labels, axis=1)
+            predictions = tf.argmax(logits, axis=1)
             correct = tf.equal(truth, predictions)
 
         self._eval = tf.reduce_mean(tf.cast(correct, tf.float32),
@@ -134,7 +134,7 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
                 [1],
                 initializer=tf.constant_initializer(10.0))
             data /= T
-        data_split = tf.split(1, num_split, data)
+        data_split = tf.split(axis=1, num_or_size_splits=num_split, value=data)
         data_split = list(data_split)
         # Augment each split with a constant 1.
         # Get dim of non-channel shape
@@ -143,8 +143,8 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
             nc_shape *= d
         self.ground_state = tf.constant(1.0, shape=[nc_shape, 1])
         for i in xrange(0, len(data_split)):
-            data_split[i] = tf.concat(1,
-                                      [data_split[i],
+            data_split[i] = tf.concat(axis=1,
+                                      values=[data_split[i],
                                        self.ground_state])
         for i in xrange(0, len(data_split)):
             data_split[i] = tf.nn.softmax(
@@ -155,18 +155,18 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
             # Note we need access to hidden units before augmented dimensions
             # for non-existence have been dropped, so this eval graph
             # constructor has not been put in the end.
-            group_label_vectors = tf.split(1, num_split, label_vectors)
+            group_label_vectors = tf.split(axis=1, num_or_size_splits=num_split, value=label_vectors)
             group_label_vectors = list(group_label_vectors)
 
             group_label_argmax_idx = []
             for group_label_vector in group_label_vectors:
                 group_label_argmax_idx.append(tf.argmax(group_label_vector, 1))
-            label_argmax_idx = tf.pack(group_label_argmax_idx)
+            label_argmax_idx = tf.stack(group_label_argmax_idx)
 
             group_data_argmax_idx = []
             for group_data_vector in data_split:
                 group_data_argmax_idx.append(tf.argmax(group_data_vector, 1))
-            data_argmax_idx = tf.pack(group_data_argmax_idx)
+            data_argmax_idx = tf.stack(group_data_argmax_idx)
 
             all_label_eval = tf.reduce_mean(
                 tf.cast(tf.equal(data_argmax_idx, label_argmax_idx),
@@ -177,7 +177,7 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
             # I could choose to split label vector and do cross entropy one by
             # one, or merge the splitted probability vectors and do cross
             # entropy once. The latter was chosen.
-            data = tf.concat(1, data_split,)
+            data = tf.concat(axis=1, values=data_split,)
             aug_shape = list(shape)
             aug_shape[-1] = (self.group_size + 1) * num_split
             logits = tf.reshape(data,
@@ -189,7 +189,7 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
         # Drop the augmented dimension.
         for i in xrange(0, len(data_split)):
             data_split[i] = data_split[i][:, 0:self.group_size]
-        data = tf.concat(1, data_split,)
+        data = tf.concat(axis=1, values=data_split,)
         output = tf.reshape(data, shape, GroupSoftmaxWithLossLayer.NAME)
 
         self._data = output
@@ -198,12 +198,12 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
             batch_size = tf.size(labels)
             _labels = tf.expand_dims(labels, 1)
             indices = tf.expand_dims(tf.range(0, batch_size, 1), 1)
-            concated = tf.concat(1, [indices, _labels])
+            concated = tf.concat(axis=1, values=[indices, _labels])
             onehot_labels = tf.sparse_to_dense(
-                concated, tf.pack([batch_size, self.class_num]), 1.0, 0.0)
+                concated, tf.stack([batch_size, self.class_num]), 1.0, 0.0)
             cross_entropy \
-                = tf.nn.softmax_cross_entropy_with_logits(output,
-                                                          onehot_labels,
+                = tf.nn.softmax_cross_entropy_with_logits(logits=output,
+                                                          labels=onehot_labels,
                                                           name='xentropy')
             cross_entropy_mean = tf.reduce_mean(cross_entropy,
                                                 name='xentropy_mean')

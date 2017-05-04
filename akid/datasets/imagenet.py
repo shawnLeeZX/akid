@@ -205,7 +205,7 @@ class ImagenetTFSource(ClassificationTFSource):
         Returns:
             3-D float Tensor with values ranging from [0, 1).
         """
-        with tf.op_scope([image_buffer], scope, 'decode_jpeg'):
+        with tf.name_scope(values=[image_buffer], name=scope, default_name='decode_jpeg'):
             # Decode the string as an RGB JPEG.
             # Note that the resulting image contains an unknown height and
             # width that is set dynamically by decode_jpeg. In other words, the
@@ -287,7 +287,7 @@ class ImagenetTFSource(ClassificationTFSource):
 
         # Note that we impose an ordering of (y, x) just to make life
         # difficult.
-        bbox = tf.concat(0, [ymin, xmin, ymax, xmax])
+        bbox = tf.concat(axis=0, values=[ymin, xmin, ymax, xmax])
 
         # Force the variable number of bounding boxes into the shape
         # [1, num_boxes, coords].

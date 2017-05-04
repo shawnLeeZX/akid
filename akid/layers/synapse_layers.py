@@ -141,13 +141,13 @@ class SynapseLayer(ProcessingLayer):
                 shape = v.get_shape().as_list()
                 if len(shape) > 1:
                     out_channel_dim = len(shape) - 1
-                    filter_tuple = tf.split(out_channel_dim, shape[-1], v)
+                    filter_tuple = tf.split(axis=out_channel_dim, num_or_size_splits=shape[-1], value=v)
                     clipped_filter_list = []
                     for f in filter_tuple:
                         clipped_filter_list.append(
                             tf.clip_by_norm(f, self.max_norm))
-                    clipped_v = tf.concat(out_channel_dim,
-                                          clipped_filter_list)
+                    clipped_v = tf.concat(axis=out_channel_dim,
+                                          values=clipped_filter_list)
                     self.clipped_filters.append(tf.assign(v, clipped_v))
         else:
             self.clipped_filters = []
@@ -180,11 +180,11 @@ class SynapseLayer(ProcessingLayer):
                     self.wd["type"], self.wd["scale"]))
 
                 if self.wd["type"] == "l2":
-                    weight_decay = tf.mul(tf.nn.l2_loss(var),
+                    weight_decay = tf.multiply(tf.nn.l2_loss(var),
                                           self.wd["scale"],
                                           name=name + '/l2_loss')
                 elif self.wd["type"] == "l1":
-                    weight_decay = tf.mul(tf.reduce_sum(tf.abs(var)),
+                    weight_decay = tf.multiply(tf.reduce_sum(tf.abs(var)),
                                           self.wd["scale"],
                                           name=name + '/l1_loss')
                 else:

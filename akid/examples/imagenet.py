@@ -57,8 +57,8 @@ sensor.attach(ResizeJoker(224, 224, name="resize"), to_val=True)
 class AdhocJoker(Joker):
     def _forward(self, data_in):
         # Make the range of image be [-1, 1]
-        data = tf.sub(data_in, 0.5)
-        data = tf.mul(data, 2.0)
+        data = tf.subtract(data_in, 0.5)
+        data = tf.multiply(data, 2.0)
         data = tf.cast(data, tf.float32)
         # because of jpeg decoding, the shape is determined dynamically, thus
         # we manually set shape here.

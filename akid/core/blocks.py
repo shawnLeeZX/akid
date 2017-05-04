@@ -78,23 +78,15 @@ class Block(object):
         self.post_setup_hook = []
         self.pre_setup_hook = []
 
-        # Variable scope to give unique names.
-        # TODO: it adds an  unnecessary underscore each time we entering the
-        # scope, which is not desirable. Implement my own variable scope when
-        # having time.
-        with tf.variable_scope(name) as self.var_scope:
-            pass
-
         self.is_setup = None
 
     def setup(self):
-        with tf.variable_scope(self.var_scope):
+        with tf.variable_scope(self.name):
             self._pre_setup()
             self._setup()
             self._post_setup()
 
         self.is_setup = True
-        self.var_scope.reuse_variables()
 
     def _setup(self):
         pass
@@ -211,7 +203,7 @@ class ProcessingBlock(Block):
         if not self.is_setup:
             self.setup()
 
-        with tf.variable_scope(self.var_scope):
+        with tf.variable_scope(self.name):
             self._pre_forward(*args, **kwargs)
             self._forward(*args, **kwargs)
             self._post_forward(*args, **kwargs)

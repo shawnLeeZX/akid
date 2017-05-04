@@ -227,10 +227,10 @@ class DataParallelEngine(Engine):
         if type(data[0]) is list:
             data = zip(*data)
             for i, l in enumerate(data):
-                data[i] = tf.concat(0, l, name=name)
+                data[i] = tf.concat(axis=0, values=l, name=name)
         # Otherwise, concat.
         else:
-            data = tf.concat(0, data, name=name)
+            data = tf.concat(axis=0, values=data, name=name)
 
         return data
 
@@ -239,14 +239,14 @@ class DataParallelEngine(Engine):
         Given data and labels, split them and return.
         """
         with tf.variable_scope("data_split"):
-            splitted_data = tf.split(0, self.num_gpu, data)
+            splitted_data = tf.split(axis=0, num_or_size_splits=self.num_gpu, value=data)
             if type(label) is list:
                 splitted_labels = []
                 for i in xrange(0, len(label)):
-                    splitted_labels.append(tf.split(0, self.num_gpu, label[i]))
+                    splitted_labels.append(tf.split(axis=0, num_or_size_splits=self.num_gpu, value=label[i]))
                 splitted_labels = zip(*splitted_labels)
             else:
-                splitted_labels = tf.split(0, self.num_gpu, label)
+                splitted_labels = tf.split(axis=0, num_or_size_splits=self.num_gpu, value=label)
 
         return splitted_data, splitted_labels
 
@@ -418,7 +418,7 @@ class DataParallelEngine(Engine):
                     grads.append(expanded_g)
 
                 # Average over the 'tower' dimension.
-                grad = tf.concat(0, grads)
+                grad = tf.concat(axis=0, values=grads)
                 grad = tf.reduce_mean(grad, 0)
 
                 # Keep in mind that the Variables are redundant because they
