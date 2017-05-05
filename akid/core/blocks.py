@@ -405,7 +405,7 @@ class ProcessingLayer(GenerativeBlock):
                                       self.eval,
                                       collections=[collection_to_add])
 
-    def _data_summary(self, data, collection=TRAIN_SUMMARY_COLLECTION):
+    def _data_summary(self, data, sparsity_summary=True, collection=TRAIN_SUMMARY_COLLECTION):
         """
         Helper function to do statistical summary on the bundle of data.
 
@@ -423,9 +423,10 @@ class ProcessingLayer(GenerativeBlock):
             A.summary.histogram(d.op.name + '/activations',
                                 d,
                                 collections=[collection])
-            tf.summary.scalar(d.op.name + '/' + SPARSITY_SUMMARY_SUFFIX,
-                              tf.nn.zero_fraction(d),
-                              collections=[collection])
+            if sparsity_summary:
+                tf.summary.scalar(d.op.name + '/' + SPARSITY_SUMMARY_SUFFIX,
+                                tf.nn.zero_fraction(d),
+                                collections=[collection])
 
     def _post_setup(self):
         super(ProcessingLayer, self)._post_setup()

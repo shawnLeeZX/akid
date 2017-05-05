@@ -1,3 +1,5 @@
+from __future__ import division
+
 import abc
 import sys
 import inspect
@@ -324,7 +326,7 @@ class ColorfulConvLayer(ConvolutionLayer):
         C = X_in[1]
         F_out = super(ColorfulConvLayer, self)._forward(F)
         if self.verbose:
-            self._data_summary(F_out)
+            self._data_summary(F_out, sparsity_summary=False)
 
         C_out = A.nn.depthwise_conv2d(C, self.color_W, helper_methods.expand_kernel(1), self.padding)
         shape = C_out.get_shape().as_list()
@@ -336,7 +338,8 @@ class ColorfulConvLayer(ConvolutionLayer):
             out = A.reshape(out, [shape[0], shape[1], shape[2], -1])
 
             if self.verbose:
-                self._data_summary(C_out)
+                self._data_summary(C_out, sparsity_summary=False)
+                self._data_summary(C_out/F_out, sparsity_summary=False)
         else:
             C_max = A.reduce_max(C_out, axis=3)
 
