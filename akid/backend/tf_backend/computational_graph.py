@@ -100,5 +100,9 @@ def reduce_max(input_tensor, axis=None, keep_dims=False, name=None):
     return tf.reduce_max(input_tensor, axis=axis, keep_dims=keep_dims, name=name)
 
 
+def abs(x, name=None):
+    return tf.abs(x, name=name)
+
+
 def is_tensor(T):
     return type(T) is tf.Tensor

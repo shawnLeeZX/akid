@@ -339,7 +339,7 @@ class ColorfulConvLayer(ConvolutionLayer):
 
             if self.verbose:
                 self._data_summary(C_out, sparsity_summary=False)
-                self._data_summary(C_out/F_out, sparsity_summary=False)
+                self._data_summary(A.abs(C_out)/A.abs(F_out) + A.abs(C_out), sparsity_summary=False)
         else:
             C_max = A.reduce_max(C_out, axis=3)
 
