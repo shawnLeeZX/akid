@@ -16,6 +16,7 @@ from ..core.common import (
 from ..core import initializers
 from .. import backend as A
 import helper_methods
+from .activation_layers import BatchNormalizationLayer
 
 
 class SynapseLayer(ProcessingLayer):
@@ -281,6 +282,7 @@ class ColorfulConvLayer(ConvolutionLayer):
                  equivariant=False,
                  same_ksize=False,
                  verbose=False,
+                 use_bn=True,
                  **kwargs):
         """
         Args:
@@ -296,6 +298,9 @@ class ColorfulConvLayer(ConvolutionLayer):
             same_ksize: bool
                 Use the same ksize with the filter for color filtering. If
                 None, use 1 X 1 filter.
+            use_bn: bool
+                Use BN before addition. It is supposed to be used for testing,
+                given it is harder to get the test case when BN is involved.
             verbose: bool
                 If True, do histogram summary on both convolution map and color
                 map.
@@ -305,6 +310,7 @@ class ColorfulConvLayer(ConvolutionLayer):
         self.verbose = verbose
         self.equivariant = equivariant
         self.same_ksize = same_ksize
+        self.use_bn = use_bn
 
     def _pre_forward(self, input, *args, **kwargs):
         super(ConvolutionLayer, self)._pre_forward(*args, **kwargs)
@@ -321,29 +327,38 @@ class ColorfulConvLayer(ConvolutionLayer):
         if c_W_loss is not None:
             self._loss += c_W_loss
 
+        if self.use_bn:
+            self.color_bn = BatchNormalizationLayer(channel_num=self.out_channel_num, name="color_bn")
+            self.shape_bn = BatchNormalizationLayer(channel_num=self.out_channel_num, name="shape_bn")
+        else:
+            self.color_bn = lambda x: x
+            self.shape_bn = lambda x: x
+
     def _forward(self, X_in):
         F = X_in[0]
         C = X_in[1]
         F_out = super(ColorfulConvLayer, self)._forward(F)
-        if self.verbose:
+        F_out = self.shape_bn(F_out)
+        if self.verbose and not self.is_val:
             self._data_summary(F_out, sparsity_summary=False)
 
         C_out = A.nn.depthwise_conv2d(C, self.color_W, helper_methods.expand_kernel(1), self.padding)
         shape = C_out.get_shape().as_list()
         shape = [shape[0], shape[1], shape[2], 3, self.out_channel_num]
         C_out = A.reshape(C_out, shape)
+        C_out = self.color_bn(C_out)
         if self.equivariant:
             F_out = A.expand_dims(F_out, axis=-2)
             out = F_out + C_out
             out = A.reshape(out, [shape[0], shape[1], shape[2], -1])
 
-            if self.verbose:
+            if self.verbose and not self.is_val:
                 self._data_summary(C_out, sparsity_summary=False)
                 self._data_summary(A.abs(C_out)/(A.abs(F_out) + A.abs(C_out)), sparsity_summary=False)
         else:
             C_max = A.reduce_max(C_out, axis=3)
 
-            if self.verbose:
+            if self.verbose and not self.is_val:
                 self._data_summary(C_max)
 
             out = F_out + C_max

@@ -405,7 +405,7 @@ class ProcessingLayer(GenerativeBlock):
                                       self.eval,
                                       collections=[collection_to_add])
 
-    def _data_summary(self, data, sparsity_summary=True, collection=TRAIN_SUMMARY_COLLECTION):
+    def _data_summary(self, data, collection=TRAIN_SUMMARY_COLLECTION, sparsity_summary=True):
         """
         Helper function to do statistical summary on the bundle of data.
 
