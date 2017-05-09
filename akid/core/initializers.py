@@ -41,7 +41,7 @@ def get(name, **kwargs):
                            " you have some typos.".format(p))
 
     # Fill some default values if not given.
-    if "seed" not in kwargs:
+    if name != "constant" and "seed" not in kwargs:
         # Use default seed.
         kwargs["seed"] = SEED
 
@@ -111,4 +111,8 @@ Initializer("msra",
 Initializer("tensor",
             None,
             "Require fields: value (Tensor holds the initial values)",
+            ("value",))
+Initializer("constant",
+            tf.constant_initializer,
+            "Require fields: value (initial value)",
             ("value",))

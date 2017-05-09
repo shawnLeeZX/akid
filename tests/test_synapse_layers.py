@@ -217,6 +217,7 @@ class TestSynapseLayers(AKidTestCase):
         from akid.layers import ColorfulConvLayer
         l = ColorfulConvLayer(in_channel_num=1,
                               out_channel_num=1,
+                              use_bn=False,
                               init_para={
                                   "name": "tensor",
                                   "value": filter
@@ -309,6 +310,7 @@ class TestSynapseLayers(AKidTestCase):
                                   "name": "tensor",
                                   "value": filter
                               },
+                              use_bn=False,
                               equivariant=True,
                               ksize=3,
                               padding="SAME",

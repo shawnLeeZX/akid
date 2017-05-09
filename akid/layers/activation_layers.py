@@ -408,20 +408,27 @@ class BatchNormalizationLayer(ProcessingLayer):
         else:
             self.log("Gamma is not used during training.")
 
-        self.beta = self._get_variable(
+        self.beta, loss = self._variable_with_weight_decay(
             'beta',
             shape=[self.channel_num],
-            initializer=tf.constant_initializer(self.beta_init))
+            init_para={"name": "constant", "value": self.beta_init})
+
+        if loss is not None:
+            self._loss = loss
+
         if self.fix_gamma:
             self.gamma = tf.constant(
                 self.gamma_init,
                 shape=[] if self.share_gamma else [self.channel_num],
                 name="gamma")
         else:
-            self.gamma = self._get_variable(
+            self.gamma, loss = self._variable_with_weight_decay(
                 'gamma',
                 shape=[] if self.share_gamma else [self.channel_num],
-                initializer=tf.constant_initializer(self.gamma_init))
+                init_para={"name": "constant", "value": self.gamma_init})
+
+            if loss is not None:
+                self._loss += loss
 
         # Bookkeeping a moving average for inference.
 
@@ -438,10 +445,9 @@ class BatchNormalizationLayer(ProcessingLayer):
 
     def _forward(self, input):
         input_shape = input.get_shape().as_list()
-        if len(input_shape) is 2:
-            mean, variance = tf.nn.moments(input, [0])
-        else:
-            mean, variance = tf.nn.moments(input, [0, 1, 2])
+        reduction_axes = list(range(len(input_shape)))
+        del reduction_axes[-1]
+        mean, variance = tf.nn.moments(input, reduction_axes)
 
         with tf.variable_scope(tf.get_variable_scope(), reuse=False):
             # NOTE: Prior to tf 0.12, I did not need the variable scope above

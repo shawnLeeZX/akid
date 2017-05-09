@@ -44,8 +44,10 @@ from . import common
 from .common import (
     TRAIN_SUMMARY_COLLECTION,
     VALID_SUMMARY_COLLECTION,
-    SPARSITY_SUMMARY_SUFFIX
+    SPARSITY_SUMMARY_SUFFIX,
+    FILTER_WEIGHT_COLLECTION,
 )
+from ..core import initializers
 from .. import backend as A
 
 
@@ -320,7 +322,11 @@ class ProcessingLayer(GenerativeBlock):
     list), this layer is supposed to have multiple inputs. Refer to
     `system.GraphSystem` for more explanation.
     """
-    def __init__(self, moving_average_decay=None, inputs=None, **kwargs):
+    def __init__(self,
+                 moving_average_decay=None,
+                 inputs=None,
+                 wd={"type": "l2", "scale": 5e-4},
+                 **kwargs):
         """
         Args:
             moving_average_decay: A fraction. If `None`, When the parameters of
@@ -331,6 +337,10 @@ class ProcessingLayer(GenerativeBlock):
             inputs: list
                 A list to list inputs of this layer. Refer to
                 `system.GraphSystem` for more explanation.
+            wd: dict
+                An dictionary that contains the `type` of regularization to use
+                and its scale, which is to say the multiplier of the
+                regularization loss term. If None, weight decay is not added.
         """
         super(ProcessingLayer, self).__init__(**kwargs)
 
@@ -341,6 +351,7 @@ class ProcessingLayer(GenerativeBlock):
         self.moving_average_decay = moving_average_decay
 
         self.inputs = inputs
+        self.wd = wd
 
         # Bookkeeping all variables.
         self.var_list = []
@@ -361,6 +372,63 @@ class ProcessingLayer(GenerativeBlock):
 
     def set_val(self):
         self.is_val = True
+
+    def _variable_with_weight_decay(self, name, shape, init_para=None):
+        """Helper to create an initialized Variable with weight decay.
+
+        Args:
+            name: name of the variable
+            shape: list of ints
+
+        Returns:
+            (Variable Tensor, Weight Decay Loss) If `self.wd` is `None`, then
+            the returned weight decay loss would be `None`.
+        """
+        if not init_para:
+            init_para = self.init_para
+
+        var = self._get_variable(name, shape, self._get_initializer(init_para))
+        if len(shape) > 1:
+            # Add non-bias filters to the collection.
+            tf.add_to_collection(FILTER_WEIGHT_COLLECTION, var)
+
+        weight_decay = None
+        if self.wd and self.wd["scale"] is not 0:
+            try:
+                self.log("Using {} regularization with scale {}".format(
+                    self.wd["type"], self.wd["scale"]))
+
+                if self.wd["type"] == "l2":
+                    weight_decay = tf.multiply(tf.nn.l2_loss(var),
+                                          self.wd["scale"],
+                                          name=name + '/l2_loss')
+                elif self.wd["type"] == "l1":
+                    weight_decay = tf.multiply(tf.reduce_sum(tf.abs(var)),
+                                          self.wd["scale"],
+                                          name=name + '/l1_loss')
+                else:
+                    raise Exception("Type {} loss is not supported!".format(
+                        self.wd["type"]))
+            except KeyError as e:
+                raise Exception("`{}` not found in the provided regularization"
+                                " parameters, `wd`. Perhaps you have some"
+                                " typos.".format(e.message))
+
+        return var, weight_decay
+
+    def _get_initializer(self, init_para=None):
+        if not init_para:
+            init = initializers.get("default")
+        else:
+            name = init_para["name"]
+            kwargs = init_para.copy()
+            kwargs.pop("name")
+            init = initializers.get(name, **kwargs)
+
+        self.log("Variables of {} uses initializer {} with arguments {}".format(
+            self.name, name, kwargs))
+
+        return init
 
     def _pre_setup(self):
         super(ProcessingLayer, self)._pre_setup()
@@ -405,7 +473,7 @@ class ProcessingLayer(GenerativeBlock):
                                       self.eval,
                                       collections=[collection_to_add])
 
-    def _data_summary(self, data, sparsity_summary=True, collection=TRAIN_SUMMARY_COLLECTION):
+    def _data_summary(self, data, collection=TRAIN_SUMMARY_COLLECTION, sparsity_summary=True):
         """
         Helper function to do statistical summary on the bundle of data.
 

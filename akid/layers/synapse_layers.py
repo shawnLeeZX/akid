@@ -1,21 +1,18 @@
 from __future__ import division
 
 import abc
-import sys
 import inspect
-import math
 
 import tensorflow as tf
 
 from ..core.blocks import ProcessingLayer
 from ..core.common import (
-    FILTER_WEIGHT_COLLECTION,
     AUXILLIARY_SUMMARY_COLLECTION,
     AUXILLIARY_STAT_COLLECTION
 )
-from ..core import initializers
 from .. import backend as A
 import helper_methods
+from .activation_layers import BatchNormalizationLayer
 
 
 class SynapseLayer(ProcessingLayer):
@@ -43,7 +40,6 @@ class SynapseLayer(ProcessingLayer):
                  out_channel_num,
                  initial_bias_value=0,
                  init_para={"name": "truncated_normal", "stddev": 0.1},
-                 wd={"type": "l2", "scale": 5e-4},
                  max_norm=None,
                  do_stat_on_norm=False,
                  **kwargs):
@@ -59,10 +55,6 @@ class SynapseLayer(ProcessingLayer):
                 An dictionary that contains the name of the initializer to use,
                 and its parameters. The name, and parameters have to exactly
                 match with perdefined strings.
-            wd: dict
-                An dictionary that contains the `type` of regularization to use
-                and its scale, which is to say the multiplier of the
-                regularization loss term. If None, weight decay is not added.
             max_norm: a real number
                 A real number that constrains the maximum norm of the filter of
                 a channel could be at largest. If exceeding that value, it
@@ -78,7 +70,6 @@ class SynapseLayer(ProcessingLayer):
         self.in_channel_num = in_channel_num
         self.out_channel_num = out_channel_num
         self.init_para = init_para
-        self.wd = wd
         self.max_norm = max_norm
         self.do_stat_on_norm = do_stat_on_norm
 
@@ -156,64 +147,6 @@ class SynapseLayer(ProcessingLayer):
 
         return self.clipped_filters
 
-    def _variable_with_weight_decay(self, name, shape, init_para=None):
-        """Helper to create an initialized Variable with weight decay.
-
-        Args:
-            name: name of the variable
-            shape: list of ints
-
-        Returns:
-            (Variable Tensor, Weight Decay Loss) If `self.wd` is `None`, then
-            the returned weight decay loss would be `None`.
-        """
-        if not init_para:
-            init_para = self.init_para
-
-        var = self._get_variable(name, shape, self._get_initializer(init_para))
-        if len(shape) > 1:
-            # Add non-bias filters to the collection.
-            tf.add_to_collection(FILTER_WEIGHT_COLLECTION, var)
-
-        weight_decay = None
-        if self.wd and self.wd["scale"] is not 0:
-            try:
-                self.log("Using {} regularization with scale {}".format(
-                    self.wd["type"], self.wd["scale"]))
-
-                if self.wd["type"] == "l2":
-                    weight_decay = tf.multiply(tf.nn.l2_loss(var),
-                                          self.wd["scale"],
-                                          name=name + '/l2_loss')
-                elif self.wd["type"] == "l1":
-                    weight_decay = tf.multiply(tf.reduce_sum(tf.abs(var)),
-                                          self.wd["scale"],
-                                          name=name + '/l1_loss')
-                else:
-                    self.log.error("Type {} loss is not supported!".format(
-                        self.wd["type"]))
-                    sys.exit(1)
-            except KeyError as e:
-                raise Exception("`{}` not found in the provided regularization"
-                                " parameters, `wd`. Perhaps you have some"
-                                " typos.".format(e.message))
-
-        return var, weight_decay
-
-    def _get_initializer(self, init_para=None):
-        if not init_para:
-            init = initializers.get("default")
-        else:
-            name = init_para["name"]
-            kwargs = init_para.copy()
-            kwargs.pop("name")
-            init = initializers.get(name, **kwargs)
-
-        self.log("Weights of {} uses initializer {} with arguments {}".format(
-            self.name, name, kwargs))
-
-        return init
-
 
 class ConvolutionLayer(SynapseLayer):
     def __init__(self, ksize, strides=1, padding="SAME", depthwise=False, **kwargs):
@@ -281,6 +214,7 @@ class ColorfulConvLayer(ConvolutionLayer):
                  equivariant=False,
                  same_ksize=False,
                  verbose=False,
+                 use_bn=True,
                  **kwargs):
         """
         Args:
@@ -296,6 +230,9 @@ class ColorfulConvLayer(ConvolutionLayer):
             same_ksize: bool
                 Use the same ksize with the filter for color filtering. If
                 None, use 1 X 1 filter.
+            use_bn: bool
+                Use BN before addition. It is supposed to be used for testing,
+                given it is harder to get the test case when BN is involved.
             verbose: bool
                 If True, do histogram summary on both convolution map and color
                 map.
@@ -305,6 +242,7 @@ class ColorfulConvLayer(ConvolutionLayer):
         self.verbose = verbose
         self.equivariant = equivariant
         self.same_ksize = same_ksize
+        self.use_bn = use_bn
 
     def _pre_forward(self, input, *args, **kwargs):
         super(ConvolutionLayer, self)._pre_forward(*args, **kwargs)
@@ -321,29 +259,38 @@ class ColorfulConvLayer(ConvolutionLayer):
         if c_W_loss is not None:
             self._loss += c_W_loss
 
+        if self.use_bn:
+            self.color_bn = BatchNormalizationLayer(channel_num=self.out_channel_num, name="color_bn")
+            self.shape_bn = BatchNormalizationLayer(channel_num=self.out_channel_num, name="shape_bn")
+        else:
+            self.color_bn = lambda x: x
+            self.shape_bn = lambda x: x
+
     def _forward(self, X_in):
         F = X_in[0]
         C = X_in[1]
         F_out = super(ColorfulConvLayer, self)._forward(F)
-        if self.verbose:
+        F_out = self.shape_bn(F_out)
+        if self.verbose and not self.is_val:
             self._data_summary(F_out, sparsity_summary=False)
 
         C_out = A.nn.depthwise_conv2d(C, self.color_W, helper_methods.expand_kernel(1), self.padding)
         shape = C_out.get_shape().as_list()
         shape = [shape[0], shape[1], shape[2], 3, self.out_channel_num]
         C_out = A.reshape(C_out, shape)
+        C_out = self.color_bn(C_out)
         if self.equivariant:
             F_out = A.expand_dims(F_out, axis=-2)
             out = F_out + C_out
             out = A.reshape(out, [shape[0], shape[1], shape[2], -1])
 
-            if self.verbose:
+            if self.verbose and not self.is_val:
                 self._data_summary(C_out, sparsity_summary=False)
                 self._data_summary(A.abs(C_out)/(A.abs(F_out) + A.abs(C_out)), sparsity_summary=False)
         else:
             C_max = A.reduce_max(C_out, axis=3)
 
-            if self.verbose:
+            if self.verbose and not self.is_val:
                 self._data_summary(C_max)
 
             out = F_out + C_max
