@@ -28,6 +28,9 @@ flags.DEFINE_integer("gpu_start_No", 0, "The start No of GPU to use. This flag"
                      " running training instances using subshell. For example,"
                      " if you are going to use GPU 1-9, you need to pass"
                      " --gpu_start_no=1.")
+flags.DEFINE_boolean("chk_point", False, "Whether to continue from check point."
+                     " This option is for the interrupted training instances. Make sure"
+                     " `log_dir` is the same to let akid find the checkpoint.")
 
 NETWORK_LOG_HEADER = "Network Setup: \\n"
 
@@ -46,8 +49,8 @@ kid = setup()
 import inspect
 from akid.utils import glog as log
 log.info("{}" + inspect.getsource(setup))
-kid.practice()
-    """.format(NETWORK_LOG_HEADER)
+kid.practice(continue_from_chk_point={})
+    """.format(NETWORK_LOG_HEADER, FLAGS.chk_point)
 
     training_code = setup_func + training_call
     # Save code to file.
