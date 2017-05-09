@@ -252,10 +252,9 @@ class GroupProcessingLayer(ProcessingLayer):
             self.output_shape = input.get_shape().as_list()
             self.rank = len(self.output_shape)
             if self.output_shape[-1] % self.group_size is not 0:
-                self.log.error("Group size {} should evenly divide output channel"
-                               " number {}".format(self.group_size,
-                                                   self.output_shape[-1]))
-                sys.exit()
+                raise Exception("Group size {} should evenly divide output channel"
+                                " number {}".format(self.group_size,
+                                                    self.output_shape[-1]))
             out_channel_num = self.output_shape[-1]
             self.num_group = out_channel_num // self.group_size
             self.log("Feature maps of layer {} is divided into {} group".format(

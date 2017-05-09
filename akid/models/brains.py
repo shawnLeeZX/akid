@@ -456,7 +456,7 @@ class ResNet(GraphBrain):
 
             if self.use_gsmax and n_input_plane > 16:
                 self.attach(GroupSoftmaxLayer(
-                    group_size=self.group_size*n_input_plane/160,
+                    group_size=self.group_size*n_input_plane/(16*self.width),
                     name="gsmax_{}_{}".format(self.residual_block_No, i)))
             else:
                 self.attach(ReLULayer(name="relu_{}_{}".format(
@@ -594,7 +594,7 @@ class CifarResNet(ResNet):
         self.attach(BatchNormalizationLayer(n_stages[3], name="bn_out"))
         if self.use_gsmax:
             self.attach(GroupSoftmaxLayer(
-                group_size=self.group_size*640/160,
+                group_size=self.group_size*(n_stages[3], n_stages[1]),
                 name="gsmax_out"))
         else:
             self.attach(ReLULayer(name="relu_out"))
