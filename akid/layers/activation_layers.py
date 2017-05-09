@@ -252,10 +252,9 @@ class GroupProcessingLayer(ProcessingLayer):
             self.output_shape = input.get_shape().as_list()
             self.rank = len(self.output_shape)
             if self.output_shape[-1] % self.group_size is not 0:
-                self.log.error("Group size {} should evenly divide output channel"
-                               " number {}".format(self.group_size,
-                                                   self.output_shape[-1]))
-                sys.exit()
+                raise Exception("Group size {} should evenly divide output channel"
+                                " number {}".format(self.group_size,
+                                                    self.output_shape[-1]))
             out_channel_num = self.output_shape[-1]
             self.num_group = out_channel_num // self.group_size
             self.log("Feature maps of layer {} is divided into {} group".format(
@@ -409,20 +408,27 @@ class BatchNormalizationLayer(ProcessingLayer):
         else:
             self.log("Gamma is not used during training.")
 
-        self.beta = self._get_variable(
+        self.beta, loss = self._variable_with_weight_decay(
             'beta',
             shape=[self.channel_num],
-            initializer=tf.constant_initializer(self.beta_init))
+            init_para={"name": "constant", "value": self.beta_init})
+
+        if loss is not None:
+            self._loss = loss
+
         if self.fix_gamma:
             self.gamma = tf.constant(
                 self.gamma_init,
                 shape=[] if self.share_gamma else [self.channel_num],
                 name="gamma")
         else:
-            self.gamma = self._get_variable(
+            self.gamma, loss = self._variable_with_weight_decay(
                 'gamma',
                 shape=[] if self.share_gamma else [self.channel_num],
-                initializer=tf.constant_initializer(self.gamma_init))
+                init_para={"name": "constant", "value": self.gamma_init})
+
+            if loss is not None:
+                self._loss += loss
 
         # Bookkeeping a moving average for inference.
 
