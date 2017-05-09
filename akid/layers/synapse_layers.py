@@ -368,6 +368,10 @@ class SLUConvLayer(ConvolutionLayer):
 
 
 class InnerProductLayer(SynapseLayer):
+    def __init__(self, wd_on_bias=False, **kwargs):
+        super(InnerProductLayer, self).__init__(**kwargs)
+        self.wd_on_bias = wd_on_bias
+
     def _forward(self, input):
         input = self._reshape(input)
         ip = tf.matmul(input, self.weights)
@@ -409,10 +413,21 @@ class InnerProductLayer(SynapseLayer):
         self.weights, self._loss = self._variable_with_weight_decay(
             'weights', self.shape)
         if self.initial_bias_value is not None:
-            self.biases = self._get_variable(
-                'biases',
-                shape=[self.out_channel_num],
-                initializer=tf.constant_initializer(self.initial_bias_value))
+            if self.wd_on_bias:
+                self.biases, loss = self._variable_with_weight_decay(
+                    'biases',
+                    shape=[self.out_channel_num],
+                    init_para={"name": "constant", "value": self.initial_bias_value})
+                if loss is not None:
+                    if self._loss is not None:
+                        self._loss += loss
+                    else:
+                        self._loss = loss
+            else:
+                self.biases = self._get_variable(
+                    'biases',
+                    shape=[self.out_channel_num],
+                    initializer=tf.constant_initializer(self.initial_bias_value))
 
 
 class InvariantInnerProductLayer(SynapseLayer):
