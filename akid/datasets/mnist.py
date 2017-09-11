@@ -29,8 +29,7 @@ class MNISTFeedSource(InMemoryFeedSource, SupervisedSource):
         if not os.path.exists(filepath):
             filepath, _ = urllib.urlretrieve(self.url + filename, filepath)
             statinfo = os.stat(filepath)
-            self.log('Successfully downloaded', filename, statinfo.st_size,
-                     'bytes.')
+            self.log('Successfully downloaded {} {} bytes.'.format(filename, statinfo.st_size))
         return filepath
 
     def _load(self, fake_data=False, one_hot=False):
