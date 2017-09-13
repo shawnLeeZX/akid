@@ -1,14 +1,15 @@
 """
 Tensorflow backend for akid.
 
- Usage
-================================================================================
+NOTE
+# #########################################################################
 To use tensorflow backend to execute/evaluate any graph built, run `init`
 beforehand.
 """
-
-
+import numpy as np
 import tensorflow as tf
+
+from ..common import *
 
 
 # Build a global session to use
@@ -46,9 +47,13 @@ def get_variable(name, shape=None,
         raise NotImplementedError("Normal Variable creation has not been implemented yet.")
 
 
-def Tensor(X_in):
+def Tensor(X_in, require_grad=False):
     """
     Get a tensor from a constant (array).
+
+    Args:
+        require_grad: It is for compatibility with PyTorch. Not used here,
+            since in tensorflow tensor can participate in auto-differentiation.
     """
     return tf.constant(X_in)
 
@@ -106,3 +111,39 @@ def abs(x, name=None):
 
 def is_tensor(T):
     return type(T) is tf.Tensor
+
+
+def mul(a, b, name=None):
+    return tf.multiply(a, b, name)
+
+
+def get_shape(t):
+    return t.get_shape().as_list()
+
+
+def standardize_data_format(data, old_format):
+    """
+    Stardardize data to Tensorflow format, which is first last.
+
+    Args:
+        data: Tensor or numpy array.
+            The input data.
+        old_format: str
+            A string describe the original format. For example, if converting
+            from Tensorflow, it would be 'hwio' for parameter. See
+            `SUPPORT_DATA_FORMAT` and `SUPPORT_PARA_FORMAT` for supported
+            strings.
+    """
+    if old_format not in SUPPORT_PARA_FORMAT \
+       and old_format not in SUPPORT_DATA_FORMAT:
+        raise ValueError("The data format {} is not well specified.".format(old_format))
+
+    if old_format in SUPPORT_PARA_FORMAT:
+        out_format = 'hwio'
+    else:
+        out_format = 'nhwc'
+
+    if type(data) == np.ndarray:
+        return np.einsum('{}->{}'.format(old_format, out_format), data)
+    else:
+        raise ValueError("Type {} is not supported.".format(type(data)))

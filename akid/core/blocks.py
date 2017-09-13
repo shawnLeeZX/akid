@@ -399,13 +399,13 @@ class ProcessingLayer(GenerativeBlock):
                     self.wd["type"], self.wd["scale"]))
 
                 if self.wd["type"] == "l2":
-                    weight_decay = tf.multiply(tf.nn.l2_loss(var),
-                                          self.wd["scale"],
-                                          name=name + '/l2_loss')
+                    weight_decay = A.mul(A.nn.l2_loss(var),
+                                         self.wd["scale"],
+                                         name=name + '/l2_loss')
                 elif self.wd["type"] == "l1":
-                    weight_decay = tf.multiply(tf.reduce_sum(tf.abs(var)),
-                                          self.wd["scale"],
-                                          name=name + '/l1_loss')
+                    weight_decay = A.mul(A.nn.l1_loss(var),
+                                         self.wd["scale"],
+                                         name=name + '/l1_loss')
                 else:
                     raise Exception("Type {} loss is not supported!".format(
                         self.wd["type"]))
@@ -515,7 +515,7 @@ class ProcessingLayer(GenerativeBlock):
         # Log parameter number of this layer.
         total_para_num = 0
         for var in self.var_list:
-            shape = var.get_shape().as_list()
+            shape = A.get_shape(var)
             para_num = 1
             for dim in shape:
                 para_num *= dim

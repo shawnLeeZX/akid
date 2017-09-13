@@ -76,5 +76,17 @@ def relu(X_in, name=None):
     return tf.nn.relu(X_in, name)
 
 
-def conv_2d(input, filter, strides, padding, name=None):
+def conv2d(input, filter, strides, padding, name=None):
     return tf.nn.conv2d(input, filter, strides, padding, use_cudnn_on_gpu=None, data_format=None, name=name)
+
+
+def l2_loss(var):
+    return tf.nn.l2_loss(var),
+
+
+def l1_loss(var):
+    return tf.reduce_sum(tf.abs(var))
+
+
+def bias_add(v, b):
+    return tf.nn.bias_add(v, b)

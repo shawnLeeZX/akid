@@ -6,8 +6,11 @@ arbitrary, and abstracted as backends.
 """
 import os
 
+# Backends
+# #########################################################################
 TF = 'tensorflow'
 TORCH = 'pytorch'
+
 
 if 'AKID_BACKEND' in os.environ:
     _backend = os.environ['AKID_BACKEND']
@@ -19,6 +22,13 @@ else:
 if _BACKEND ==  TF:
     from .tf_backend import *
 elif _BACKEND == TORCH:
-    raise Exception("Not implemented yet")
+    from .th_backend import *
 else:
     raise ValueError("Backend {} is not supported.".format(_BACKEND))
+
+
+def backend():
+    """
+    Public interface to get the backend in use.
+    """
+    return _BACKEND

@@ -17,6 +17,49 @@ class TestSynapseLayers(AKidTestCase):
     def tearDown(self):
         A.close()
 
+    def test_conv_forward(self):
+        filter = np.array([[
+            [[1, 1, 1],
+             [1, 1, 1],
+             [1, 1, 1]],
+            [[2, 2, 2],
+             [2, 2, 2],
+             [2, 2, 2]]
+        ]],
+                          dtype=np.float32)
+        X_out_ref = np.array([[[[46]]]],
+                        dtype=np.float32)
+        X_in = np.array(
+            [[
+                [[1, 1, 1],
+                 [1, 1, 1],
+                 [1, 1, 1]],
+                [[2, 2, 2],
+                 [2, 2, 2],
+                 [2, 2, 2]]
+            ]],
+            dtype=np.float32
+        )
+        filter = A.standardize_data_format(filter, 'oihw')
+        X_out_ref = A.standardize_data_format(X_out_ref, 'nchw')
+        X_in = A.standardize_data_format(X_in, 'nchw')
+
+        l = ConvolutionLayer(ksize=[3, 3],
+                             strides=[1, 1, 1, 1],
+                             in_channel_num=2,
+                             out_channel_num=1,
+                             padding="VALID",
+                             initial_bias_value=1.,
+                             init_para={"name": "tensor",
+                                        "value": filter},
+                             do_summary=False,
+                             name="test_conv_forward")
+        X_out = l.forward(A.Tensor(X_in, require_grad=True))
+
+        A.init()
+        X_out_eval = A.eval(X_out)
+        assert (X_out_eval == X_out_ref).all(), "\nX_out_eval = {}\nX_out_ref = {}".format(X_out_eval, X_out_ref)
+
     def test_conv_backward(self):
         filter = np.array([[
             [[1, 1, 1],

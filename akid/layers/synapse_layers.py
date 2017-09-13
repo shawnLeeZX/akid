@@ -166,21 +166,22 @@ class ConvolutionLayer(SynapseLayer):
             self.biases = self._get_variable(
                 'biases',
                 [self.out_channel_num if not self.depthwise else self.out_channel_num * self.in_channel_num],
-                initializer=tf.constant_initializer(self.initial_bias_value))
+                initializer=self._get_initializer(init_para={"name": "constant",
+                                                             "value": self.initial_bias_value}))
 
     def _pre_forward(self, input, *args, **kwargs):
         super(ConvolutionLayer, self)._pre_forward(*args, **kwargs)
         self.log("Padding method {}.".format(self.padding), debug=True)
-        self.input_shape = input.get_shape().as_list()
+        self.input_shape = A.get_shape(input)
 
     def _forward(self, input):
         if self.depthwise:
             conv = A.nn.depthwise_conv2d(input, self.weights, self.strides, self.padding)
         else:
-            conv = tf.nn.conv2d(input, self.weights, self.strides, self.padding)
+            conv = A.nn.conv2d(input, self.weights, self.strides, self.padding)
 
         if self.initial_bias_value is not None:
-            output = tf.nn.bias_add(conv, self.biases)
+            output = A.nn.bias_add(conv, self.biases)
         else:
             output = conv
 
