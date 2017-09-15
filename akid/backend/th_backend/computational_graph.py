@@ -103,7 +103,10 @@ def get_name(v):
     The purpose of the function is to give a unique identifier that can be used
     to identify a Tensor.
     """
-    return name_by_tensor[v]
+    try:
+        return name_by_tensor[v]
+    except KeyError:
+        return None
 
 
 def standardize_data_format(data, old_format):

@@ -9,7 +9,7 @@ beforehand.
 import numpy as np
 import tensorflow as tf
 
-from ..common import *
+from .. import computational_graph as cg_general
 
 
 # Build a global session to use
@@ -153,11 +153,11 @@ def standardize_data_format(data, old_format):
             `SUPPORT_DATA_FORMAT` and `SUPPORT_PARA_FORMAT` for supported
             strings.
     """
-    if old_format not in SUPPORT_PARA_FORMAT \
-       and old_format not in SUPPORT_DATA_FORMAT:
+    if old_format not in cg_general.SUPPORT_PARA_FORMAT \
+       and old_format not in cg_general.SUPPORT_DATA_FORMAT:
         raise ValueError("The data format {} is not well specified.".format(old_format))
 
-    if old_format in SUPPORT_PARA_FORMAT:
+    if old_format in cg_general.SUPPORT_PARA_FORMAT:
         out_format = 'hwio'
     else:
         out_format = 'nhwc'

@@ -475,7 +475,9 @@ class ProcessingLayer(GenerativeBlock):
                 else TRAIN_SUMMARY_COLLECTION
             if self.data is not None:
                 if type(self.data) is not list:
-                    self._data_summary(self.data, collection_to_add)
+                    name = A.get_name(self.data)
+                    if name:
+                        self._data_summary(self.data, collection_to_add)
 
             if self.loss is not None:
                 name =  A.get_name(self.loss)
