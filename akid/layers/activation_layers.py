@@ -110,7 +110,7 @@ class MaxPoolingLayer(ProcessingLayer):
 
 class ReLULayer(ProcessingLayer):
     def _forward(self, input):
-        self._data = tf.nn.relu(input)
+        self._data = A.nn.relu(input)
         return self._data
 
     def backward(self, X_in):

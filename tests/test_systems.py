@@ -1,6 +1,6 @@
 import numpy as np
 
-from akid.utils.test import AKidTestCase, main
+from akid.utils.test import AKidTestCase, main, debug_on
 from akid.layers import ReLULayer, MaxPoolingLayer
 from akid import backend as A
 
@@ -10,6 +10,35 @@ log.init()
 
 
 class TestSystem(AKidTestCase):
+    def test_sequential_system(self):
+        from akid import SequentialSystem
+        s = SequentialSystem(name="test_sequential_system")
+        s.attach(MaxPoolingLayer(ksize=[2, 2],
+                                 strides=[1, 1, 1, 1],
+                                 padding="VALID",
+                                 name="max_pool"))
+        s.attach(ReLULayer(name="relu"))
+
+
+        X_in = np.array([[[1., 2],
+                          [3, 4]],
+                         [[-5, -6],
+                          [-7, -8]]], dtype=np.float32)
+        X_in = np.expand_dims(X_in, axis=0)
+        X_in = A.standardize_data_format(X_in, old_format='nchw')
+
+        X_f_out_ref = np.array([[[4.]], [[0]]], dtype=np.float32)
+        X_f_out_ref = np.expand_dims(X_f_out_ref, axis=0)
+        X_f_out_ref = A.standardize_data_format(X_f_out_ref, old_format='nchw')
+
+        X_f_out = s.forward(A.Tensor(X_in))
+
+        A.init()
+        X_f_out_eval = A.eval(X_f_out)
+
+        assert (X_f_out_eval == X_f_out_ref).all(), \
+            "X_f_out_eval: {}; X_f_out_ref{}".format(X_f_out_eval, X_f_out_ref)
+
     def test_sequential_g_system(self):
         from akid import SequentialGSystem
         s = SequentialGSystem(name="test_sequential_g_system")
@@ -25,19 +54,19 @@ class TestSystem(AKidTestCase):
                           [3, 4]],
                          [[-5, -6],
                           [-7, -8]]], dtype=np.float32)
-        X_in = np.einsum("chw->hwc", X_in)
         X_in = np.expand_dims(X_in, axis=0)
+        X_in = A.standardize_data_format(X_in, old_format='nchw')
 
         X_f_out_ref = np.array([[[4.]], [[0]]], dtype=np.float32)
-        X_f_out_ref = np.einsum("chw->hwc", X_f_out_ref)
-        X_f_out_ref = np.expand_dims(X_f_out_ref, axis=1)
+        X_f_out_ref = np.expand_dims(X_f_out_ref, axis=0)
+        X_f_out_ref = A.standardize_data_format(X_f_out_ref, old_format='nchw')
 
         X_b_out_ref = np.array([[[0., 0],
                                  [0, 4]],
                                 [[0, 0],
                                  [0, 0]]], dtype=np.float32)
-        X_b_out_ref = np.einsum("chw->hwc", X_b_out_ref)
         X_b_out_ref = np.expand_dims(X_b_out_ref, axis=0)
+        X_b_out_ref = A.standardize_data_format(X_b_out_ref, old_format='nchw')
 
         X_f_out = s.forward(A.Tensor(X_in))
         X_b_out = s.backward(X_f_out)

@@ -106,19 +106,26 @@ class SequentialSystem(System):
         """
         data = data_in
         try:
-            shape = data.get_shape().as_list()
+            shape = A.get_shape(data)
         except ValueError:
             shape = None
 
         self.log("Doing forward propagation.")
         self.log("System input shape: {}".format(shape))
+        previous_data_name = 'system_in'
         for l in self.blocks:
             self.log("Setting up block {}.".format(l.name))
             l.forward(data)
-            self.log("Connected: {} -> {}".format(data.name,
-                                                  l.data.name))
+
+            name = A.get_name(data)
+            p_name = name if name else previous_data_name
+            name = A.get_name(l.data)
+            n_name = name if name else l.name
+            self.log("Connected: {} -> {}".format(p_name, n_name))
+            previous_data_name = l.name
+
             if shape:
-                self.log("Top shape: {}".format(l.data.get_shape().as_list()))
+                self.log("Top shape: {}".format(A.get_shape(l.data)))
             data = l.data
 
         self._data = data
@@ -159,7 +166,7 @@ class GraphSystem(SequentialSystem):
         # input.
         data = data_in if type(data_in) is list else [data_in]
         self.log("System input shape: {}".format(
-            [d.get_shape().as_list() for d in data]))
+            [A.get_shape(d) for d in data]))
 
         for i, l in enumerate(self.blocks):
             self.log("Setting up block {}.".format(l.name))
@@ -227,8 +234,8 @@ class GraphSystem(SequentialSystem):
                     l.data.name if dtype is not tuple and dtype is not list
                     else [d.name for d in l.data]))
                 self.log("Top shape: {}".format(
-                    l.data.get_shape().as_list() if dtype is not tuple and dtype is not list
-                    else [d.get_shape().as_list() for d in l.data]))
+                    A.get_shape(l.data) if dtype is not tuple and dtype is not list
+                    else [A.get_shape(d) for d in l.data]))
             else:
                 self.log("Inputs: {}. No outputs.".format(in_name))
 
@@ -257,7 +264,7 @@ class SequentialGSystem(GraphSystem):
 
         data = X_in
         try:
-            shape = data.get_shape().as_list()
+            shape = A.get_shape(data)
         except ValueError:
             shape = None
 
@@ -268,7 +275,7 @@ class SequentialGSystem(GraphSystem):
             self.log("Connected: {} -> {}".format(data.name,
                                                   l.data_g.name))
             if shape:
-                self.log("Top shape: {}".format(l.data.get_shape().as_list()))
+                self.log("Top shape: {}".format(A.get_shape(l.data)))
             data = l.data_g
 
         self._data_g = data

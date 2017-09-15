@@ -27,6 +27,22 @@ def conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
 
 
 @cache_name_if_exist
+def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
+    assert len(ksize) == 4, "Only ksize of dim 4 is supported"
+    padding = padding_str2tuple(padding, ksize[1], ksize[2])
+    # The format of torch is two tuple ksize instead of 4.
+    _ksize = []
+    _ksize.append(ksize[1])
+    _ksize.append(ksize[2])
+    return F.max_pool2d(value, _ksize, strides, padding)
+
+
+@cache_name_if_exist
+def relu(v):
+    return F.relu(v)
+
+
+@cache_name_if_exist
 def zero_fraction(data, name=None):
     return th.mean((data == 0).float())
 
