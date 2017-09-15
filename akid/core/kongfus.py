@@ -16,7 +16,7 @@ class LearningRateScheme(object):
     exp_decay = 1
     placeholder = 2
 
-
+# TODO: step is not a tensor now, it may not be incremented during optimization.
 class KongFu(ShadowableBlock):
     """
     An top level abstract class to compute gradients given a loss.
@@ -81,8 +81,7 @@ class KongFu(ShadowableBlock):
             else:
                 decay_steps = self.lr_scheme["decay_steps"]
 
-            with tf.variable_scope(common.global_var_scope, reuse=True):
-                step = tf.get_variable(common.GLOBAL_STEP)
+            step = A.get_step()
 
             self.learning_rate = tf.train.exponential_decay(
                 base_lr,
@@ -109,9 +108,9 @@ class KongFu(ShadowableBlock):
 
     def _post_setup(self):
         if self.do_summary:
-            tf.summary.scalar(LEARNING_RATE_TAG,
-                              self.learning_rate,
-                              collections=[TRAINING_DYNAMICS_COLLECTION])
+            A.summary.scalar(LEARNING_RATE_TAG,
+                             self.learning_rate,
+                             collections=[TRAINING_DYNAMICS_COLLECTION])
 
     @property
     def data(self):

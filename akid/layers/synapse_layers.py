@@ -156,9 +156,18 @@ class ConvolutionLayer(SynapseLayer):
         self.padding = padding
         self.depthwise = depthwise
 
+    def get_weigth_shape(self):
+        if A.backend() == A.TORCH:
+            shape = [self.out_channel_num, self.in_channel_num,
+                          self.ksize[1], self.ksize[2]]
+        else:
+            shape = [self.ksize[1], self.ksize[2],
+                          self.in_channel_num, self.out_channel_num]
+
+        return shape
+
     def _para_init(self):
-        self.shape = [self.ksize[1], self.ksize[2],
-                      self.in_channel_num, self.out_channel_num]
+        self.shape = self.get_weigth_shape()
         self.weights, self._loss \
             = self._variable_with_weight_decay("weights", self.shape)
 
@@ -176,16 +185,17 @@ class ConvolutionLayer(SynapseLayer):
 
     def _forward(self, input):
         if self.depthwise:
-            conv = A.nn.depthwise_conv2d(input, self.weights, self.strides, self.padding)
+            conv = A.nn.depthwise_conv2d(input,
+                                         self.weights,
+                                         self.biases,
+                                         self.strides,
+                                         self.padding)
         else:
-            conv = A.nn.conv2d(input, self.weights, self.strides, self.padding)
+            conv = A.nn.conv2d(input, self.weights,
+                               self.biases, self.strides,
+                               self.padding, name='fmap')
 
-        if self.initial_bias_value is not None:
-            output = A.nn.bias_add(conv, self.biases)
-        else:
-            output = conv
-
-        self._data = output
+        self._data = conv
 
         return self._data
 

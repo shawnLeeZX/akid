@@ -47,6 +47,16 @@ def get_variable(name, shape=None,
         raise NotImplementedError("Normal Variable creation has not been implemented yet.")
 
 
+def get_name(v):
+    """
+    Only return the last part in the name hierarchy. For the reason, see the
+    same function of PyTorch backend.
+    """
+    parts = v.op.name.split('/')
+    name = parts[-1]
+    return name
+
+
 def Tensor(X_in, require_grad=False):
     """
     Get a tensor from a constant (array).
@@ -55,7 +65,7 @@ def Tensor(X_in, require_grad=False):
         require_grad: It is for compatibility with PyTorch. Not used here,
             since in tensorflow tensor can participate in auto-differentiation.
     """
-    return tf.constant(X_in)
+    return tf.constant(X_in, dtype=tf.float32)
 
 
 def eval(V):
@@ -63,6 +73,11 @@ def eval(V):
     Convert variable to numpy array.
     """
     return sess.run(V)
+
+
+def run(op, feed_dict=None):
+    """Run an operation with arguments. For compatibility with Tensorflow"""
+    return sess.run(op, feed_dict=feed_dict)
 
 
 def split(split_dim, num_split, value, name="split"):
@@ -115,6 +130,10 @@ def is_tensor(T):
 
 def mul(a, b, name=None):
     return tf.multiply(a, b, name)
+
+
+def zero_fraction(data):
+    tf.nn.zero_fraction(data)
 
 
 def get_shape(t):

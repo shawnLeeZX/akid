@@ -161,7 +161,7 @@ class Brain(System, ProcessingLayer):
         self._gather_train_ops()
 
         if self.do_summary:
-            tf.summary.scalar(self.loss.op.name, self.loss)
+            A.summary.scalar(self.loss.op.name, self.loss)
 
     def _gather_loss_graphs(self):
         """
@@ -217,11 +217,13 @@ class Brain(System, ProcessingLayer):
     def attach(self, block_in):
         if type(block_in) is list:
             for l in block_in:
+                l.do_summary_on_val = self.do_summary_on_val
                 self.attach(l)
         else:
             # A brain should only contain data processing layers.
             assert issubclass(type(block_in), ProcessingLayer), \
                 "A `Brain` should only contain `ProcessingLayer`s."
+            block_in.do_summary_on_val = self.do_summary_on_val
             super(Brain, self).attach(block_in)
             # Pass options down.
             if self.moving_average_decay:

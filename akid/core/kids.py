@@ -16,13 +16,9 @@ from . import engines
 from .blocks import Block
 from .kongfus import LearningRateScheme
 from . import common
-from .common import (
-    TRAIN_SUMMARY_COLLECTION,
-    VALID_SUMMARY_COLLECTION,
-    TRAINING_DYNAMICS_COLLECTION,
-)
 
 
+# TODO: kid is probably broken.
 class Kid(Block):
     """
     Kid is a class to assemble a `Sensor`, for supplying data, a
@@ -149,11 +145,7 @@ class Kid(Block):
 
         # Set up logging facilities.
         if log_dir is None:
-            # Naming log dir according to time if not specified.
-            log_dir = "log/" + time.ctime()
-            # As ':' is widely used in network protocols, replace it with '_'
-            # to avoid conflict.
-            self.log_dir = log_dir.replace(':', '_')
+            self.log_dir = log.get_random_log_dir()
         else:
             self.log_dir = os.path.normpath(log_dir)
         self.log_filepath = self.log_dir + "/training.log"
@@ -263,7 +255,11 @@ class Kid(Block):
         """
         with self.graph.as_default():
             common.init()
-            self.global_step_tensor = common.global_step_tensor
+            # SummaryWriter to output summaries and the Graph.
+            A.summary.init(self.log_dir)
+            self.log("Summary event file will be saved to {}".format(
+                self.log_dir))
+            self.global_step_tensor = A.get_step()
             self._setup_log()
             self._setup_sensor()
             self._setup_engine()
@@ -355,22 +351,16 @@ class Kid(Block):
 
     def _setup_summary(self):
         if self.do_summary:
-            # SummaryWriter to output summaries and the Graph.
-            self.summary_writer = tf.summary.FileWriter(self.log_dir)
-            self.log("Summary event file will be saved to {}".format(
-                self.log_dir))
-            # Build the summary operation based on the TF collection of
-            # Summaries.
-            summary_ops = tf.get_collection(TRAIN_SUMMARY_COLLECTION)
-            summary_ops.extend(tf.get_collection(
+            summary_ops = A.get_collection(TRAIN_SUMMARY_COLLECTION)
+            summary_ops.extend(A.get_collection(
                 TRAINING_DYNAMICS_COLLECTION))
             if self.summary_on_val:
-                val_summary_ops = tf.get_collection(
+                val_summary_ops = A.get_collection(
                     VALID_SUMMARY_COLLECTION)
                 summary_ops.extend(val_summary_ops)
-            self.summary_op = tf.summary.merge(summary_ops)
+            self.summary_op = A.summary.merge(summary_ops)
             # Write the brain to tensorflow event file.
-            self.summary_writer.add_graph(self.graph)
+            A.summary.add_graph(self.graph)
 
     def _setup_sensor(self):
         # Build training graph.

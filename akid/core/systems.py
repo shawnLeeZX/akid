@@ -80,6 +80,7 @@ class System(GenerativeBlock):
         return self._data
 
     def attach(self, block_in):
+        block_in.do_summary = self.do_summary
         self.blocks.append(block_in)
 
 
@@ -113,7 +114,6 @@ class SequentialSystem(System):
         self.log("System input shape: {}".format(shape))
         for l in self.blocks:
             self.log("Setting up block {}.".format(l.name))
-            l.do_summary = self.do_summary
             l.forward(data)
             self.log("Connected: {} -> {}".format(data.name,
                                                   l.data.name))

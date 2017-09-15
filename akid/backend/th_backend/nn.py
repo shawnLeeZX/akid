@@ -4,26 +4,31 @@ from __future__ import division
 import torch as th
 from torch.nn import functional as F
 
-from .computational_graph import get_shape
+from .computational_graph import cache_name_if_exist
+from . import computational_graph as cg
 
 
-def l2_loss(var):
+@cache_name_if_exist
+def l2_loss(var, name=None):
     return th.sum(var * var)
 
 
-def l1_loss(var):
+@cache_name_if_exist
+def l1_loss(var, name=None):
     return th.sum(th.abs(var))
 
 
-def conv2d(input, filter, strides, padding, name=None):
-    shape = get_shape(filter)
+@cache_name_if_exist
+def conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
+    shape = cg.get_shape(filter)
     H, W = shape[-2], shape[-1]
     padding = padding_str2tuple(padding, H, W)
-    return F.conv2d(input, filter, stride=tuple(strides), padding=padding)
+    return F.conv2d(input, filter, bias, stride=tuple(strides), padding=padding)
 
 
-def bias_add(v, b):
-    return v + b
+@cache_name_if_exist
+def zero_fraction(data, name=None):
+    return th.mean((data == 0).float())
 
 
 def padding_str2tuple(padding, H, W):

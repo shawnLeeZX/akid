@@ -6,10 +6,7 @@ arbitrary, and abstracted as backends.
 """
 import os
 
-# Backends
-# #########################################################################
-TF = 'tensorflow'
-TORCH = 'pytorch'
+from .computational_graph import *
 
 
 if 'AKID_BACKEND' in os.environ:

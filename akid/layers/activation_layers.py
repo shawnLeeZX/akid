@@ -438,8 +438,7 @@ class BatchNormalizationLayer(ProcessingLayer):
         # accumulation effect of merge layers, though it does not work not well
         # to remove the effect for ResNet. To achieve this, we use the
         # mechanism provided by tensorflow, by passing current step in.
-        with tf.variable_scope(common.global_var_scope, reuse=True):
-            step = tf.get_variable(common.GLOBAL_STEP)
+        step = A.get_step()
         self.ema = tf.train.ExponentialMovingAverage(0.9, step)
 
 
@@ -449,7 +448,7 @@ class BatchNormalizationLayer(ProcessingLayer):
         del reduction_axes[-1]
         mean, variance = tf.nn.moments(input, reduction_axes)
 
-        with tf.variable_scope(tf.get_variable_scope(), reuse=False):
+        with A.variable_scope(tf.get_variable_scope(), reuse=False):
             # NOTE: Prior to tf 0.12, I did not need the variable scope above
             # this line to get things working. The problem is that moving
             # average cannot be put in a variable scope that plans to reuse its

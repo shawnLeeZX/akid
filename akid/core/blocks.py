@@ -83,7 +83,7 @@ class Block(object):
         self.is_setup = None
 
     def setup(self):
-        with tf.variable_scope(self.name):
+        with A.variable_scope(self.name):
             self._pre_setup()
             self._setup()
             self._post_setup()
@@ -182,6 +182,9 @@ class ProcessingBlock(Block):
         self.pre_forward_hook = []
         self.post_forward_hook = []
 
+        # Some operations only run at the first forward pass, so set a flag.
+        self.done_first_pass = False
+
     @abc.abstractmethod
     def data(self):
         """
@@ -205,10 +208,12 @@ class ProcessingBlock(Block):
         if not self.is_setup:
             self.setup()
 
-        with tf.variable_scope(self.name):
+        with A.variable_scope(self.name):
             self._pre_forward(*args, **kwargs)
             self._forward(*args, **kwargs)
             self._post_forward(*args, **kwargs)
+            if not self.done_first_pass:
+                self._first_forward_logistics(*args, **kwargs)
 
         return self.data
 
@@ -219,6 +224,14 @@ class ProcessingBlock(Block):
     def _post_forward(self, *args, **kwargs):
         for f in self.post_forward_hook:
             f(*args, **kwargs)
+
+    def _first_forward_logistics(self, *args, **kwargs):
+        """
+        During the first pass, some operations, e.g. summary ops, may be
+        created, but will not run in each forward. These operations should be
+        create during the first pass, and be gathered somehow.
+        """
+        pass
 
     @abc.abstractmethod
     def _forward(self):
@@ -326,6 +339,7 @@ class ProcessingLayer(GenerativeBlock):
                  moving_average_decay=None,
                  inputs=None,
                  wd={"type": "l2", "scale": 5e-4},
+                 do_summary_on_val=False,
                  **kwargs):
         """
         Args:
@@ -341,6 +355,8 @@ class ProcessingLayer(GenerativeBlock):
                 An dictionary that contains the `type` of regularization to use
                 and its scale, which is to say the multiplier of the
                 regularization loss term. If None, weight decay is not added.
+            do_summary_on_val: bool
+                Whether to do summary on validation copy.
         """
         super(ProcessingLayer, self).__init__(**kwargs)
 
@@ -352,6 +368,7 @@ class ProcessingLayer(GenerativeBlock):
 
         self.inputs = inputs
         self.wd = wd
+        self.do_summary_on_val = do_summary_on_val
 
         # Bookkeeping all variables.
         self.var_list = []
@@ -440,16 +457,17 @@ class ProcessingLayer(GenerativeBlock):
             # We pass current training step to moving average to speed up
             # updates moving average of variables at the beginning of the
             # training since moving average is useful only later.
-            with tf.variable_scope(common.global_var_scope, reuse=True):
-                step = tf.get_variable(common.GLOBAL_STEP)
+            step = A.get_step()
             self.moving_averages = tf.train.ExponentialMovingAverage(
                 self.moving_average_decay, step)
 
-    def _post_forward(self, *args, **kwargs):
-        super(ProcessingLayer, self)._post_forward(*args, **kwargs)
+    def _first_forward_logistics(self, *args, **kwargs):
+        super(ProcessingLayer, self)._first_forward_logistics(*args, **kwargs)
 
-        # TODO: ideally, we want to control how many summaries we gather.
-        if self.do_summary:
+        if not self.do_summary:
+            return
+
+        if not self.is_val or self.is_val and self.do_summary_on_val:
             self.log("Do tensorboard summary on outputs of {}".format(
                 self.name))
 
@@ -458,20 +476,27 @@ class ProcessingLayer(GenerativeBlock):
             if self.data is not None:
                 if type(self.data) is not list:
                     self._data_summary(self.data, collection_to_add)
+
             if self.loss is not None:
-                tf.summary.scalar(self.loss.op.name,
-                                  self.loss,
-                                  collections=[collection_to_add])
+                name =  A.get_name(self.loss)
+                if name:
+                    A.summary.scalar(name,
+                                     self.loss,
+                                     collections=[collection_to_add])
             if self.eval is not None:
                 if type(self.eval) is list:
                     for e in self.eval:
-                        tf.summary.scalar(e.op.name,
-                                          e,
-                                          collections=[collection_to_add])
+                        name = A.get_name(e)
+                        if name:
+                            A.summary.scalar(name,
+                                            e,
+                                             collections=[collection_to_add])
                 else:
-                    tf.summary.scalar(self.eval.op.name,
-                                      self.eval,
-                                      collections=[collection_to_add])
+                    name = A.get_name(self.eval)
+                    if name:
+                        A.summary.scalar(name,
+                                         self.eval,
+                                         collections=[collection_to_add])
 
     def _data_summary(self, data, collection=TRAIN_SUMMARY_COLLECTION, sparsity_summary=True):
         """
@@ -487,14 +512,17 @@ class ProcessingLayer(GenerativeBlock):
             "{} is not one of those defined in common.py. Some thing is wrong"
         if type(data) is not list and type(data) is not tuple:
             data = [data]
+
         for d in data:
-            A.summary.histogram(d.op.name + '/activations',
-                                d,
-                                collections=[collection])
-            if sparsity_summary:
-                tf.summary.scalar(d.op.name + '/' + SPARSITY_SUMMARY_SUFFIX,
-                                tf.nn.zero_fraction(d),
-                                collections=[collection])
+            name = A.get_name(d)
+            if name:
+                A.summary.histogram(name + '/activations',
+                                    d,
+                                    collections=[collection])
+                if sparsity_summary:
+                    A.summary.scalar(name + '/' + SPARSITY_SUMMARY_SUFFIX,
+                                     A.nn.zero_fraction(d),
+                                     collections=[collection])
 
     def _post_setup(self):
         super(ProcessingLayer, self)._post_setup()
@@ -504,13 +532,13 @@ class ProcessingLayer(GenerativeBlock):
 
             for var in self.var_list:
                 var_average = self.moving_averages.average(var)
-                self._var_summary(var.op.name + "_average", var_average)
+                self._var_summary(A.get_name(var) + "_average", var_average)
 
         if self.do_summary:
             log.info("Do tensorboard summary on variables of {}".format(
                 self.name))
             for var in self.var_list:
-                self._var_summary(var.op.name, var)
+                self._var_summary(A.get_name(var), var)
 
         # Log parameter number of this layer.
         total_para_num = 0
@@ -535,12 +563,14 @@ class ProcessingLayer(GenerativeBlock):
             return []
 
     def _var_summary(self, tag, var):
-        if len(var.get_shape().as_list()) is 0:
-            tf.summary.scalar(tag, var, collections=[TRAIN_SUMMARY_COLLECTION])
+        if len(A.get_shape(var)) is 0:
+            A.summary.scalar(tag,
+                             var,
+                             collections=[TRAIN_SUMMARY_COLLECTION])
         else:
-            tf.summary.histogram(tag,
-                                 var,
-                                 collections=[TRAIN_SUMMARY_COLLECTION])
+            A.summary.histogram(tag,
+                                var,
+                                collections=[TRAIN_SUMMARY_COLLECTION])
 
     @property
     def data(self):
@@ -608,10 +638,10 @@ class ProcessingLayer(GenerativeBlock):
         if self.is_setup:
             if self.moving_average_decay:
                 log.debug("Use moving average of paras {}".format(
-                    var.op.name))
+                    A.get_name(var)))
                 var = self.moving_averages.average(var)
             else:
-                log.debug("Reuse paras {}".format(var.op.name))
+                log.debug("Reuse paras {}".format(A.get_name(var)))
         else:
             # Append it to the var list, do moving average later in
             # `_post_setup`.

@@ -1,8 +1,13 @@
 import tensorflow as tf
 
 
-def depthwise_conv2d(input, filter, strides, padding, name=None):
-    return tf.nn.depthwise_conv2d(input, filter, strides, padding, name)
+def depthwise_conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
+    v = tf.nn.depthwise_conv2d(input, filter, strides, padding, name)
+
+    if bias:
+        v = tf.nn.bias_add(v, bias)
+
+    return v
 
 
 def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
@@ -76,8 +81,16 @@ def relu(X_in, name=None):
     return tf.nn.relu(X_in, name)
 
 
-def conv2d(input, filter, strides, padding, name=None):
-    return tf.nn.conv2d(input, filter, strides, padding, use_cudnn_on_gpu=None, data_format=None, name=name)
+def conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
+    v = tf.nn.conv2d(input, filter,
+                 strides, padding,
+                 use_cudnn_on_gpu=None, data_format=None,
+                 name=name)
+
+    if bias:
+        v = tf.nn.bias_add(v, bias)
+
+    return v
 
 
 def l2_loss(var):
@@ -88,5 +101,5 @@ def l1_loss(var):
     return tf.reduce_sum(tf.abs(var))
 
 
-def bias_add(v, b):
-    return tf.nn.bias_add(v, b)
+def zero_fraction(data, name=None):
+    return tf.nn.zero_fraction(data, name=name)

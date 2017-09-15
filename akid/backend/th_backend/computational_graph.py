@@ -4,12 +4,16 @@ PyTorch backend for akid.
 import numpy as np
 import torch as th
 from torch.autograd import Variable
-from torch import nn
 
-from ..common import *
+from .. import computational_graph as cg
 
 
-def get_variable(name, shape=None,
+# Maintain two hash table for looking up variables.
+tensor_by_name = {}
+name_by_tensor = {}
+
+
+def get_variable(name=None, shape=None,
                  initializer=None, trainable=True,
                  shared=True):
     """
@@ -19,13 +23,87 @@ def get_variable(name, shape=None,
     tensorflow, which may be useful when torch is used for distributed
     training.
     """
+    if name:
+        reuse = cg.get_variable_scope().reuse
+        name = _get_name_with_scope(name)
+
+        if reuse:
+            # Return the variable if already allocated.
+            if name in tensor_by_name:
+                return tensor_by_name[name]
+        elif name in tensor_by_name:
+            name = _append_num(name)
+
+    # Allocate the variable.
     if not callable(initializer):
         shape = None
         t = th.Tensor(initializer)
     else:
         t = th.Tensor(initializer(shape))
 
-    return Variable(t)
+    t = Variable(t)
+
+    if name:
+        _cache_tensor(t, name)
+
+    return t
+
+
+def _cache_tensor(tensor, name):
+    tensor_by_name[name] = tensor
+    name_by_tensor[tensor] = name
+
+
+def _get_name_with_scope(name):
+    scope_name = cg.get_scope_name()
+    name = '{}/{}'.format(scope_name, name)
+    return name
+
+
+def cache_name_if_exist(func):
+    def inner_func(*args, **kwargs):
+        # Due to cooperative inheritance, name can only exist in kwargs.
+        d = func(*args, **kwargs)
+        if 'name' in kwargs and kwargs['name']:
+            name = _get_name_with_scope(kwargs['name'])
+            _cache_tensor(d, name)
+        return d
+    return inner_func
+
+
+def _append_num(name):
+    """
+    Similarly with tensorflow, we add numbers in names to distinguish variable
+    with the same name.
+
+    The format is to add an underscore and a number.
+
+    TODO: no validation for bad naming now.
+    """
+    if name[-2] != '_':
+        # means no number has been appended before
+        name = "{}_1".format(name)
+    else:
+        # increase the No by one.
+        parts = name.split('_')
+        no = int(parts[-1])
+        no += 1
+        parts[-1] = str(no)
+        name = ''
+        for p in parts:
+            name += p
+
+    return name
+
+
+def get_name(v):
+    """
+    Given a tensor, return its name if available.
+
+    The purpose of the function is to give a unique identifier that can be used
+    to identify a Tensor.
+    """
+    return name_by_tensor[v]
 
 
 def standardize_data_format(data, old_format):
@@ -41,11 +119,11 @@ def standardize_data_format(data, old_format):
             `SUPPORT_DATA_FORMAT` and `SUPPORT_PARA_FORMAT` for supported
             strings.
     """
-    if old_format not in SUPPORT_PARA_FORMAT \
-       and old_format not in SUPPORT_DATA_FORMAT:
+    if old_format not in cg.SUPPORT_PARA_FORMAT \
+       and old_format not in cg.SUPPORT_DATA_FORMAT:
         raise ValueError("The data format {} is not well specified.".format(old_format))
 
-    if old_format in SUPPORT_PARA_FORMAT:
+    if old_format in cg.SUPPORT_PARA_FORMAT:
         out_format = 'oihw'
     else:
         out_format = 'nchw'
@@ -63,6 +141,11 @@ def init():
     pass
 
 
+def run(op, *args, **kwargs):
+    """Run an operation with arguments. For compatibility with Tensorflow"""
+    return op(*args, **kwargs)
+
+
 def close():
     """
     The same as `init()`.
@@ -77,18 +160,20 @@ def eval(t):
     if type(t) is Variable:
         v = t.data.numpy()
     else:
-        v = t.numpy
+        v = t.numpy()
 
     return v
 
 
-def Tensor(t, require_grad=False):
+@cache_name_if_exist
+def Tensor(t, require_grad=False, name=None):
     t = th.Tensor(t)
     if require_grad:
         t =  Variable(t)
     return t
 
 
+@cache_name_if_exist
 def mul(a, b, name=None):
     return a * b
 
@@ -98,3 +183,23 @@ def get_shape(t):
         return list(t.data.shape)
     else:
         return list(t.shape)
+
+
+def convert_to_tensor(v):
+    """
+    Convert to tensor if necessary.
+    """
+    t = type(v)
+    if t is Variable or t is th.Tensor:
+        return v
+
+    return th.Tensor(v)
+
+
+@cache_name_if_exist
+def add(a, b, name=None):
+    a = convert_to_tensor(a)
+    b = convert_to_tensor(b)
+    v = a + b
+
+    return v

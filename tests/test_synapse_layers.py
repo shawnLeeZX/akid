@@ -1,6 +1,6 @@
 import numpy as np
 
-from akid.utils.test import AKidTestCase, main, TestFactory
+from akid.utils.test import AKidTestCase, main, TestFactory, debug_on
 from akid.sugar import cnn_block
 from akid import sugar
 from akid import GraphBrain
@@ -59,6 +59,39 @@ class TestSynapseLayers(AKidTestCase):
         A.init()
         X_out_eval = A.eval(X_out)
         assert (X_out_eval == X_out_ref).all(), "\nX_out_eval = {}\nX_out_ref = {}".format(X_out_eval, X_out_ref)
+
+    def test_summary(self):
+        l = ConvolutionLayer(ksize=[3, 3],
+                             strides=[1, 1, 1, 1],
+                             in_channel_num=10,
+                             out_channel_num=100,
+                             padding="VALID",
+                             initial_bias_value=1.,
+                             init_para={"name": "default"},
+                             do_summary=True,
+                             name="test_summary")
+        l.setup()
+        shape = A.get_shape(l.weights)
+
+        # Do forward once to build ops.
+        X_in = np.random.uniform(-1, 1, [100, 10, 9, 9])
+        X_in = A.standardize_data_format(X_in, 'nchw')
+        out = l.forward(A.Tensor(X_in, require_grad=True))
+        summary_ops = A.summary.get_collection()
+        summary_op = A.summary.merge(summary_ops)
+
+        A.init()
+        A.summary.init()
+
+        for i in xrange(100):
+            if A.backend() == A.TORCH:
+                l.forward(A.Tensor(X_in, require_grad=True))
+            else:
+                A.run(out)
+            if i % 10 == 0:
+                A.summary.run_summary_op(summary_op)
+            A.step()
+
 
     def test_conv_backward(self):
         filter = np.array([[

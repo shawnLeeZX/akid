@@ -195,3 +195,13 @@ GLOG_PREFIX_REGEX = (
     \]\s
     """) % ''.join(_level_letters)
 """Regex you can use to parse glog line prefixes."""
+
+
+def get_random_log_dir():
+    # Naming log dir according to time if not specified.
+    log_dir = "log/" + time.ctime()
+    # As ':' is widely used in network protocols, replace it with '_'
+    # to avoid conflict.
+    log_dir = log_dir.replace(':', '_')
+
+    return log_dir

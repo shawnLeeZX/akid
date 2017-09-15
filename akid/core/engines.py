@@ -26,6 +26,7 @@ import tensorflow as tf
 from .common import TRAINING_DYNAMICS_COLLECTION
 from . import common
 from .blocks import ProcessingBlock
+from .. import backend as A
 
 
 class Engine(ProcessingBlock):
@@ -81,7 +82,7 @@ class Engine(ProcessingBlock):
 
     def _post_forward(self):
         apply_grad_op = self.kongfu.opt.apply_gradients(
-            self.grads, global_step=common.global_step_tensor)
+            self.grads, global_step=A.get_step())
 
         self.train_op_list.append(apply_grad_op)
         train_op = tf.group(*self.train_op_list)
@@ -238,7 +239,7 @@ class DataParallelEngine(Engine):
         """
         Given data and labels, split them and return.
         """
-        with tf.variable_scope("data_split"):
+        with A.variable_scope("data_split"):
             splitted_data = tf.split(axis=0, num_or_size_splits=self.num_gpu, value=data)
             if type(label) is list:
                 splitted_labels = []
@@ -274,7 +275,7 @@ class DataParallelEngine(Engine):
         """
         Given a list of computing towers, average their loss, and return.
         """
-        with tf.variable_scope("loss_average"):
+        with A.variable_scope("loss_average"):
             sum_of_loss = tf.add_n([t.loss for t in towers])
             loss = tf.div(sum_of_loss, self.num_gpu, name="avg")
 
@@ -285,7 +286,7 @@ class DataParallelEngine(Engine):
         Given a list of computing towers, average their evaluation metrics and
         return.
         """
-        with tf.variable_scope("eval_average"):
+        with A.variable_scope("eval_average"):
             eval_list = []
             for i in xrange(0, len(towers[0].eval)):
                 sum_of_eval = tf.add_n([t.eval[i] for t in towers])
@@ -403,7 +404,7 @@ class DataParallelEngine(Engine):
             List of pairs of (gradient, variable), where the gradient has been
             averaged across all towers.
         """
-        with tf.variable_scope("gradient_average"):
+        with A.variable_scope("gradient_average"):
             average_grads = []
             for grad_and_vars in zip(*tower_grads):
                 # Note that each grad_and_vars looks like the following:

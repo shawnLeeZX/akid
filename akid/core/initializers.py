@@ -2,6 +2,7 @@
 The module to holds variable initializers.
 """
 import numpy as np
+import math
 
 from ..ops import msra_initializer
 from .common import SEED
@@ -20,16 +21,6 @@ def get(name, **kwargs):
     name: str
         The name of the initializer to use.
     """
-    # Handle default initializer.
-    if name is "default":
-        # By default, we use the most preliminary initialization (for
-        # conforming with torch).
-        name = "uniform_unit_scaling"
-        # The strange factor here is to make variance `1/sqrt(dim)`. For
-        # the meaning of `dim`, see the doc of
-        # `tf.uniform_unit_scaling_initializer`.
-        kwargs["factor"] = 1.0/(3)**0.5
-
     try:
         init = inits[name]
     except KeyError as e:
@@ -65,7 +56,12 @@ class InitializerRegistry(object):
 
     Call help to see documentation for each initializer.
     """
-    def __init__(self, name, obj, message=None, required_fields=()):
+    def __init__(self,
+                 name,
+                 obj,
+                 message=None,
+                 required_fields=(),
+                 default_paras={}):
         """
         Args:
             name: str:
@@ -74,12 +70,15 @@ class InitializerRegistry(object):
                 sophisticated initialization.
             message: str
                 Usage help message.
+            default_paras: dict
+                Default parameters if not specified.
             required_fields: tuple
                 A tuple of str that specified required field for this initializer.
         """
         self.obj = obj
         self.message = message
         self.name = name
+        self.default_paras = default_paras
         self.required_fields = required_fields
         inits[name] = self
 
@@ -87,6 +86,9 @@ class InitializerRegistry(object):
         if self.obj:
             # Create a callable instance that takes parameters and does the
             # actually initialization.
+            for k in self.default_paras:
+                if k not in kwargs:
+                    kwargs[k] = self.default_paras[k]
             return self.obj(**kwargs)
         else:
             return kwargs["value"]
@@ -96,7 +98,7 @@ class InitializerRegistry(object):
 
 
 class Initializer(object):
-    def compute_fan_in():
+    def compute_fan_in(self, shape):
         if A.backend() == A.TF:
             # The weight layout of tf is HWIO.
             v = 1
@@ -110,7 +112,7 @@ class Initializer(object):
                 v *= i
             return v
 
-    def compute_fan_out():
+    def compute_fan_out(self, shape):
         if A.backend() == A.TF:
             # The weight layout of tf is HWIO.
             return shape[-1]
@@ -124,8 +126,11 @@ class TheOldInitializer(Initializer):
     The old way of doing initialization before even the (Glorot
     paper)(http://proceedings.mlr.press/v9/glorot10a.html).
     """
-    def __call__(shape):
-        n = self.compute_fan_in()
+    def __init__(self, seed):
+        np.random.seed(seed)
+
+    def __call__(self, shape):
+        n = self.compute_fan_in(shape)
         stdv = 1. / math.sqrt(n)
         value = np.random.uniform(-stdv, stdv, shape)
         value = A.Tensor(value)
@@ -156,8 +161,12 @@ if A.backend() == A.TF:
     # TODO: port the initializers that I coded myself to torch.
     import tensorflow as tf
     InitializerRegistry("default",
-                tf.uniform_unit_scaling_initializer,
-                "Uniform unit scaling with factor 1.0/(3)**0.5")
+                        tf.uniform_unit_scaling_initializer,
+                        "Uniform unit scaling with factor 1.0/(3)**0.5",
+                        # The strange factor here is to make variance
+                        # `1/sqrt(dim)`. For the meaning of `dim`, see the doc
+                        # of `tf.uniform_unit_scaling_initializer`.
+                        default_paras={'factor': 1.0/(3)**0.5})
     InitializerRegistry("truncated_normal",
                 tf.truncated_normal_initializer,
                 "Required fields: stddev (Standard deviation)",

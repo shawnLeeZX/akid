@@ -2,6 +2,7 @@
 This module offer a top level class for testing.
 """
 import sys
+import os
 import pdb
 import functools
 import traceback
@@ -25,8 +26,7 @@ def main():
 
 
 class AKidTestCase(TestCase):
-    def setUp(self):
-        pass
+    pass
 
 
 class TestFactory(object):
@@ -75,6 +75,21 @@ class TestFactory(object):
             MomentumKongFu(),
             debug=True,
             max_steps=900)
+
+
+class TestSuite():
+    def suite(self): #Function stores all the modules to be tested
+        modules_to_test = []
+        test_dir = os.listdir('.')
+        for test in test_dir:
+            if test.startswith('test_syna') and test.endswith('.py'):
+                modules_to_test.append(test.rstrip('.py'))
+
+        all_tests = unittest.TestSuite()
+        for module in map(__import__, modules_to_test):
+            all_tests.addTest(unittest.findTestCases(module))
+        return all_tests
+
 
 def debug_on(*exceptions):
     if not exceptions:
