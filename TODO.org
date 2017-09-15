@@ -70,6 +70,16 @@
     CLOSED: [2016-07-10 Sun 15:10]
     - State "CANCELLED"  from "TODO"       [2016-07-10 Sun 15:10] \\
       An exception should be raised instead.
+*** DONE aggregate all tests as a suite, so having more control
+    CLOSED: [2017-09-15 Fri 20:04]
+    - State "DONE"       from "TODO"       [2017-09-15 Fri 20:04]
+*** DONE Think a better way to pass parameters instead of using dictionary, which is error prone.
+    CLOSED: [2017-09-15 Fri 20:04]
+    - State "DONE"       from "TODO"       [2017-09-15 Fri 20:04]
+*** CANCELLED implement variable scope since tensorflow add an underscore each time entering a scope for non-shareable variables
+    CLOSED: [2017-09-15 Fri 20:05]
+    - State "CANCELLED"  from "TODO"       [2017-09-15 Fri 20:05] \\
+      The behavior is fine
 *** STARTED kid also should be sub-class of block, they share the mechanism that decouple building computation graph and running sess
 **** DONE Kid is a sub-class of Block
      CLOSED: [2017-04-12 Wed 19:16]
@@ -77,8 +87,6 @@
 **** TODO But they do not share much, deal with computation graph and running sess
 *** TODO make debug level switchable in kid
 *** TODO add shape of conv filter in
-*** TODO aggregate all tests as a suite, so having more control
-*** TODO Think a better way to pass parameters instead of using dictionary, which is error prone.
 *** TODO Think how to place PaddingLayer and Jokers into the right place
     Currently, PaddingLayer is Child of both ProcessingLayer and
     Joker. Essentially, it should be the child of certain general block.
@@ -99,4 +107,3 @@
      instead of all the syntax sugar of tensorflow that saves all trainable
      variables.
      It also should be moved to brain instead of staying in Survivor.
-*** TODO implement variable scope since tensorflow add an underscore each time entering a scope for non-shareable variables
