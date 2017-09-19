@@ -122,7 +122,9 @@ def mse_loss(data, labels, size_average=None, name=None):
     """
     size_average is of no use, to be compatible with PyTorch backend.
     """
-    if size_average == True:
-        raise ValueError('Tensorflow backend does not support size average.')
+    if size_average == False:
+        reduction_type = tf.losses.Reduction.NONE
+    else:
+        reduction_type = tf.losses.Reduction.MEAN
 
-    return tf.losses.mean_squared_error(labels, data, scope=name)
+    return tf.losses.mean_squared_error(labels, data, scope=name, reduction=reduction_type)

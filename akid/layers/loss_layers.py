@@ -227,7 +227,7 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
 
 
 class MSELossLayer(LossLayer):
-    def __init__(self, size_average=False, **kwargs):
+    def __init__(self, size_average=True, **kwargs):
         super(MSELossLayer, self).__init__(**kwargs)
 
         self.size_average = size_average

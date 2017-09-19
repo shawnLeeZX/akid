@@ -86,6 +86,16 @@ FLAGS = gflags.FLAGS
 
 file_names = []
 
+logger = logging.getLogger("glog")
+debug = logger.debug
+info = logger.info
+warning = logger.warning
+warn = logger.warning
+error = logger.error
+exception = logger.exception
+fatal = logger.fatal
+log = logger.log
+
 
 def format_message(record):
     try:
@@ -124,7 +134,7 @@ class GlogFormatter(logging.Formatter):
         record.getMessage = lambda: record_message
         return logging.Formatter.format(self, record)
 
-logger = logging.getLogger("glog")
+logger = None
 
 
 def setLevel(newlevel):
@@ -134,6 +144,13 @@ def setLevel(newlevel):
 
 
 def init(filename=None):
+    global logger, debug, info, warning, warn, error, exception, fatal, log
+
+    if logger:
+        return
+
+    logger = logging.getLogger("glog")
+
     logger.propagate = False
     if filename is None:
         if "stderr" not in file_names:
@@ -154,14 +171,14 @@ def init(filename=None):
     logger.addHandler(handler)
     setLevel(FLAGS.verbosity)
 
-debug = logger.debug
-info = logger.info
-warning = logger.warning
-warn = logger.warning
-error = logger.error
-exception = logger.exception
-fatal = logger.fatal
-log = logger.log
+    debug = logger.debug
+    info = logger.info
+    warning = logger.warning
+    warn = logger.warning
+    error = logger.error
+    exception = logger.exception
+    fatal = logger.fatal
+    log = logger.log
 
 
 DEBUG = logging.DEBUG

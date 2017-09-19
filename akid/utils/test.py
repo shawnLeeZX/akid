@@ -84,9 +84,13 @@ class TestSuite():
     def suite(self): #Function stores all the modules to be tested
         modules_to_test = []
         test_dir = os.listdir('.')
-        for test in test_dir:
-            if test.startswith('test_syna') and test.endswith('.py'):
-                modules_to_test.append(test.rstrip('.py'))
+        modules_to_test.append('test_systems')
+        modules_to_test.append('test_loss_layers')
+        modules_to_test.append('test_brain')
+        modules_to_test.append('test_synapse_layers')
+        # for test in test_dir:
+        #     if test.startswith('test') and test.endswith('.py'):
+        #         modules_to_test.append(test.rstrip('.py'))
 
         all_tests = unittest.TestSuite()
         for module in map(__import__, modules_to_test):

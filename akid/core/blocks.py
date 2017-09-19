@@ -213,6 +213,7 @@ class ProcessingBlock(Block):
             self._post_forward(*args, **kwargs)
             if not self.done_first_pass:
                 self._first_forward_logistics(*args, **kwargs)
+                self.done_first_pass = True
 
         return self.data
 
