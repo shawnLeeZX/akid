@@ -70,11 +70,14 @@ from __future__ import absolute_import, division, print_function
 
 import inspect
 
-import tensorflow as tf
-
 from ..layers.synapse_layers import SynapseLayer
 from .blocks import ProcessingLayer
 from .systems import System, SequentialSystem, GraphSystem, SequentialGSystem
+from .. import backend as A
+from .common import (
+    TRAIN_SUMMARY_COLLECTION,
+    VALID_SUMMARY_COLLECTION,
+)
 
 
 class Brain(System, ProcessingLayer):
@@ -156,14 +159,22 @@ class Brain(System, ProcessingLayer):
     def _post_forward(self, *args, **kwargs):
         super(Brain, self)._post_forward(*args, **kwargs)
 
-        self._gather_loss_graphs()
-        self._gather_eval_graphs()
+        self._gather_loss()
+        self._gather_evals()
         self._gather_train_ops()
 
-        if self.do_summary:
-            A.summary.scalar(self.loss.op.name, self.loss)
+    def _first_forward_logistics(self, *args, **kwargs):
+        if not self.do_summary:
+            return
 
-    def _gather_loss_graphs(self):
+        if not self.is_val or self.is_val and self.do_summary_on_val:
+            self.log("Do tensorboard summary on loss of {}".format(
+                self.name))
+            collection_to_add = VALID_SUMMARY_COLLECTION if self.is_val \
+                else TRAIN_SUMMARY_COLLECTION
+            A.summary.scalar(A.get_name(self.loss), self.loss, collections=[collection_to_add])
+
+    def _gather_loss(self):
         """
         Gather all losses in all blocks in this brain.
         """
@@ -173,9 +184,9 @@ class Brain(System, ProcessingLayer):
                 loss_list.append(b.loss)
         # The total loss is defined as the cross entropy loss plus all of the
         # weight decay terms (L2 loss).
-        self._loss = tf.add_n(loss_list, name='total_loss')
+        self._loss = A.add_n(loss_list, name='total_loss')
 
-    def _gather_eval_graphs(self):
+    def _gather_evals(self):
         """
         Gather all evaluation in all blocks in this brain.
 
@@ -197,6 +208,8 @@ class Brain(System, ProcessingLayer):
 
         `self.train_op` points to a list.
         """
+        # TODO: this method has a bad name, it is for some auxiliary ops that
+        # should be run alongside with train_op in tensorflow.
         train_op_list = []
         for b in self.blocks:
             if b.train_op is not None:

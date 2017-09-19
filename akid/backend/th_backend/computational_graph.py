@@ -177,6 +177,11 @@ def Tensor(t, require_grad=False, name=None):
 
 
 @cache_name_if_exist
+def is_tensor(T):
+    return type(T) is th.Tensor or type(T) is Variable
+
+
+@cache_name_if_exist
 def mul(a, b, name=None):
     return a * b
 
@@ -210,3 +215,14 @@ def add(a, b, name=None):
     v = a + b
 
     return v
+
+@cache_name_if_exist
+def add_n(l, name=None):
+    """
+    Add all the tensors in the list.
+    """
+    acc = l[0].clone()
+    for v in l[1:]:
+        acc += v
+
+    return acc

@@ -80,6 +80,33 @@ class TestSystem(AKidTestCase):
         assert (X_b_out_eval == X_b_out_ref).all(), \
             "X_b_out_eval: {}; X_b_out_ref{}".format(X_b_out_eval, X_b_out_ref)
 
+    def test_graph_system(self):
+        X_in = A.Tensor([[1, 0], [0, 0]])
+        label_in = A.Tensor([[1, 0], [0, 0]])
+
+        weight = A.Tensor([
+            [1, 1],
+            [0, 0]
+        ])
+        label_in += 1
+
+        from akid import GraphSystem
+        from akid.layers import InnerProductLayer, MSELossLayer
+        s = GraphSystem(name="test_graph_system")
+        s.attach(
+            InnerProductLayer(in_channel_num=2,
+                              out_channel_num=2,
+                              initial_bias_value=1.,
+                              init_para={"name": "tensor",
+                                         "value": weight},
+                              name='ip'))
+        s.attach(MSELossLayer(name='loss'))
+        X_out = s.forward([X_in, label_in])
+        X_out_ref = 2
+
+        A.init()
+        X_out_eval = A.eval(X_out[0])
+        self.assertEquals(X_out_eval[0], X_out_ref)
 
 if __name__ == "__main__":
     main()

@@ -107,7 +107,7 @@ def inner_product(input, W, bias=None, name=None):
 
 
 def l2_loss(var):
-    return tf.nn.l2_loss(var),
+    return tf.nn.l2_loss(var)
 
 
 def l1_loss(var):

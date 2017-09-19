@@ -40,7 +40,6 @@ import copy
 import tensorflow as tf
 
 from ..utils import glog as log
-from . import common
 from .common import (
     TRAIN_SUMMARY_COLLECTION,
     VALID_SUMMARY_COLLECTION,

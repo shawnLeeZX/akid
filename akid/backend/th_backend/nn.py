@@ -10,7 +10,7 @@ from . import computational_graph as cg
 
 @cache_name_if_exist
 def l2_loss(var, name=None):
-    return th.sum(var * var)
+    return th.div(th.sum(var * var), 2)
 
 
 @cache_name_if_exist

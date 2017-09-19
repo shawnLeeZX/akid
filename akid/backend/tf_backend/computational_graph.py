@@ -132,8 +132,12 @@ def mul(a, b, name=None):
     return tf.multiply(a, b, name)
 
 
+def add_n(l, name=None):
+    return tf.add_n(l, name=name)
+
+
 def zero_fraction(data):
-    tf.nn.zero_fraction(data)
+    return tf.nn.zero_fraction(data)
 
 
 def get_shape(t):

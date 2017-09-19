@@ -168,6 +168,7 @@ class GraphSystem(SequentialSystem):
         self.log("System input shape: {}".format(
             [A.get_shape(d) for d in data]))
 
+        previous_data_name = "system_in"
         for i, l in enumerate(self.blocks):
             self.log("Setting up block {}.".format(l.name))
             l.do_summary = self.do_summary
@@ -224,15 +225,24 @@ class GraphSystem(SequentialSystem):
             # Logging
             dtype = type(data)
             if inputs:
-                in_name = [i.name for i in inputs]
+                in_name = [A.get_name(i) for i in inputs]
             else:
-                in_name = data[0].name
+                in_name = A.get_name(data[0])
+
+            if in_name is None or type(in_name) is list and None in in_name:
+                in_name = previous_data_name
+
             if l.data is not None:
                 dtype = type(l.data)
-                self.log("Connected: {} -> {}".format(
-                    in_name,
-                    l.data.name if dtype is not tuple and dtype is not list
-                    else [d.name for d in l.data]))
+                if dtype is not tuple and dtype is not list:
+                    n = A.get_name(l.data)
+                    out_name = n if n else l.name
+                else:
+                    out_name = [A.get_name(d) for d in l.data]
+                    if None in out_name:
+                        out_name = l.name
+
+                self.log("Connected: {} -> {}".format(in_name, out_name))
                 self.log("Top shape: {}".format(
                     A.get_shape(l.data) if dtype is not tuple and dtype is not list
                     else [A.get_shape(d) for d in l.data]))
@@ -240,6 +250,8 @@ class GraphSystem(SequentialSystem):
                 self.log("Inputs: {}. No outputs.".format(in_name))
 
             data = l.data if dtype is tuple or dtype is list else [l.data]
+
+            previous_data_name = l.name
 
         self._data = data
 

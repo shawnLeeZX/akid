@@ -9,9 +9,57 @@ from akid.layers import (
     InnerProductLayer,
     SoftmaxWithLossLayer,
 )
+from akid import backend as A
+
+from akid.utils import glog as log
+log.init()
 
 
 class TestBrain(AKidTestCase):
+    def test_forward(self):
+        from akid.layers import MSELossLayer, InnerProductLayer
+        from akid import GraphBrain
+
+        X_in = A.Tensor([[1, 1], [1, 0]])
+        weight = A.Tensor([
+            [1, 1],
+            [0, 1]
+        ])
+        label_in = A.Tensor([
+            [1, 2],
+            [1, 1]
+        ])
+        label_in += 1
+
+        X_out_ref = 0
+        mse_loss_ref = 0
+        wd_loss_ref = 1.5
+        loss_ref = mse_loss_ref + wd_loss_ref
+
+        b = GraphBrain(name='test_brain')
+        b.attach(
+            InnerProductLayer(in_channel_num=2,
+                              out_channel_num=2,
+                              initial_bias_value=1.,
+                              init_para={"name": "tensor",
+                                         "value": weight},
+                              wd={"type": "l2", "scale": 1},
+                              name='ip'))
+
+        b.attach(MSELossLayer(inputs=[{"name": "ip"},
+                                      {"name": "system_in", "idxs": [1]}],
+                              name='loss'))
+
+        X_out = b.forward([X_in, label_in])
+
+        A.init()
+
+        X_out_eval = A.eval(X_out[0])
+        self.assertEquals(X_out_eval, X_out_ref)
+
+        loss_eval = A.eval(b.loss)
+        self.assertEquals(loss_eval, loss_ref)
+
     def test_moving_average(self):
         brain = TestFactory.get_test_brain(using_moving_average=True)
         source = TestFactory.get_test_feed_source()
