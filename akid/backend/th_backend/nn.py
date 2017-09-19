@@ -47,6 +47,11 @@ def zero_fraction(data, name=None):
     return th.mean((data == 0).float())
 
 
+@cache_name_if_exist
+def mse_loss(data, labels, size_average=True, name=None):
+    return th.nn.functional.mse_loss(data, labels, size_average=size_average)
+
+
 def padding_str2tuple(padding, H, W):
     """
     Convert padding from string to tuple. Thea meaning of string is from

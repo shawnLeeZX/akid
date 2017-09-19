@@ -6,6 +6,7 @@ import tensorflow as tf
 
 from ..core.blocks import ProcessingLayer
 from .activation_layers import GroupSoftmaxLayer
+from .. import backend as A
 
 
 class LossLayer(ProcessingLayer):
@@ -19,14 +20,11 @@ class LossLayer(ProcessingLayer):
         super(LossLayer, self).__init__(**kwargs)
         self.multiplier = multiplier
 
-    def _forward(self, *args, **kwargs):
-        self._loss_layer_setup(*args, **kwargs)
+    def _setup(self):
         self.log("Using multiplier {}".format(self.multiplier))
-        self._loss = self._loss * self.multiplier
 
-    @abc.abstractmethod
-    def _loss_layer_setup(self):
-        raise Exception("Every loss layer should implement this for setup.")
+    def _post_forward(self, *args, **kwags):
+        self._loss = self._loss * self.multiplier
 
 
 class SoftmaxWithLossLayer(LossLayer):
@@ -38,7 +36,7 @@ class SoftmaxWithLossLayer(LossLayer):
         super(SoftmaxWithLossLayer, self).__init__(**kwargs)
         self.class_num = class_num
 
-    def _loss_layer_setup(self, data_in):
+    def _forward(self, data_in):
         logits = data_in[0]
         labels = data_in[1]
 
@@ -111,7 +109,7 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
         super(GroupSoftmaxWithLossLayer, self).__init__(**kwargs)
         self.augment_label = augment_label
 
-    def _loss_layer_setup(self, data_in):
+    def _forward(self, data_in):
         input = data_in[0]
         labels = data_in[1]
         label_vectors = data_in[2]
@@ -226,6 +224,19 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
             self._eval = [all_label_eval, real_label_eval]
         else:
             self._eval = real_label_eval
+
+
+class MSELossLayer(LossLayer):
+    def __init__(self, size_average=False, **kwargs):
+        super(MSELossLayer, self).__init__(**kwargs)
+
+        self.size_average = size_average
+
+    def _forward(self, data):
+        self._loss = A.nn.mse_loss(data[0], data[1], self.size_average)
+        self._data = self._loss
+        return self._loss
+
 
 __all__ = [name for name, x in locals().items() if
            not inspect.ismodule(x) and not inspect.isabstract(x)]

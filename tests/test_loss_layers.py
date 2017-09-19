@@ -1,10 +1,12 @@
 import tensorflow as tf
+import numpy as np
 
 from akid.utils.test import AKidTestCase, main, TestFactory
 from akid import GraphBrain
 from akid.sugar import cnn_block
 from akid import sugar
 from akid.layers import SoftmaxWithLossLayer
+from akid import backend as A
 
 
 class TestLossLayers(AKidTestCase):
@@ -19,6 +21,20 @@ class TestLossLayers(AKidTestCase):
         l.forward([logits, labels])
         with tf.Session():
             assert l.eval.eval() == 0.5
+
+    def test_mse_loss(self):
+        from akid.layers import MSELossLayer
+
+        X_in = A.Tensor([[1, 1], [0, 0]])
+        label_in = A.Tensor([[1, 0], [0, 0]])
+        l = MSELossLayer(name='loss')
+        X_out = l.forward([X_in, label_in])
+        X_out_ref = 1
+
+        A.init()
+        X_out_eval = A.eval(X_out)
+        self.assertEquals(X_out_eval, X_out_ref)
+
 
     def test_multiplier(self):
         brain = GraphBrain(name="test_brain")

@@ -518,13 +518,17 @@ class ProcessingLayer(GenerativeBlock):
         for d in data:
             name = A.get_name(d)
             if name:
-                A.summary.histogram(name + '/activations',
+                shape = len(A.get_shape(d))
+                if shape == 0 or shape == 1:
+                    A.summary.scalar(name, d, collections=[collection])
+                else:
+                    A.summary.histogram(name + '/activations',
                                     d,
                                     collections=[collection])
-                if sparsity_summary:
-                    A.summary.scalar(name + '/' + SPARSITY_SUMMARY_SUFFIX,
-                                     A.nn.zero_fraction(d),
-                                     collections=[collection])
+                    if sparsity_summary:
+                        A.summary.scalar(name + '/' + SPARSITY_SUMMARY_SUFFIX,
+                                        A.nn.zero_fraction(d),
+                                        collections=[collection])
 
     def _post_setup(self):
         super(ProcessingLayer, self)._post_setup()

@@ -103,3 +103,13 @@ def l1_loss(var):
 
 def zero_fraction(data, name=None):
     return tf.nn.zero_fraction(data, name=name)
+
+
+def mse_loss(data, labels, size_average=None, name=None):
+    """
+    size_average is of no use, to be compatible with PyTorch backend.
+    """
+    if size_average == True:
+        raise ValueError('Tensorflow backend does not support size average.')
+
+    return tf.losses.mean_squared_error(labels, data, scope=name)
