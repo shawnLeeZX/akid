@@ -385,10 +385,7 @@ class InnerProductLayer(SynapseLayer):
 
     def _forward(self, input):
         input = self._reshape(input)
-        ip = tf.matmul(input, self.weights)
-        if self.initial_bias_value is not None:
-            ip = tf.nn.bias_add(ip, self.biases)
-
+        ip = A.nn.inner_product(input, self.weights, bias=self.biases)
         self._data = ip
 
     def _reshape(self, input):
@@ -402,7 +399,7 @@ class InnerProductLayer(SynapseLayer):
             input: tensor
                 The reshaped input that could be processed by this layer.
         """
-        input_shape = input.get_shape().as_list()
+        input_shape = A.get_shape(input)
         in_channel_num = input_shape[1]
         # Check the input shape, if it is not 2D tensor, reshape all remaining
         # dimensions into one.
@@ -411,7 +408,7 @@ class InnerProductLayer(SynapseLayer):
             in_channel_num = 1
             for i in input_shape[1:]:
                 in_channel_num *= i
-            flattened = tf.reshape(input, [input_shape[0], in_channel_num])
+            flattened = A.reshape(input, [input_shape[0], in_channel_num])
             reshaped_input = flattened
 
         # Hold another addition info about the shape of input feature maps.
@@ -438,7 +435,9 @@ class InnerProductLayer(SynapseLayer):
                 self.biases = self._get_variable(
                     'biases',
                     shape=[self.out_channel_num],
-                    initializer=tf.constant_initializer(self.initial_bias_value))
+                    initializer=self._get_initializer(
+                        init_para={"name": "constant",
+                                   "value": self.initial_bias_value}))
 
 
 class InvariantInnerProductLayer(SynapseLayer):

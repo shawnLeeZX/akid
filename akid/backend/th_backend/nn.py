@@ -27,6 +27,14 @@ def conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
 
 
 @cache_name_if_exist
+def inner_product(input, W, bias=None, name=None):
+    if bias is not None:
+        return th.addmm(bias, input, W)
+    else:
+        return input.matmul(W)
+
+
+@cache_name_if_exist
 def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
     assert len(ksize) == 4, "Only ksize of dim 4 is supported"
     padding = padding_str2tuple(padding, ksize[1], ksize[2])

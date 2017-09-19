@@ -26,7 +26,10 @@ def main():
 
 
 class AKidTestCase(TestCase):
-    pass
+    def assertNdarrayEquals(self, a, b):
+        if not (a == b).all():
+            msg = self._formatMessage(None, '\n{}\n == \n{}\n'.format(a, b))
+            raise self.failureException(msg)
 
 
 class TestFactory(object):

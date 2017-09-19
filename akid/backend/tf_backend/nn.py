@@ -82,15 +82,28 @@ def relu(X_in, name=None):
 
 
 def conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
-    v = tf.nn.conv2d(input, filter,
-                 strides, padding,
-                 use_cudnn_on_gpu=None, data_format=None,
-                 name=name)
-
-    if bias:
-        v = tf.nn.bias_add(v, bias)
+    if bias is not None:
+        v = tf.nn.conv2d(input, filter,
+                         strides, padding,
+                         use_cudnn_on_gpu=None, data_format=None)
+        v = tf.nn.bias_add(v, bias, name=name)
+    else:
+        v = tf.nn.conv2d(input, filter,
+                         strides, padding,
+                         use_cudnn_on_gpu=None, data_format=None,
+                         name=name)
 
     return v
+
+
+def inner_product(input, W, bias=None, name=None):
+    if bias is not None:
+        ip = tf.matmul(input, W)
+        ip = tf.nn.bias_add(ip, bias, name=name)
+    else:
+        ip = tf.matmul(input, W, name=name)
+
+    return ip
 
 
 def l2_loss(var):

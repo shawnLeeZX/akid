@@ -188,6 +188,10 @@ def get_shape(t):
         return list(t.shape)
 
 
+def reshape(v, shape, name=None):
+    return v.view(shape)
+
+
 def convert_to_tensor(v):
     """
     Convert to tensor if necessary.

@@ -17,6 +17,31 @@ class TestSynapseLayers(AKidTestCase):
     def tearDown(self):
         A.close()
 
+    def test_ip_forward(self):
+        X_in = A.Tensor([[1, 1], [1, 0]])
+        weight = A.Tensor([
+            [1, 1],
+            [0, 1]
+        ])
+        X_out_ref = np.array([
+            [1, 2],
+            [1, 1]
+        ])
+        X_out_ref += 1
+
+        from akid.layers import InnerProductLayer
+        l = InnerProductLayer(in_channel_num=2,
+                              out_channel_num=2,
+                              initial_bias_value=1.,
+                              init_para={"name": "tensor",
+                                         "value": weight},
+                              name='ip')
+        X_out = l.forward(X_in)
+
+        A.init()
+        X_out_eval = A.eval(X_out)
+        self.assertNdarrayEquals(X_out_eval, X_out_ref)
+
     def test_conv_forward(self):
         filter = np.array([[
             [[1, 1, 1],
@@ -91,7 +116,6 @@ class TestSynapseLayers(AKidTestCase):
             if i % 10 == 0:
                 A.summary.run_summary_op(summary_op)
             A.step()
-
 
     def test_conv_backward(self):
         filter = np.array([[
