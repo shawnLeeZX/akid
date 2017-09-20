@@ -29,7 +29,7 @@ class TestLossLayers(AKidTestCase):
         label_in = A.Tensor([[1, 0], [0, 0]])
         l = MSELossLayer(name='loss')
         X_out = l.forward([X_in, label_in])
-        X_out_ref = 1
+        X_out_ref = 0.25
 
         A.init()
         X_out_eval = A.eval(X_out)
