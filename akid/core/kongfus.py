@@ -10,14 +10,16 @@ import tensorflow as tf
 from .common import TRAINING_DYNAMICS_COLLECTION, LEARNING_RATE_TAG
 from . import common
 from .blocks import ShadowableBlock
+from .interface_blocks import UpdateBlock
+from .. import backend as A
+from ..utils.nonconflict import classmaker
 
 
 class LearningRateScheme(object):
     exp_decay = 1
     placeholder = 2
 
-# TODO: step is not a tensor now, it may not be incremented during optimization.
-class KongFu(ShadowableBlock):
+class KongFu(ShadowableBlock, UpdateBlock):
     """
     An top level abstract class to compute gradients given a loss.
 
@@ -31,7 +33,11 @@ class KongFu(ShadowableBlock):
     Any concrete `KongFu` should implement `_get_optimizer` to provide a
     concrete optimizer.
     """
+    __metaclass__ = classmaker()
+
     def __init__(self,
+                 var_list,
+                 lr,
                  lr_scheme={"name": LearningRateScheme.exp_decay,
                             "base_lr": 0.01,
                             "decay_rate": 0.95,
@@ -39,27 +45,32 @@ class KongFu(ShadowableBlock):
                             "decay_epoch_num": 1},
                  **kwargs):
         """
-        Only exponential decay policy is supported now. Learning rate decays to
-        `decay_rate` of current value after `decay_epoch_num` number of epochs
-        have passed.
         Args:
-            lr_scheme: dict
-                 Learning rate scheme to use. Two types are supported for now:
-                     1. `exp_decay`: exponential decay. 'base_lr',
-                        'decay_rate' are required parameters. Either
-                        'decay_steps' or 'decay_epoch_num' should be
-                        present. If using 'decay_epoch_num', an additional
-                        parameter 'num_batches_per_epoch' should be passed
-                        in. It is used to convert epoch number to step number.
-                     2. `placeholder`: a placeholder that is supposed to pass
-                        in by feed dict, so arbitrary hard coded learning rate
-                        decay could be used. To use this scheme, you should
-                        update `lr_value` of `KongFu` manually, which is
-                        normally done by assigning value in some callback
-                        functions. Alternatively, if you are using `KongFu`
-                        standalone, you need to feed a value to
-                        `KongFu.learning_rate`.
-                 See the default value for an example usage.
+            var_list: list
+                The list of variables that are supposed to train.
+            lr: float
+                The learning rate.
+            lr_scheme: dict.
+                This option is deprecated. Use lr instead. This option is
+                supported with 'tensorflow' backend. To use it, `lr` needs to
+                be set to None explicitly.
+
+                Learning rate scheme to use. Two types are supported for now:
+                    1. `exp_decay`: exponential decay. 'base_lr',
+                       'decay_rate' are required parameters. Either
+                       'decay_steps' or 'decay_epoch_num' should be
+                       present. If using 'decay_epoch_num', an additional
+                       parameter 'num_batches_per_epoch' should be passed
+                       in. It is used to convert epoch number to step number.
+                    2. `placeholder`: a placeholder that is supposed to pass
+                       in by feed dict, so arbitrary hard coded learning rate
+                       decay could be used. To use this scheme, you should
+                       update `lr_value` of `KongFu` manually, which is
+                       normally done by assigning value in some callback
+                       functions. Alternatively, if you are using `KongFu`
+                       standalone, you need to feed a value to
+                       `KongFu._lr_tensor`.
+                See the default value for an example usage.
         """
         # Since normally we do not care what the name of an optimizer is, just
         # give it a default name.
@@ -67,9 +78,42 @@ class KongFu(ShadowableBlock):
             kwargs["name"] = "opt"
 
         super(KongFu, self).__init__(**kwargs)
-        self.lr_scheme = lr_scheme
+        self._lr_value = lr
+        self.var_list = var_list
+
+        # Deprecated. Save for compatibility.
+        if lr is None:
+            self.lr_scheme = lr_scheme
+        else:
+            self.lr_scheme = None
 
     def _setup(self):
+        if self.lr_scheme:
+            # For compatibility.
+            self._setup_lr_scheme()
+        else:
+            if A.backend() == A.TF:
+                self._lr_tensor = tf.placeholder(tf.float32,
+                                            shape=[],
+                                            name='lrn')
+                self.opt = self._get_optimizer(self._lr_tensor)
+            elif A.backend() == A.TORCH:
+                self.opt = self._get_optimizer(self._lr_value)
+
+    def set_lr(self, lr):
+        """
+        Set the learning rate.
+        """
+        self._lr_value = lr
+
+        if A.backend() == A.TORCH:
+            for pg in self.opt.param_groups:
+                pg['lr'] = lr
+
+    def _setup_lr_scheme(self):
+        if A.backend() != A.TF:
+            raise ValueError("'lr_scheme' is supported only with tensorflow backend.")
+
         if self.lr_scheme["name"] is LearningRateScheme.exp_decay:
             base_lr = float(self.lr_scheme["base_lr"])
             decay_rate = self.lr_scheme["decay_rate"]
@@ -81,36 +125,51 @@ class KongFu(ShadowableBlock):
             else:
                 decay_steps = self.lr_scheme["decay_steps"]
 
+            # TODO: step is not a tensor now, it may not be incremented during
+            # optimization, which means the exponential decay will be broken ...
             step = A.get_step()
 
-            self.learning_rate = tf.train.exponential_decay(
+            self._lr_tensor = tf.train.exponential_decay(
                 base_lr,
                 step,
                 decay_steps,
                 decay_rate,
                 staircase=True)
         elif self.lr_scheme["name"] is LearningRateScheme.placeholder:
-            self.learning_rate = tf.placeholder(tf.float32,
-                                           shape=[],
-                                           name='lrn')
-            self.lr_value = None
+            self._lr_tensor = tf.placeholder(tf.float32,
+                                        shape=[],
+                                        name='lrn')
+            self._lr_value = None
         else:
             raise Exception("Learning rate scheme is not supported. Please"
                             " specify one from `LearningRateScheme`.")
-
-        self.opt = self._get_optimizer(self.learning_rate)
 
     def _forward(self, loss):
         """
         Build and return training ops according to the loss.
         """
-        self._data = self.opt.compute_gradients(loss)
+        self._data = A.train.compute_gradients(self.opt, loss)
 
-    def _post_setup(self):
+    def _update(self, grads):
+        return A.train.apply_gradients(self.opt, grads)
+
+    def _first_forward_logistics(self, *args, **kwargs):
         if self.do_summary:
-            A.summary.scalar(LEARNING_RATE_TAG,
-                             self.learning_rate,
-                             collections=[TRAINING_DYNAMICS_COLLECTION])
+            if A.backend() == A.TF:
+                A.summary.scalar(LEARNING_RATE_TAG,
+                                self._lr_tensor,
+                                collections=[TRAINING_DYNAMICS_COLLECTION])
+            elif A.backend() == A.TORCH:
+                A.summary.scalar(LEARNING_RATE_TAG,
+                                self._lr_value,
+                                collections=[TRAINING_DYNAMICS_COLLECTION])
+
+    def get_feed_dict(self):
+        """
+        Return a dict that fills the learning rate placeholder with current
+        learning rate. Only useful when the backend is tensorflow.
+        """
+        return {self._lr_tensor: self._lr_value}
 
     @property
     def data(self):
@@ -137,19 +196,20 @@ class MomentumKongFu(KongFu):
         self.use_nesterov = use_nesterov
 
     def _get_optimizer(self, lr):
-        return tf.train.MomentumOptimizer(lr,
-                                          self.momentum,
-                                          use_nesterov=self.use_nesterov)
+        return A.train.MomentumOptimizer(lr,
+                                         self.var_list,
+                                         momentum=self.momentum,
+                                         use_nesterov=self.use_nesterov)
 
 
 class GradientDescentKongFu(KongFu):
     def _get_optimizer(self, lr):
-        return tf.train.GradientDescentOptimizer(lr)
+        return A.train.GradientDescentOptimizer(lr)
 
 
 class AdamKongFu(KongFu):
     def _get_optimizer(self, lr):
-        return tf.train.AdamOptimizer(lr)
+        return A.train.AdamOptimizer(lr)
 
 
 __all__ = [name for name, x in locals().items() if

@@ -20,7 +20,7 @@ class TestBrain(AKidTestCase):
         from akid.layers import MSELossLayer, InnerProductLayer
         from akid import GraphBrain
 
-        X_in = A.Tensor([[1, 1], [1, 0]])
+        X_in = A.Tensor([[1, 1], [1, 0]], requires_grad=True)
         weight = A.Tensor([
             [1, 1],
             [0, 1]
@@ -28,7 +28,9 @@ class TestBrain(AKidTestCase):
         label_in = A.Tensor([
             [1, 2],
             [1, 1]
-        ])
+        ],
+                            requires_grad=True
+        )
         label_in += 1
 
         X_out_ref = 0

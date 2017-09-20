@@ -88,6 +88,7 @@ class TestSuite():
         modules_to_test.append('test_loss_layers')
         modules_to_test.append('test_brain')
         modules_to_test.append('test_synapse_layers')
+        modules_to_test.append('test_kongfus')
         # for test in test_dir:
         #     if test.startswith('test') and test.endswith('.py'):
         #         modules_to_test.append(test.rstrip('.py'))

@@ -1,5 +1,7 @@
 """
 The module to holds variable initializers.
+
+To get an initializer, call `get`.
 """
 import numpy as np
 import math
@@ -16,7 +18,8 @@ inits = {}
 
 def get(name, **kwargs):
     """
-    Get the initializer by name.
+    Get the initializer by name. All necessary parameters should be passed in
+    through keyword arguments.
 
     name: str
         The name of the initializer to use.

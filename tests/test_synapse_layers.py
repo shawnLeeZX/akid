@@ -18,7 +18,7 @@ class TestSynapseLayers(AKidTestCase):
         A.close()
 
     def test_ip_forward(self):
-        X_in = A.Tensor([[1, 1], [1, 0]])
+        X_in = A.Tensor([[1, 1], [1, 0]], requires_grad=True)
         weight = A.Tensor([
             [1, 1],
             [0, 1]
@@ -79,7 +79,7 @@ class TestSynapseLayers(AKidTestCase):
                                         "value": filter},
                              do_summary=False,
                              name="test_conv_forward")
-        X_out = l.forward(A.Tensor(X_in, require_grad=True))
+        X_out = l.forward(A.Tensor(X_in, requires_grad=True))
 
         A.init()
         X_out_eval = A.eval(X_out)
@@ -101,7 +101,7 @@ class TestSynapseLayers(AKidTestCase):
         # Do forward once to build ops.
         X_in = np.random.uniform(-1, 1, [100, 10, 9, 9])
         X_in = A.standardize_data_format(X_in, 'nchw')
-        out = l.forward(A.Tensor(X_in, require_grad=True))
+        out = l.forward(A.Tensor(X_in, requires_grad=True))
         summary_ops = A.summary.get_collection()
         summary_op = A.summary.merge(summary_ops)
 
@@ -110,7 +110,7 @@ class TestSynapseLayers(AKidTestCase):
 
         for i in xrange(100):
             if A.backend() == A.TORCH:
-                l.forward(A.Tensor(X_in, require_grad=True))
+                l.forward(A.Tensor(X_in, requires_grad=True))
             else:
                 A.run(out)
             if i % 10 == 0:

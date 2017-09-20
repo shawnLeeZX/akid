@@ -6,6 +6,7 @@ NOTE
 To use tensorflow backend to execute/evaluate any graph built, run `init`
 beforehand.
 """
+from uuid import uuid4
 import numpy as np
 import tensorflow as tf
 
@@ -34,9 +35,13 @@ def close():
     tf.reset_default_graph()
 
 
-def get_variable(name, shape=None,
+def get_variable(name=None, shape=None,
                  initializer=None, trainable=True,
                  shared=True):
+    # Generate a random name if the name is not given
+    if not name:
+        name = get_random_name()
+
     if not callable(initializer):
         shape = None
 
@@ -57,12 +62,12 @@ def get_name(v):
     return name
 
 
-def Tensor(X_in, require_grad=False):
+def Tensor(X_in, requires_grad=False):
     """
     Get a tensor from a constant (array).
 
     Args:
-        require_grad: It is for compatibility with PyTorch. Not used here,
+        requires_grad: It is for compatibility with PyTorch. Not used here,
             since in tensorflow tensor can participate in auto-differentiation.
     """
     return tf.constant(X_in, dtype=tf.float32)
@@ -170,3 +175,7 @@ def standardize_data_format(data, old_format):
         return np.einsum('{}->{}'.format(old_format, out_format), data)
     else:
         raise ValueError("Type {} is not supported.".format(type(data)))
+
+
+def get_random_name():
+    return uuid4().hex

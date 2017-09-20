@@ -41,7 +41,7 @@ def get_variable(name=None, shape=None,
     else:
         t = th.Tensor(initializer(shape))
 
-    t = Variable(t)
+    t = Variable(t, requires_grad=trainable)
 
     if name:
         _cache_tensor(t, name)
@@ -169,9 +169,9 @@ def eval(t):
 
 
 @cache_name_if_exist
-def Tensor(t, require_grad=False, name=None):
+def Tensor(t, requires_grad=False, name=None):
     t = th.Tensor(t)
-    if require_grad:
+    if requires_grad:
         t =  Variable(t)
     return t
 
