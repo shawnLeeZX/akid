@@ -13,6 +13,11 @@ from . import sensors
 from . import engines
 from .blocks import Block
 from .. import backend as A
+from .common import (
+    TRAIN_SUMMARY_COLLECTION,
+    VALID_SUMMARY_COLLECTION,
+    TRAINING_DYNAMICS_COLLECTION
+)
 
 
 class Kid(Block):
@@ -229,7 +234,6 @@ class Kid(Block):
         self.sensor.setup()
         self.engine = engines.get(brain=self.brain, kongfu=self.kongfu, **self.engine_para)
         self.engine.setup()
-        # self._setup_summary()
         # self.saver = tf.train.Saver(tf.global_variables())
         # if self.sess is None:
         #     config = tf.ConfigProto(allow_soft_placement=True)
@@ -269,9 +273,10 @@ class Kid(Block):
         self.epoch = A.get_step() \
             // self.sensor.num_batches_per_epoch_train
 
-        if A.backend() == A.TF:
-            # Do forward once to build ops.
-            self.step()
+        # Do forward once to build ops.
+        self.step()
+        if A.backend() == A.TORCH:
+            A.step()  # For PyTorch, the step matters
 
         A.init()
         self.on_train_begin()
@@ -311,12 +316,12 @@ class Kid(Block):
         #     return loss
 
     def tf_step(self, update=True):
-        fd = self.get_train_feed_dict()
+        self.feed_dict = self.get_train_feed_dict()
         fetch = [self.engine.loss()]
         fetch.extend(self.engine.eval())
         if update:
             fetch.append(self.engine.train_op)
-        result = A.run(fetch, feed_dict=fd)
+        result = A.run(fetch, feed_dict=self.feed_dict)
 
         return result[0], result[1:-1] if update else result[1:]
 
@@ -364,21 +369,20 @@ class Kid(Block):
             log.setLevel(log.DEBUG)
         self.log("Logs will be save to: {}".format(self.log_dir))
 
-    def _setup_summary(self):
+    def setup_summary(self):
         if self.do_summary:
             # SummaryWriter to output summaries and the Graph.
             A.summary.init(self.log_dir)
 
-            summary_ops = A.get_collection(TRAIN_SUMMARY_COLLECTION)
-            summary_ops.extend(A.get_collection(
+            summary_ops = A.summary.get_collection(TRAIN_SUMMARY_COLLECTION)
+            summary_ops.extend(A.summary.get_collection(
                 TRAINING_DYNAMICS_COLLECTION))
             if self.summary_on_val:
-                val_summary_ops = A.get_collection(
+                val_summary_ops = A.summary.get_collection(
                     VALID_SUMMARY_COLLECTION)
                 summary_ops.extend(val_summary_ops)
             self.summary_op = A.summary.merge(summary_ops)
-            # Write the brain to tensorflow event file.
-            A.summary.add_graph(self.graph)
+            A.summary.add_graph()
 
     def init(self, continue_from_chk_point=None):
         """

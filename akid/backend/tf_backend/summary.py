@@ -46,8 +46,8 @@ def scalar(name, value, collections=None, step=None):
     tf.summary.scalar(name, value, collections=collections)
 
 
-def add_graph(graph):
-    summary_writer.add_graph(graph)
+def add_graph():
+    summary_writer.add_graph(tf.get_default_graph())
 
 
 def get_collection(name=None):
@@ -62,8 +62,8 @@ def get_collection(name=None):
         return ret
 
 
-def run_summary_op(op):
-    summary_str = cg.sess.run(op)
+def run_summary_op(op, feed_dict=None):
+    summary_str = cg.sess.run(op, feed_dict=feed_dict)
     summary_writer.add_summary(summary_str, general_cg.get_step())
 
 

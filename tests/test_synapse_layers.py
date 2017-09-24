@@ -100,7 +100,6 @@ class TestSynapseLayers(AKidTestCase):
                              do_summary=True,
                              name="test_summary")
         l.setup()
-        shape = A.get_shape(l.weights)
 
         # Do forward once to build ops.
         X_in = np.random.uniform(-1, 1, [100, 10, 9, 9])

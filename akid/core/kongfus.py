@@ -8,7 +8,6 @@ import inspect
 import tensorflow as tf
 
 from .common import TRAINING_DYNAMICS_COLLECTION, LEARNING_RATE_TAG
-from . import common
 from .blocks import ShadowableBlock
 from .interface_blocks import UpdateBlock
 from .. import backend as A
@@ -99,6 +98,7 @@ class KongFu(ShadowableBlock, UpdateBlock):
                 self.opt = self._get_optimizer(self._lr_tensor)
             elif A.backend() == A.TORCH:
                 self.opt = self._get_optimizer(self._lr_value)
+                A.cache_tensor(self._lr_value, LEARNING_RATE_TAG)
 
     def set_lr(self, lr):
         """
@@ -109,6 +109,7 @@ class KongFu(ShadowableBlock, UpdateBlock):
         if A.backend() == A.TORCH:
             for pg in self.opt.param_groups:
                 pg['lr'] = lr
+            A.cache_tensor(self._lr_value, LEARNING_RATE_TAG)
 
     def set_var_list(self, var_list):
         self.var_list = var_list

@@ -1,3 +1,4 @@
+from torch.autograd import Variable
 from tensorboard import SummaryWriter
 
 from . import computational_graph as cg
@@ -19,9 +20,8 @@ summary_writer = None
 
 
 class SummaryOp(object):
-    def __init__(self, name, value):
+    def __init__(self, name):
         self.name = name
-        self.value = value
 
     def __str__(self):
         return self.name
@@ -33,13 +33,15 @@ class SummaryOp(object):
 class HistogramSummaryOp(SummaryOp):
     def __call__(self, step):
         summary_writer.add_histogram(
-            self.name, cg.eval(self.value), global_step=step, bins='auto')
+            self.name, cg.eval(cg.tensor_by_name[self.name]), global_step=step, bins='auto')
 
 
 class ScalarSummaryOp(SummaryOp):
     def __call__(self, step):
+        t = cg.tensor_by_name[self.name]
+        v = cg.eval(t)  if type(t) is Variable else t
         summary_writer.add_scalar(
-            self.name, cg.eval(self.value), global_step=step)
+            self.name, v, global_step=step)
 
 
 def init(dir=None):
@@ -56,15 +58,15 @@ def init(dir=None):
 
 def histogram(name, values, collections=None):
     for c in collections:
-        _collections[c].append(HistogramSummaryOp(name, values))
+        _collections[c].append(HistogramSummaryOp(name))
 
 
 def scalar(name, value, collections=None):
     for c in collections:
-        _collections[c].append(ScalarSummaryOp(name, value))
+        _collections[c].append(ScalarSummaryOp(name))
 
 
-def add_graph(graph):
+def add_graph():
     """Does nothing. Since the implementation of tensorboard-pytorch is buggy now."""
     pass
 
@@ -87,10 +89,14 @@ def merge(l):
     return l
 
 
-def run_summary_op(ops):
+def run_summary_op(op, feed_dict=None):
     """
     Args:
-        ops: a list of SummaryOp.
+        op: a list of SummaryOp.
+        feed_dict: not used. Tensorflow compatibility.
     """
-    for c in ops:
-        c(cg_general.get_step())
+    if type(op) is list:
+        for c in op:
+            c(cg_general.get_step())
+    else:
+        c(cg_general.get_step(op))

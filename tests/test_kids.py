@@ -15,9 +15,18 @@ class TestKid(AKidTestCase):
         sensor = TestFactory.get_test_sensor()
         kid = TestFactory.get_test_kid(sensor, brain)
         kid.do_summary = False
-        # kid.max_steps = 5
         kid.setup()
-        # kid.train_log_step = 1
+
+        loss = kid.practice()
+        assert loss < 0.2, \
+                "Loss: {}".format(loss)
+
+    def test_summary(self):
+        brain = TestFactory.get_test_brain()
+        sensor = TestFactory.get_test_sensor()
+        kid = TestFactory.get_test_kid(sensor, brain)
+        kid.do_summary = True
+        kid.setup()
 
         loss = kid.practice()
         assert loss < 0.2, \

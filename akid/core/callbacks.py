@@ -9,6 +9,16 @@ from akid import backend as A
 from ..utils import glog as log
 
 
+def _do_summary(kid):
+    if kid.do_summary:
+        if A.backend() == A.TF:
+            feed_dict = kid.feed_dict
+        elif A.backend() == A.TORCH:
+            feed_dict = None
+
+        A.summary.run_summary_op(kid.summary_op, feed_dict=feed_dict)
+
+
 def on_train_log_step(kid):
     loss = kid.loss
     evals = kid.evals
@@ -34,15 +44,7 @@ def on_train_log_step(kid):
                  examples_per_sec,
                  sec_per_batch))
 
-    # feed_dict = kid.feed_dict
-    # if kid.do_summary:
-    #     # Update the events file.
-    #     summary = tf.Summary()
-    #     summary.value.add(tag="Training Loss",
-    #                       simple_value=float(loss_value))
-    #     kid.summary_writer.add_summary(summary, step)
-    #     summary_str = sess.run(kid.summary_op, feed_dict=feed_dict)
-    #     kid.summary_writer.add_summary(summary_str, step)
+    _do_summary(kid)
 
 
 def on_val_log_step(kid):
@@ -86,18 +88,14 @@ def on_train_begin(kid):
         total_parameters += variable_parametes
     log.info("Total parameters: {}".format(total_parameters))
 
+    # Set up summary ops
+    kid.setup_summary()
+
     # Run ops once to show initial training loss and save initial
     # summaries.
     kid.loss, kid.evals = kid.run_step(update=False)
 
-    # if kid.do_summary:
-    #     summary = tf.Summary()
-    #     summary.value.add(tag="Training Loss",
-    #                       simple_value=float(kid.loss_value))
-    #     kid.summary_writer.add_summary(summary, kid.step)
-    #     summary_str = kid.sess.run(kid.summary_op,
-    #                                feed_dict=kid.feed_dict)
-    #     kid.summary_writer.add_summary(summary_str, kid.step)
+    _do_summary(kid)
 
     name_to_print = [A.get_name(g) for g in kid.engine.eval()]
     eval_value_to_print = ["%0.04f" % v for v in kid.evals]

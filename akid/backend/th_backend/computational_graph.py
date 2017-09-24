@@ -44,14 +44,17 @@ def get_variable(name=None, shape=None,
     t = Variable(t, requires_grad=trainable)
 
     if name:
-        _cache_tensor(t, name)
+        cache_tensor(t, name)
 
     return t
 
 
-def _cache_tensor(tensor, name):
+def cache_tensor(tensor, name):
     tensor_by_name[name] = tensor
-    tensor.name = name
+    # The reverse direction (get tensor by name) only works when it is a
+    # variable. We occasionally cache numeric values as well, e.g. learning rate.
+    if isinstance(tensor, Variable):
+        tensor.name = name
 
 
 def _get_name_with_scope(name):
@@ -66,7 +69,7 @@ def cache_name_if_exist(func):
         d = func(*args, **kwargs)
         if 'name' in kwargs and kwargs['name']:
             name = _get_name_with_scope(kwargs['name'])
-            _cache_tensor(d, name)
+            cache_tensor(d, name)
         return d
     return inner_func
 
