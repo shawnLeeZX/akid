@@ -26,32 +26,31 @@ import tensorflow as tf
 from .common import TRAINING_DYNAMICS_COLLECTION
 from . import common
 from .blocks import ProcessingBlock
+from .interface_blocks import UpdateBlock
 from .. import backend as A
 
 
-class Engine(ProcessingBlock):
+class Engine(ProcessingBlock, UpdateBlock):
     """
     The class that abstracts parallel scheme of network training.
-
-    TODO: A better way of abstraction is to pass in already built sensor and
-    brain, then offer a property called loss. The parallelism should be done at
-    batch dimension.
 
     An `Engine` is responsible for setting up computational graph of a `Brain`
     on proper devices, and the coordination between devices (if there is any).
 
-    More specifically, an `Engine` will take an already set up `Sensor`, unset
-    up `Brain` and `KongFu`. It splits the data provide by `Sensor`, feeds them
-    to devices according to the parallel scheme, gathers and processes the
-    results, and provides the end result as if no parallelism exists.
+    More specifically, an `Engine` will take the data from `Sensor`, which
+    means it has already been set up, and set up `Brain` and `KongFu`. It
+    splits the data provide by `Sensor`, feeds them to devices according to the
+    parallel scheme, gathers and processes the results, and provides the end
+    result as if no parallelism exists.
     """
-    def __init__(self, kid, **kwargs):
-        super(Engine, self).__init__(**kwargs)
-        self.kid = kid
+    def __init__(self, brain, kongfu, **kwargs):
+        if "name" not in kwargs:
+            kwargs["name"] = 'engine'
 
-        self.sensor = kid.sensor
-        self.brain = kid.brain
-        self.kongfu = kid.kongfu
+        super(Engine, self).__init__(**kwargs)
+
+        self.brain = brain
+        self.kongfu = kongfu
 
     @abc.abstractmethod
     def loss(self, get_val=False):
@@ -80,53 +79,51 @@ class Engine(ProcessingBlock):
         """
         return None
 
-    def _post_forward(self):
-        apply_grad_op = self.kongfu.opt.apply_gradients(
-            self.grads, global_step=A.get_step())
+    # def _post_forward(self):
+    #     pass
+        # self.train_op_list.append(apply_grad_op)
+        # train_op = tf.group(*self.train_op_list)
 
-        self.train_op_list.append(apply_grad_op)
-        train_op = tf.group(*self.train_op_list)
+        # with tf.control_dependencies([train_op]):
+        #     update_op = self.brain.on_para_update()
+        #     if update_op:
+        #         self.train_op = tf.group(*update_op)
+        #     else:
+        #         self.train_op = train_op
 
-        with tf.control_dependencies([train_op]):
-            update_op = self.brain.on_para_update()
-            if update_op:
-                self.train_op = tf.group(*update_op)
-            else:
-                self.train_op = train_op
+        # for grad, var in self.grads:
+        #     if grad is not None:
+        #         tf.summary.histogram(
+        #             var.op.name + '/gradients',
+        #             grad,
+        #             collections=[TRAINING_DYNAMICS_COLLECTION])
 
-        for grad, var in self.grads:
-            if grad is not None:
-                tf.summary.histogram(
-                    var.op.name + '/gradients',
-                    grad,
-                    collections=[TRAINING_DYNAMICS_COLLECTION])
-
-    def _forward(self):
-        self.log("Build training phase ...")
-        self._forward_train()
-        self.log("Build validation phase ...")
-        self._forward_val()
+    # def _forward(self, data):
+    #     return self._forward(data)
+        # TODO: the logging should not be here.
+        # self.log("Build training phase ...")
+        # self._forward_train(data)
+        # self.log("Build validation phase ...")
+        # self._forward_val(data)
 
     def _setup(self):
         self.brain.setup()
-        self.val_brain = self.brain.get_val_copy()
+        # self.val_brain = self.brain.get_val_copy()
+        self.kongfu.set_var_list(self.brain.get_filters())
+        self.kongfu.setup()
 
 
 class SingleGPUEngine(Engine):
-    def _forward_train(self):
-        # TODO(Shuai): here is a temporary solution. Since sensor is actually
-        # just a system with two outputs, `GraphSystem` could handle it, but it
-        # would make many changes, for now, I just settle with the not-so
-        # elegant solution here. Note that if here is going to be changed,
-        # `_setup_val_brain` should also be changed.
-        # Note that a cascade change is needed for all engines if this logic
-        # needs changes.
-        data = self.sensor.data()
-        label = self.sensor.labels()
-        system_in = [data]
-        system_in.extend(label) if type(label) is list \
-            else system_in.append(label)
-        self.brain.forward(system_in)
+    def _forward(self, data):
+        return self.brain.forward(data)
+
+    def _update(self):
+        grads = self.kongfu.forward(self.brain.loss)
+        self.train_op = self.kongfu.update(grads)
+        return self.train_op
+
+    def _forward_train(self, data):
+        self.brain.forward(data)
 
         if self.brain.train_op is not None:
             if type(self.brain.train_op) is list:
@@ -430,3 +427,39 @@ class DataParallelEngine(Engine):
                 average_grads.append(grad_and_var)
 
         return average_grads
+
+
+engines = {}
+
+
+class EngineRegistry(object):
+    def __init__(self,
+                 name,
+                 cls,
+                 message=None,
+                 required_fields=(),
+                 default_paras={}):
+        self.message = message
+        self.cls = cls
+        self.name = name
+        self.default_paras = default_paras
+        self.required_fields = required_fields
+        engines[name] = self
+
+
+def get(name, **kwargs):
+    entry = engines[name]
+    for f in entry.required_fields:
+        if f not in kwargs:
+            raise KeyError("Required field {} not found in the engine parameters.".format(entry.required_fields))
+
+    for k in entry.default_paras:
+        if k not in kwargs:
+            kwargs[k] = entry.default_paras[k]
+
+    return engines[name].cls(**kwargs)
+
+
+EngineRegistry('single',
+               SingleGPUEngine,
+               "Single GPU engine")

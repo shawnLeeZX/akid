@@ -45,3 +45,21 @@ def step():
     """
     global _step
     _step += 1
+
+
+# Computation options
+# #########################################################################
+# TODO: this option does not work for tensorflow backend yet.
+_use_cuda = True
+
+
+def use_cuda(v=None):
+    """
+    If `v` is not None, set the value of flag use cuda, otherwise, return the
+    flag's value.
+    """
+    global _use_cuda
+    if v is not None:
+        _use_cuda = v
+    else:
+        return _use_cuda

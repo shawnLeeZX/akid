@@ -36,6 +36,7 @@ from __future__ import absolute_import, division, print_function
 
 import abc
 import copy
+from deprecation import deprecated
 
 import tensorflow as tf
 
@@ -69,6 +70,7 @@ class Block(object):
     def __init__(self, name=None):
         self.name = name
 
+        # TODO: create a mechanism to get default name
         if not name:
             raise Exception(
                 "{}'s `name` argument cannot be None! It serves as an"
@@ -212,9 +214,11 @@ class ProcessingBlock(Block):
             self._forward(*args, **kwargs)
             self._post_forward(*args, **kwargs)
             if not self.done_first_pass:
-                self._first_forward_logistics(*args, **kwargs)
                 self.done_first_pass = True
 
+        # TODO: see how to return the forward data directly, so to keep the
+        # semantics right. Currently, it does not work when self.data is a
+        # function.
         return self.data
 
     def _pre_forward(self, *args, **kwargs):
@@ -224,14 +228,6 @@ class ProcessingBlock(Block):
     def _post_forward(self, *args, **kwargs):
         for f in self.post_forward_hook:
             f(*args, **kwargs)
-
-    def _first_forward_logistics(self, *args, **kwargs):
-        """
-        During the first pass, some operations, e.g. summary ops, may be
-        created, but will not run in each forward. These operations should be
-        create during the first pass, and be gathered somehow.
-        """
-        pass
 
     @abc.abstractmethod
     def _forward(self):
@@ -390,6 +386,7 @@ class ProcessingLayer(GenerativeBlock):
     def set_val(self):
         self.is_val = True
 
+    @deprecated(details="This method only works for tensorflow backends.")
     def _variable_with_weight_decay(self, name, shape, init_para=None):
         """Helper to create an initialized Variable with weight decay.
 
@@ -461,8 +458,11 @@ class ProcessingLayer(GenerativeBlock):
             self.moving_averages = tf.train.ExponentialMovingAverage(
                 self.moving_average_decay, step)
 
-    def _first_forward_logistics(self, *args, **kwargs):
-        super(ProcessingLayer, self)._first_forward_logistics(*args, **kwargs)
+    def _post_forward(self, *args, **kwargs):
+        super(ProcessingLayer, self)._post_forward(*args, **kwargs)
+
+        if self.done_first_pass:
+            return
 
         if not self.do_summary:
             return

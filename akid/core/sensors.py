@@ -40,6 +40,7 @@ import abc
 import inspect
 
 import tensorflow as tf
+import torch as th
 
 from .jokers import JokerSystem
 from .blocks import ProcessingBlock
@@ -93,6 +94,13 @@ class Sensor(ProcessingBlock):
             get_val: A Boolean. If True, return validation data, otherwise,
                 return training data.
         """
+        # TODO(Shuai): here is a temporary solution. Since sensor is actually
+        # just a system with two outputs, `GraphSystem` could handle it, but it
+        # would make many changes, for now, I just settle with the not-so
+        # elegant solution here. Note that if here is going to be changed,
+        # `_setup_val_brain` should also be changed.
+        # Note that a cascade change is needed for all engines if this logic
+        # needs changes.
         if get_val:
             return self.val_data
         else:
@@ -114,7 +122,7 @@ class Sensor(ProcessingBlock):
                             "labels".format(self.name))
 
     @abc.abstractmethod
-    def _setup_training_data(self):
+    def _forward_train(self):
         """
         An abstract method each subclass must implement to provide training
         data.
@@ -129,7 +137,7 @@ class Sensor(ProcessingBlock):
         sys.exit()
 
     @abc.abstractmethod
-    def _setup_val_data(self):
+    def _forward_val(self):
         """
         An abstract method each subclass must implement to provide validation
         data.
@@ -141,17 +149,16 @@ class Sensor(ProcessingBlock):
         """
         raise NotImplementedError("Each sensor needs to implement the method"
                                   " to actually provide data as tensors.")
-        sys.exit()
 
     def _post_forward(self):
         super(Sensor, self)._post_forward()
-        if self.do_summary:
-            self._image_summary(self.training_data.op.name,
-                                self.training_data,
-                                TRAIN_SUMMARY_COLLECTION)
-            self._image_summary(self.val_data.op.name,
-                                self.val_data,
-                                VALID_SUMMARY_COLLECTION)
+        # if self.do_summary:
+        #     self._image_summary(self.training_data.op.name,
+        #                         self.training_data,
+        #                         TRAIN_SUMMARY_COLLECTION)
+        #     self._image_summary(self.val_data.op.name,
+        #                         self.val_data,
+        #                         VALID_SUMMARY_COLLECTION)
 
     def _image_summary(self, name, image_batch, collection):
             tf.summary.histogram(name,
@@ -161,26 +168,42 @@ class Sensor(ProcessingBlock):
                              image_batch,
                              collections=[collection])
 
-    def _forward(self):
+    def _forward(self, train=True):
         """
         Generate placeholder or tensor variables to represent the the input
         data.
         """
+        # TODO: source may also need to be refactored similarly with sensor.
         self.source.forward()
 
-        self.log("Setting up training sensor ... ")
-        if issubclass(type(self.source), sources.SupervisedSource):
-            self.training_data, self.training_labels \
-                = self._setup_training_data()
-        else:
-            self.training_data = self._setup_training_data()
-        self.log("Setting up val sensor ... ")
-        if issubclass(type(self.source), sources.SupervisedSource):
-            self.val_data, self.val_labels = self._setup_val_data()
-        else:
-            self.val_data = self._setup_val_data()
+        if train:
+            if not self.done_first_pass:
+                self.log("Setting up training sensor ... ")
 
-        self.log("Finished setting up sensor.")
+            if issubclass(type(self.source), sources.SupervisedSource):
+                self.training_data, self.training_labels \
+                    = self._forward_train()
+                return [self.training_data, self.training_labels]
+            else:
+                self.training_data = self._forward_train()
+
+                return [self.training_data]
+
+        else:
+            if not self.done_first_pass:
+                self.log("Setting up val sensor ... ")
+
+            if issubclass(type(self.source), sources.SupervisedSource):
+                self.val_data, self.val_labels = self._forward_val()
+
+                return [self.val_data, self.val_labels]
+            else:
+                self.val_data = self._forward_val()
+
+                return [self.val_data]
+
+        if not self.done_first_pass:
+            self.log("Finished setting up sensor.")
 
 
 class ShuffleQueueSensor(Sensor):
@@ -226,7 +249,7 @@ class IntegratedSensor(ShuffleQueueSensor):
         self.training_jokers = JokerSystem(name="training_joker")
         self.val_jokers = JokerSystem(name="val_joker")
 
-    def _setup_training_data(self):
+    def _forward_train(self):
         # TODO(Shuai): Handle the case where the source has no labels.
         self.training_jokers.forward(self.source.training_datum)
         augmented_training_datum = self.training_jokers.data
@@ -244,7 +267,7 @@ class IntegratedSensor(ShuffleQueueSensor):
 
         return training_data, training_labels
 
-    def _setup_val_data(self):
+    def _forward_val(self):
         # TODO(Shuai): Handle the case where the source has no labels.
         self.val_jokers.forward(self.source.val_datum)
         processed_val_datum = self.val_jokers.data
@@ -329,10 +352,10 @@ class FeedSensor(Sensor):
     """
     Sense from a `FeedSource` to supply data to a `Kid`.
     """
-    def _setup_training_data(self):
+    def _forward_train(self):
         return self._make_placeholder("train_data", self.batch_size)
 
-    def _setup_val_data(self):
+    def _forward_val(self):
         return self._make_placeholder("val_data", self.val_batch_size)
 
     def _make_placeholder(self, name, batch_size):
@@ -379,6 +402,25 @@ class FeedSensor(Sensor):
             self.labels(get_val): labels_feed,
         }
         return feed_dict
+
+
+class TorchSensor(Sensor):
+    def _setup(self):
+        self.source.setup()
+        # TODO: try use pin memory.
+        self.loader = th.utils.data.DataLoader(self.source.dataset,
+                                               batch_size=self.batch_size,
+                                               shuffle=True)
+        self.iter = self.loader.__iter__()
+
+    def next(self):
+        return self.iter.next()
+
+    def _forward_train(self):
+        return [th.autograd.Variable(t.cuda()) for t in self.next()]
+
+    def _forward_val(self):
+        pass
 
 
 __all__ = [name for name, x in locals().items() if

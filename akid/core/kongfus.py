@@ -36,8 +36,8 @@ class KongFu(ShadowableBlock, UpdateBlock):
     __metaclass__ = classmaker()
 
     def __init__(self,
-                 var_list,
-                 lr,
+                 lr=0.01,
+                 var_list=None,
                  lr_scheme={"name": LearningRateScheme.exp_decay,
                             "base_lr": 0.01,
                             "decay_rate": 0.95,
@@ -110,6 +110,12 @@ class KongFu(ShadowableBlock, UpdateBlock):
             for pg in self.opt.param_groups:
                 pg['lr'] = lr
 
+    def set_var_list(self, var_list):
+        self.var_list = var_list
+
+    def get_lr(self):
+        return self._lr_value
+
     def _setup_lr_scheme(self):
         if A.backend() != A.TF:
             raise ValueError("'lr_scheme' is supported only with tensorflow backend.")
@@ -153,7 +159,10 @@ class KongFu(ShadowableBlock, UpdateBlock):
     def _update(self, grads):
         return A.train.apply_gradients(self.opt, grads)
 
-    def _first_forward_logistics(self, *args, **kwargs):
+    def _post_forward(self, *args, **kwargs):
+        if self.done_first_pass:
+            return
+
         if self.do_summary:
             if A.backend() == A.TF:
                 A.summary.scalar(LEARNING_RATE_TAG,

@@ -68,7 +68,7 @@ class Source(ShadowableBlock):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self,
-                 url,
+                 url=None,
                  work_dir="data",
                  validation_rate=None,
                  **kwargs):

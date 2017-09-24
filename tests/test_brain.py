@@ -16,6 +16,13 @@ log.init()
 
 
 class TestBrain(AKidTestCase):
+    def setUp(self):
+        self.use_cuda_save = A.use_cuda()
+        A.use_cuda(False)
+
+    def tearDown(self):
+        A.use_cuda(self.use_cuda_save)
+
     def test_forward(self):
         from akid.layers import MSELossLayer, InnerProductLayer
         from akid import GraphBrain

@@ -27,6 +27,8 @@ def init(dir=None):
         dir = log.get_random_log_dir()
     summary_writer = tf.summary.FileWriter(dir)
 
+    log.info("Summary event file will be saved to {}".format(dir))
+
 
 def histogram(name, values, collections=None, step=None):
     """

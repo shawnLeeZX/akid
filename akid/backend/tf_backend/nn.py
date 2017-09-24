@@ -1,7 +1,9 @@
 import tensorflow as tf
+import computational_graph as cg
 
 
-def depthwise_conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
+def depthwise_conv2d(input, filter, bias=None, strides=1, padding='VALID', name=None):
+    strides = expand_kernel(strides)
     v = tf.nn.depthwise_conv2d(input, filter, strides, padding, name)
 
     if bias:
@@ -11,10 +13,14 @@ def depthwise_conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
 
 
 def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
+    ksize = expand_kernel(ksize)
+    strides = expand_kernel(ksize)
     return tf.nn.max_pool(value, ksize, strides, padding, data_format, name)
 
 
 def max_pool_with_argmax(input, ksize, strides, padding, Targmax=None, name=None):
+    ksize = expand_kernel(ksize)
+    strides = expand_kernel(ksize)
     return tf.nn.max_pool_with_argmax(input, ksize, strides, padding, Targmax=Targmax, name=name)
 
 
@@ -57,6 +63,7 @@ def max_unpooling(X_in, mask, ksize=[1, 2, 2, 1]):
     Does not support partially defined shape. For a tentative version that
     supports dynamic batch size, refer to `_max_pooling`.
     """
+    ksize = expand_kernel(ksize)
     input_shape = X_in.get_shape().as_list()
     #  calculation new shape
     output_shape = (input_shape[0], input_shape[1] * ksize[1], input_shape[2] * ksize[2], input_shape[3])
@@ -81,7 +88,9 @@ def relu(X_in, name=None):
     return tf.nn.relu(X_in, name)
 
 
-def conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
+def conv2d(input, filter, bias=None, strides=1, padding="VALID", name=None):
+    strides = expand_kernel(strides)
+
     if bias is not None:
         v = tf.nn.conv2d(input, filter,
                          strides, padding,
@@ -128,3 +137,62 @@ def mse_loss(data, labels, size_average=None, name=None):
         reduction_type = tf.losses.Reduction.MEAN
 
     return tf.losses.mean_squared_error(labels, data, scope=name, reduction=reduction_type)
+
+
+def cross_entropy_loss(logits, labels, name=None):
+    label_shape_size = len(labels.get_shape().as_list())
+    class_num = cg.get_shape(logits)[1]
+    if label_shape_size is 1:
+        # Set up loss graph.
+        # Convert from sparse integer labels in the range [0, NUM_CLASSSES)
+        # to 1-hot dense float vectors (that is we will have batch_size
+        # vectors, each with NUM_CLASSES values, all of which are 0.0
+        # except there will be a 1.0 in the entry corresponding to the
+        # label).
+        batch_size = tf.size(labels)
+        _labels = tf.expand_dims(labels, 1)
+        indices = tf.expand_dims(tf.range(0, batch_size, 1), 1)
+        concated = tf.concat(axis=1, values=[indices, _labels])
+        onehot_labels = tf.sparse_to_dense(
+            concated, tf.stack([batch_size, class_num]), 1.0, 0.0)
+    else:
+        # The labels has already been expanded, no need to do it again.
+        onehot_labels = labels
+
+    cross_entropy \
+        = tf.nn.softmax_cross_entropy_with_logits(logits=logits,
+                                                    labels=onehot_labels,
+                                                    name='xentropy')
+    cross_entropy_mean = tf.reduce_mean(cross_entropy,
+                                        name=name)
+
+    return cross_entropy_mean
+
+
+def class_acccuracy(predictions, labels, name=None):
+    label_shape_size = len(cg.get_shape(labels))
+    if label_shape_size is 1:
+        # NOTE: this approach has a bug. If the classifier is so weak, it
+        # gives all equal probability for all classes, then the final
+        # accuracy would be 1, since obviously the desired class is in the
+        # top k.
+        correct = tf.nn.in_top_k(predictions, labels, 1)
+        # Return the number of true entries.
+    else:
+        truth = tf.argmax(labels, axis=1)
+        predictions = tf.argmax(predictions, axis=1)
+        correct = tf.equal(truth, predictions)
+
+    return tf.reduce_mean(tf.cast(correct, tf.float32),
+                          name=name)
+
+
+def expand_kernel(ksize):
+    if type(ksize) == int:
+        ksize = [1, ksize, ksize, 1]
+    elif len(ksize) == 2:
+        ksize = [1, ksize[0], ksize[1], 1]
+    else:
+        ksize = ksize
+
+    return ksize

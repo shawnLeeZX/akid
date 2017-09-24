@@ -2,6 +2,7 @@ import torch as th
 
 
 def compute_gradients(opt, v):
+    opt.zero_grad()
     v.backward()
 
 

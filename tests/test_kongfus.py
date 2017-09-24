@@ -9,6 +9,13 @@ from akid import backend as A
 
 
 class TestKongFu(AKidTestCase):
+    def setUp(self):
+        self.use_cuda_save = A.use_cuda()
+        A.use_cuda(False)
+
+    def tearDown(self):
+        A.use_cuda(self.use_cuda_save)
+
     def test_momentum_kongfu(self):
         from akid import initializers as init
         # import ipdb; ipdb.set_trace()

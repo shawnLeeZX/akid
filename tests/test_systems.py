@@ -10,6 +10,13 @@ log.init()
 
 
 class TestSystem(AKidTestCase):
+    def setUp(self):
+        self.use_cuda_save = A.use_cuda()
+        A.use_cuda(False)
+
+    def tearDown(self):
+        A.use_cuda(self.use_cuda_save)
+
     def test_sequential_system(self):
         from akid import SequentialSystem
         s = SequentialSystem(name="test_sequential_system")

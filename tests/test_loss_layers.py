@@ -13,6 +13,11 @@ class TestLossLayers(AKidTestCase):
     def setUp(self):
         super(TestLossLayers, self).setUp()
         sugar.init()
+        self.use_cuda_save = A.use_cuda()
+        A.use_cuda(False)
+
+    def tearDown(self):
+        A.use_cuda(self.use_cuda_save)
 
     # def test_dense_eval(self):
     #     labels = tf.constant([[1, 0, 0], [0, 1, 0]], dtype=tf.float32)

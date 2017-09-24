@@ -154,7 +154,6 @@ class Brain(System, ProcessingLayer):
 
     def _pre_forward(self, *args, **kwargs):
         super(Brain, self)._pre_forward(*args, **kwargs)
-        self.log("Building forward propagation computational graph ...")
 
     def _post_forward(self, *args, **kwargs):
         super(Brain, self)._post_forward(*args, **kwargs)
@@ -163,7 +162,9 @@ class Brain(System, ProcessingLayer):
         self._gather_evals()
         self._gather_train_ops()
 
-    def _first_forward_logistics(self, *args, **kwargs):
+        if self.done_first_pass:
+            return
+
         if not self.do_summary:
             return
 

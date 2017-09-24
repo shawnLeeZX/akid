@@ -1,7 +1,6 @@
 """
 This module holds common stuffs of all, such as global constants.
 """
-import tensorflow as tf
 import inspect
 
 # Graph collection names

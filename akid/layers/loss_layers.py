@@ -40,47 +40,8 @@ class SoftmaxWithLossLayer(LossLayer):
         logits = data_in[0]
         labels = data_in[1]
 
-        label_shape_size = len(labels.get_shape().as_list())
-        if label_shape_size is 1:
-            # Set up loss graph.
-            # Convert from sparse integer labels in the range [0, NUM_CLASSSES)
-            # to 1-hot dense float vectors (that is we will have batch_size
-            # vectors, each with NUM_CLASSES values, all of which are 0.0
-            # except there will be a 1.0 in the entry corresponding to the
-            # label).
-            batch_size = tf.size(labels)
-            _labels = tf.expand_dims(labels, 1)
-            indices = tf.expand_dims(tf.range(0, batch_size, 1), 1)
-            concated = tf.concat(axis=1, values=[indices, _labels])
-            onehot_labels = tf.sparse_to_dense(
-                concated, tf.stack([batch_size, self.class_num]), 1.0, 0.0)
-        else:
-            # The labels has already been expanded, no need to do it again.
-            onehot_labels = labels
-
-        cross_entropy \
-            = tf.nn.softmax_cross_entropy_with_logits(logits=logits,
-                                                      labels=onehot_labels,
-                                                      name='xentropy')
-        cross_entropy_mean = tf.reduce_mean(cross_entropy,
-                                            name='xentropy_mean')
-        self._loss = cross_entropy_mean
-
-        # Set up eval graph.
-        if label_shape_size is 1:
-            # NOTE: this approach has a bug. If the classifier is so weak, it
-            # gives all equal probability for all classes, then the final
-            # accuracy would be 1, since obviously the desired class is in the
-            # top k.
-            correct = tf.nn.in_top_k(logits, labels, 1)
-            # Return the number of true entries.
-        else:
-            truth = tf.argmax(labels, axis=1)
-            predictions = tf.argmax(logits, axis=1)
-            correct = tf.equal(truth, predictions)
-
-        self._eval = tf.reduce_mean(tf.cast(correct, tf.float32),
-                                    name="acc")
+        self._loss = A.nn.cross_entropy_loss(logits, labels, name="xentropy_mean")
+        self._eval = A.nn.class_acccuracy(logits, labels, name='accuracy')
 
 
 class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):

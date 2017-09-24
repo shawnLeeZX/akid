@@ -5,7 +5,9 @@ import zipfile
 
 import numpy as np
 
-from ..core.sources import InMemoryFeedSource, SupervisedSource
+from torchvision import datasets, transforms
+
+from ..core.sources import InMemoryFeedSource, SupervisedSource, StaticSource
 from .datasets import DataSet, DataSets
 
 
@@ -188,3 +190,13 @@ class RotatedMNISTFeedSource(InMemoryFeedSource, SupervisedSource):
                                scale=self.scale)
 
         return DataSets(training_dataset, test_dataset)
+
+
+class MNISTTorchSource(StaticSource, SupervisedSource):
+    def setup(self):
+        self.dataset = datasets.MNIST(self.work_dir, train=True, download=True,
+                                      transform=transforms.Compose([
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.1307,), (0.3081,))]))
+    def _forward(self):
+        pass

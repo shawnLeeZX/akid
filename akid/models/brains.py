@@ -96,7 +96,7 @@ class OneLayerBrain(GraphBrain):
         super(OneLayerBrain, self).__init__(**kwargs)
         self.attach(
             ConvolutionLayer(ksize=[5, 5],
-                             strides=[1, 1, 1, 1],
+                             strides=[1, 1],
                              padding="SAME",
                              in_channel_num=1,
                              out_channel_num=32,
@@ -104,8 +104,8 @@ class OneLayerBrain(GraphBrain):
         )
         self.attach(ReLULayer(name="relu1"))
         self.attach(
-            PoolingLayer(ksize=[1, 5, 5, 1],
-                         strides=[1, 5, 5, 1],
+            PoolingLayer(ksize=[5, 5],
+                         strides=[5, 5],
                          padding="SAME",
                          name="pool1")
         )

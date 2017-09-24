@@ -7,7 +7,6 @@ import copy
 
 from .blocks import GenerativeBlock
 from .. import backend as A
-import abc
 
 
 class System(GenerativeBlock):
@@ -83,6 +82,11 @@ class System(GenerativeBlock):
         block_in.do_summary = self.do_summary
         self.blocks.append(block_in)
 
+    def set_do_summary(self, v):
+        self.do_summary = v
+        for b in self.blocks:
+            b.do_summary = v
+
 
 class SequentialSystem(System):
     """
@@ -91,6 +95,7 @@ class SequentialSystem(System):
     """
     def _setup(self):
         for b in self.blocks:
+            self.log("Setting up block {}.".format(b.name))
             b.setup()
 
     def _forward(self, data_in):
@@ -110,22 +115,25 @@ class SequentialSystem(System):
         except ValueError:
             shape = None
 
-        self.log("Doing forward propagation.")
-        self.log("System input shape: {}".format(shape))
+        if not self.done_first_pass:
+            self.log("Doing forward propagation.")
+            self.log("System input shape: {}".format(shape))
+
         previous_data_name = 'system_in'
         for l in self.blocks:
-            self.log("Setting up block {}.".format(l.name))
+
             l.forward(data)
 
-            name = A.get_name(data)
-            p_name = name if name else previous_data_name
-            name = A.get_name(l.data)
-            n_name = name if name else l.name
-            self.log("Connected: {} -> {}".format(p_name, n_name))
-            previous_data_name = l.name
+            if not self.done_first_pass:
+                name = A.get_name(data)
+                p_name = name if name else previous_data_name
+                name = A.get_name(l.data)
+                n_name = name if name else l.name
+                self.log("Connected: {} -> {}".format(p_name, n_name))
+                previous_data_name = l.name
 
-            if shape:
-                self.log("Top shape: {}".format(A.get_shape(l.data)))
+                if shape:
+                    self.log("Top shape: {}".format(A.get_shape(l.data)))
             data = l.data
 
         self._data = data
@@ -165,13 +173,14 @@ class GraphSystem(SequentialSystem):
         # Normalize input to a list for convenience even if there is only one
         # input.
         data = data_in if type(data_in) is list else [data_in]
-        self.log("System input shape: {}".format(
-            [A.get_shape(d) for d in data]))
+
+        if not self.done_first_pass:
+            self.log("System input shape: {}".format(
+                [A.get_shape(d) for d in data]))
 
         previous_data_name = "system_in"
         for i, l in enumerate(self.blocks):
-            self.log("Setting up block {}.".format(l.name))
-            l.do_summary = self.do_summary
+
             inputs = None
             if l.inputs:
                 # Find inputs in the system to current block.
@@ -222,33 +231,35 @@ class GraphSystem(SequentialSystem):
                 # By default, we only pass the first tensor to the new layer.
                 l.forward(data[0])
 
-            # Logging
-            dtype = type(data)
-            if inputs:
-                in_name = [A.get_name(i) for i in inputs]
-            else:
-                in_name = A.get_name(data[0])
-
-            if in_name is None or type(in_name) is list and None in in_name:
-                in_name = previous_data_name
-
-            if l.data is not None:
-                dtype = type(l.data)
-                if dtype is not tuple and dtype is not list:
-                    n = A.get_name(l.data)
-                    out_name = n if n else l.name
+            if not self.done_first_pass:
+                # Logging
+                dtype = type(data)
+                if inputs:
+                    in_name = [A.get_name(i) for i in inputs]
                 else:
-                    out_name = [A.get_name(d) for d in l.data]
-                    if None in out_name:
-                        out_name = l.name
+                    in_name = A.get_name(data[0])
 
-                self.log("Connected: {} -> {}".format(in_name, out_name))
-                self.log("Top shape: {}".format(
-                    A.get_shape(l.data) if dtype is not tuple and dtype is not list
-                    else [A.get_shape(d) for d in l.data]))
-            else:
-                self.log("Inputs: {}. No outputs.".format(in_name))
+                if in_name is None or type(in_name) is list and None in in_name:
+                    in_name = previous_data_name
 
+                if l.data is not None:
+                    dtype = type(l.data)
+                    if dtype is not tuple and dtype is not list:
+                        n = A.get_name(l.data)
+                        out_name = n if n else l.name
+                    else:
+                        out_name = [A.get_name(d) for d in l.data]
+                        if None in out_name:
+                            out_name = l.name
+
+                    self.log("Connected: {} -> {}".format(in_name, out_name))
+                    self.log("Top shape: {}".format(
+                        A.get_shape(l.data) if dtype is not tuple and dtype is not list
+                        else [A.get_shape(d) for d in l.data]))
+                else:
+                    self.log("Inputs: {}. No outputs.".format(in_name))
+
+            dtype = type(l.data)
             data = l.data if dtype is tuple or dtype is list else [l.data]
 
             previous_data_name = l.name

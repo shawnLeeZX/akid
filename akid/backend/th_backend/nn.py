@@ -36,13 +36,9 @@ def inner_product(input, W, bias=None, name=None):
 
 @cache_name_if_exist
 def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
-    assert len(ksize) == 4, "Only ksize of dim 4 is supported"
-    padding = padding_str2tuple(padding, ksize[1], ksize[2])
+    padding = padding_str2tuple(padding, ksize[0], ksize[1])
     # The format of torch is two tuple ksize instead of 4.
-    _ksize = []
-    _ksize.append(ksize[1])
-    _ksize.append(ksize[2])
-    return F.max_pool2d(value, _ksize, strides, padding)
+    return F.max_pool2d(value, ksize, tuple(strides), padding)
 
 
 @cache_name_if_exist
@@ -58,6 +54,20 @@ def zero_fraction(data, name=None):
 @cache_name_if_exist
 def mse_loss(data, labels, size_average=True, name=None):
     return th.nn.functional.mse_loss(data, labels, size_average=size_average)
+
+
+@cache_name_if_exist
+def cross_entropy_loss(logits, labels, name=None):
+    return F.cross_entropy(logits, labels)
+
+
+@cache_name_if_exist
+def class_acccuracy(predictions, labels, name=None):
+    size = cg.get_shape(labels)[0]
+    pred = predictions.max(1, keepdim=True)[1] # get the index of the max log-probability
+    correct = pred.eq(labels.view_as(pred)).sum()
+    acc = correct.float() / size
+    return acc
 
 
 def padding_str2tuple(padding, H, W):

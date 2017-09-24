@@ -10,15 +10,12 @@ from .. import computational_graph as cg
 
 # Maintain two hash table for looking up variables.
 tensor_by_name = {}
-name_by_tensor = {}
 
 
 def get_variable(name=None, shape=None,
                  initializer=None, trainable=True,
                  shared=True):
     """
-    `name` is not used in torch.
-
     `shared`, and `trainable` are not used yet. They are legacy code from
     tensorflow, which may be useful when torch is used for distributed
     training.
@@ -41,6 +38,9 @@ def get_variable(name=None, shape=None,
     else:
         t = th.Tensor(initializer(shape))
 
+    if cg.use_cuda():
+        t = t.cuda()
+
     t = Variable(t, requires_grad=trainable)
 
     if name:
@@ -51,7 +51,7 @@ def get_variable(name=None, shape=None,
 
 def _cache_tensor(tensor, name):
     tensor_by_name[name] = tensor
-    name_by_tensor[tensor] = name
+    tensor.name = name
 
 
 def _get_name_with_scope(name):
@@ -103,9 +103,9 @@ def get_name(v):
     The purpose of the function is to give a unique identifier that can be used
     to identify a Tensor.
     """
-    try:
-        return name_by_tensor[v]
-    except KeyError:
+    if hasattr(v, "name"):
+        return v.name
+    else:
         return None
 
 
@@ -160,10 +160,20 @@ def eval(t):
     """
     Convert torch tensor to numpy array.
     """
+    if type(t) is list or type(t) is tuple:
+        return [eval(i) for i in t]
+
+    # Convert to CPU anyway. May be redundant.
+    t = t.cpu()
+
     if type(t) is Variable:
         v = t.data.numpy()
     else:
         v = t.numpy()
+
+    if len(v) == 1:
+        # Return the value directly if it is not an array.
+        v = v[0]
 
     return v
 

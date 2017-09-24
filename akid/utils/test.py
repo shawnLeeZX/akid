@@ -14,11 +14,15 @@ from akid import AKID_DATA_PATH
 from akid import (
     MNISTFeedSource,
     Cifar10TFSource,
+    MNISTTorchSource,
+    Source,
     Kid,
     FeedSensor,
+    TorchSensor,
     MomentumKongFu
 )
 from akid.models.brains import OneLayerBrain
+from akid import backend as A
 
 
 def main():
@@ -68,16 +72,38 @@ class TestFactory(object):
             num_val=10000)
 
     @staticmethod
-    def get_test_kid(source, brain):
+    def get_test_sensor():
+        if A.backend() == A.TF:
+            return FeedSensor(source_in=TestFactory.get_test_feed_source(), name='data')
+        elif A.backend() == A.TORCH:
+            return TorchSensor(
+                MNISTTorchSource(work_dir=AKID_DATA_PATH + '/mnist',
+                                 num_train=60000,
+                                 num_val=10000,
+                                 name='mnist'),
+                name='mnist')
+
+
+    @staticmethod
+    def get_test_kid(data_in, brain):
         """
         Return a default kid given a source and a brain.
         """
-        return Kid(
-            FeedSensor(source_in=source, name='data'),
-            brain,
-            MomentumKongFu(),
-            debug=True,
-            max_steps=900)
+        if issubclass(type(data_in), Source):
+            return Kid(
+                FeedSensor(source_in=data_in, name='data'),
+                brain,
+                MomentumKongFu(),
+                debug=True,
+                max_steps=900)
+        else:
+            # data_in is a sensor now
+            return Kid(
+                data_in,
+                brain,
+                MomentumKongFu(),
+                debug=True,
+                max_steps=900)
 
 
 class TestSuite():
@@ -89,6 +115,7 @@ class TestSuite():
         modules_to_test.append('test_brain')
         modules_to_test.append('test_synapse_layers')
         modules_to_test.append('test_kongfus')
+        modules_to_test.append('test_kids')
         # for test in test_dir:
         #     if test.startswith('test') and test.endswith('.py'):
         #         modules_to_test.append(test.rstrip('.py'))

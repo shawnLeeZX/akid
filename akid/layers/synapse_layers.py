@@ -11,8 +11,8 @@ from ..core.common import (
     AUXILLIARY_STAT_COLLECTION
 )
 from .. import backend as A
-import helper_methods
 from .activation_layers import BatchNormalizationLayer
+from .. import nn
 
 
 class SynapseLayer(ProcessingLayer):
@@ -39,7 +39,7 @@ class SynapseLayer(ProcessingLayer):
                  in_channel_num,
                  out_channel_num,
                  initial_bias_value=0,
-                 init_para={"name": "truncated_normal", "stddev": 0.1},
+                 init_para={"name": "default"},
                  max_norm=None,
                  do_stat_on_norm=False,
                  **kwargs):
@@ -102,6 +102,9 @@ class SynapseLayer(ProcessingLayer):
     def _setup(self):
         self._para_init()
 
+        if not self.initial_bias_value:
+            self.log("Bias is disabled.")
+
     def _post_setup(self):
         super(SynapseLayer, self)._post_setup()
         if self.do_stat_on_norm:
@@ -120,9 +123,6 @@ class SynapseLayer(ProcessingLayer):
 
     def _pre_forward(self, *args, **kwargs):
         super(SynapseLayer, self)._pre_forward(*args, **kwargs)
-
-        if not self.initial_bias_value:
-            self.log("Bias is disabled.")
 
     def on_para_update(self):
         if self.max_norm:
@@ -151,25 +151,26 @@ class SynapseLayer(ProcessingLayer):
 class ConvolutionLayer(SynapseLayer):
     def __init__(self, ksize, strides=1, padding="SAME", depthwise=False, **kwargs):
         super(ConvolutionLayer, self).__init__(**kwargs)
-        self.ksize = helper_methods.expand_kernel(ksize)
-        self.strides = helper_methods.expand_kernel(strides)
+        self.ksize = ksize
+        self.strides = strides
         self.padding = padding
         self.depthwise = depthwise
 
     def get_weigth_shape(self):
         if A.backend() == A.TORCH:
             shape = [self.out_channel_num, self.in_channel_num,
-                          self.ksize[1], self.ksize[2]]
+                          self.ksize[0], self.ksize[1]]
         else:
-            shape = [self.ksize[1], self.ksize[2],
+            shape = [self.ksize[0], self.ksize[1],
                           self.in_channel_num, self.out_channel_num]
 
         return shape
 
     def _para_init(self):
         self.shape = self.get_weigth_shape()
-        self.weights, self._loss \
-            = self._variable_with_weight_decay("weights", self.shape)
+        self.weights = self._get_variable("weights",
+                                          self.shape,
+                                          self._get_initializer(self.init_para))
 
         if self.initial_bias_value is not None:
             self.biases = self._get_variable(
@@ -178,9 +179,10 @@ class ConvolutionLayer(SynapseLayer):
                 initializer=self._get_initializer(init_para={"name": "constant",
                                                              "value": self.initial_bias_value}))
 
+        self.log("Padding method {}.".format(self.padding), debug=True)
+
     def _pre_forward(self, input, *args, **kwargs):
         super(ConvolutionLayer, self)._pre_forward(*args, **kwargs)
-        self.log("Padding method {}.".format(self.padding), debug=True)
         self.input_shape = A.get_shape(input)
 
     def _forward(self, input):
@@ -193,7 +195,10 @@ class ConvolutionLayer(SynapseLayer):
         else:
             conv = A.nn.conv2d(input, self.weights,
                                self.biases, self.strides,
-                               self.padding, name='fmap')
+                               self.padding)
+
+        if self.wd and self.wd["scale"] is not 0:
+            self._loss = nn.regularizers.compute(self.wd["type"], var=self.weights, scale=self.wd["scale"])
 
         self._data = conv
 
@@ -262,7 +267,7 @@ class ColorfulConvLayer(ConvolutionLayer):
     def _para_init(self):
         super(ColorfulConvLayer, self)._para_init()
         if self.same_ksize:
-            shape = [self.ksize[1], self.ksize[2], 3, self.out_channel_num]
+            shape = [self.ksize[0], self.ksize[1], 3, self.out_channel_num]
         else:
             shape = [1, 1, 3, self.out_channel_num]
         self.color_W, c_W_loss = self._variable_with_weight_decay(
@@ -285,7 +290,7 @@ class ColorfulConvLayer(ConvolutionLayer):
         if self.verbose and not self.is_val:
             self._data_summary(F_out, sparsity_summary=False)
 
-        C_out = A.nn.depthwise_conv2d(C, self.color_W, helper_methods.expand_kernel(1), self.padding)
+        C_out = A.nn.depthwise_conv2d(C, self.color_W, 1, self.padding)
         shape = C_out.get_shape().as_list()
         shape = [shape[0], shape[1], shape[2], 3, self.out_channel_num]
         C_out = A.reshape(C_out, shape)
@@ -319,7 +324,7 @@ class EquivariantProjectionLayer(SynapseLayer):
         """
         super(EquivariantProjectionLayer, self).__init__(**kwargs)
         self.g_size = g_size
-        self.strides = helper_methods.expand_kernel(strides)
+        self.strides = strides
 
     def _para_init(self):
         self.W, self._loss = self._variable_with_weight_decay(
@@ -388,6 +393,18 @@ class InnerProductLayer(SynapseLayer):
         ip = A.nn.inner_product(input, self.weights, bias=self.biases)
         self._data = ip
 
+        if self.wd and self.wd["scale"] is not 0:
+            self._loss = nn.regularizers.compute(self.wd["type"], var=self.weights, scale=self.wd["scale"])
+
+        if self.initial_bias_value is not None:
+            if self.wd_on_bias and self.wd["scale"] is not 0:
+                loss = nn.regularizers.compute(self.wd["type"], var=self.biases, scale=self.wd["scale"])
+
+                if self._loss is not None:
+                    self._loss += loss
+                else:
+                    self._loss = loss
+
     def _reshape(self, input):
         """
         Flatten all input feature maps.
@@ -418,26 +435,12 @@ class InnerProductLayer(SynapseLayer):
 
     def _para_init(self):
         self.shape = [self.in_channel_num, self.out_channel_num]
-        self.weights, self._loss = self._variable_with_weight_decay(
-            'weights', self.shape)
-        if self.initial_bias_value is not None:
-            if self.wd_on_bias:
-                self.biases, loss = self._variable_with_weight_decay(
-                    'biases',
-                    shape=[self.out_channel_num],
-                    init_para={"name": "constant", "value": self.initial_bias_value})
-                if loss is not None:
-                    if self._loss is not None:
-                        self._loss += loss
-                    else:
-                        self._loss = loss
-            else:
-                self.biases = self._get_variable(
-                    'biases',
-                    shape=[self.out_channel_num],
-                    initializer=self._get_initializer(
-                        init_para={"name": "constant",
-                                   "value": self.initial_bias_value}))
+        self.weights = self._get_variable(
+            'weights', self.shape, self._get_initializer(self.init_para))
+        self.biases = self._get_variable(
+            'biases',
+            shape=[self.out_channel_num],
+            initializer=self._get_initializer({"name": "constant", "value": self.initial_bias_value}))
 
 
 class InvariantInnerProductLayer(SynapseLayer):

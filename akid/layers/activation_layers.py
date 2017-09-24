@@ -7,7 +7,6 @@ from tensorflow.python.training import moving_averages
 from ..core.blocks import ProcessingLayer
 from ..core import common
 from .. import backend as A
-import helper_methods
 
 
 class PoolingLayer(ProcessingLayer):
@@ -24,24 +23,26 @@ class PoolingLayer(ProcessingLayer):
                 for average pooling.
         """
         super(PoolingLayer, self).__init__(**kwargs)
-        self.ksize = helper_methods.expand_kernel(ksize)
-        self.strides = helper_methods.expand_kernel(strides)
+        self.ksize = ksize
+        self.strides = strides
         self.padding = padding
         self.type = type
 
-    def _forward(self, input):
+    def _setup(self):
         self.log("Padding method {}.".format(self.padding), debug=True)
         self.log("Pooling method {}.".format(self.type), debug=True)
+
+    def _forward(self, input):
         if self.type == "max":
-            self._data = tf.nn.max_pool(input,
-                                        self.ksize,
-                                        self.strides,
-                                        self.padding)
+            self._data = A.nn.max_pool(input,
+                                       self.ksize,
+                                       self.strides,
+                                       self.padding)
         elif self.type == "avg":
-            self._data = tf.nn.avg_pool(input,
-                                        self.ksize,
-                                        self.strides,
-                                        self.padding)
+            self._data = A.nn.avg_pool(input,
+                                       self.ksize,
+                                       self.strides,
+                                       self.padding)
         else:
             raise Exception("Type `{}` pooling is not supported.".format(
                 self.type))
@@ -59,8 +60,8 @@ class MaxPoolingLayer(ProcessingLayer):
         """
         super(MaxPoolingLayer, self).__init__(**kwargs)
 
-        self.ksize = helper_methods.expand_kernel(ksize)
-        self.strides = helper_methods.expand_kernel(strides)
+        self.ksize = ksize
+        self.strides = strides
 
         self.padding = padding
         self.get_argmax_idx = get_argmax_idx

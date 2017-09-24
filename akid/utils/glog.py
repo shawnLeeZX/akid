@@ -152,6 +152,24 @@ def init(filename=None):
     logger = logging.getLogger("glog")
 
     logger.propagate = False
+
+    add(filename)
+    setLevel(FLAGS.verbosity)
+
+    debug = logger.debug
+    info = logger.info
+    warning = logger.warning
+    warn = logger.warning
+    error = logger.error
+    exception = logger.exception
+    fatal = logger.fatal
+    log = logger.log
+
+
+def add(filename):
+    """
+    Add file to write the log for.
+    """
     if filename is None:
         if "stderr" not in file_names:
             handler = logging.StreamHandler()
@@ -169,16 +187,6 @@ def init(filename=None):
     file_names.append(filename)
     handler.setFormatter(GlogFormatter())
     logger.addHandler(handler)
-    setLevel(FLAGS.verbosity)
-
-    debug = logger.debug
-    info = logger.info
-    warning = logger.warning
-    warn = logger.warning
-    error = logger.error
-    exception = logger.exception
-    fatal = logger.fatal
-    log = logger.log
 
 
 DEBUG = logging.DEBUG

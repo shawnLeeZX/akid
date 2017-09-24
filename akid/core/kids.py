@@ -8,17 +8,13 @@ import time
 import sys
 import inspect
 
-import tensorflow as tf
-
 from ..utils import glog as log
 from . import sensors
 from . import engines
 from .blocks import Block
-from .kongfus import LearningRateScheme
-from . import common
+from .. import backend as A
 
 
-# TODO: kid is probably broken.
 class Kid(Block):
     """
     Kid is a class to assemble a `Sensor`, for supplying data, a
@@ -56,15 +52,13 @@ class Kid(Block):
                  sensor_in,
                  brain_in,
                  kongfu_in,
-                 engine="single",
-                 sess=None,
+                 engine={"name": "single"},
                  max_steps=None,
                  max_epoch=None,
                  log_dir=None,
                  log_to_file=True,
                  val_log_step=1000,
                  train_log_step=100,
-                 graph=None,
                  save_chk_point=True,
                  do_summary=True,
                  summary_on_val=False,
@@ -96,8 +90,6 @@ class Kid(Block):
                where the `name` key indicates the parallel scheme while other
                keys are parameters of that scheme. If parameters are not
                provided, again default ones will be used.
-            sess: tf.Session
-                The session to use. If None, one will be created.
             max_steps: int
             max_epoch: int
                 You can only specify either max epoch to train or max
@@ -109,9 +101,6 @@ class Kid(Block):
                 folder to keep all the mentioned files.
             log_to_file: Boolean
                 Whether to save log to file.
-            graph: tf.Graph()
-                The computational graph this kid is in. If not given, a
-                new graph will be created.
             val_log_step: int
                 After how many steps evaluation on the validation dataset
                 should be taken.
@@ -140,7 +129,6 @@ class Kid(Block):
         self.brain = brain_in
         self.kongfu = kongfu_in
         self.engine_para = engine
-        self.sess = sess
         self.debug = debug
 
         # Set up logging facilities.
@@ -164,18 +152,6 @@ class Kid(Block):
         self.summary_on_val = summary_on_val
         self.do_summary = do_summary
         self.save_chk_point = save_chk_point
-
-        # A tensorflow computational graph to hold training and validating
-        # graphs.
-        if not graph:
-            self.graph = tf.Graph()
-        else:
-            self.graph = graph
-
-        # Flag to indicate the input queue runner has been started or not,
-        # since both training and validation may start this, while it should
-        # only be started once.
-        self.initialized = False
 
         # Set up hooks.
         class hooks(object):
@@ -203,8 +179,7 @@ class Kid(Block):
         self.hooks = hooks()
 
         # Class members whose value depends on the state of the class.
-        self.feed_dict = None
-        self.loss_value = None
+        self.loss = None
         self.evals = None
         self.best_val_evals = None
 
@@ -219,9 +194,6 @@ class Kid(Block):
         """
         self.log('Validation Data Eval:')
 
-        if not self.initialized:
-            self.init(continue_from_chk_point=True)
-
         # Run one epoch of eval.
         eval_metric_values = [0] * len(self.engine.eval(get_val=True))
         loss = 0
@@ -229,11 +201,11 @@ class Kid(Block):
 
         for step in xrange(steps_per_epoch):
             if type(self.sensor) is sensors.FeedSensor:
-                self.feed_dict = self.sensor.fill_feed_dict(get_val=True)
+                feed_dict = self.sensor.fill_feed_dict(get_val=True)
 
             fetch = [self.engine.loss(get_val=True)]
             fetch.extend(self.engine.eval(get_val=True))
-            result = self.sess.run(fetch, feed_dict=self.feed_dict)
+            result = self.sess.run(fetch, feed_dict=feed_dict)
 
             loss += result[0]
             for i, v in enumerate(result[1:]):
@@ -243,7 +215,7 @@ class Kid(Block):
         for i, v in enumerate(eval_metric_values):
             eval_metric_values[i] = v / steps_per_epoch
 
-        self.loss_value = loss
+        self.loss = loss
         self.evals = eval_metric_values
         self.on_val_log_step()
 
@@ -253,22 +225,16 @@ class Kid(Block):
         """
         Set up logging and the computation graph.
         """
-        with self.graph.as_default():
-            common.init()
-            # SummaryWriter to output summaries and the Graph.
-            A.summary.init(self.log_dir)
-            self.log("Summary event file will be saved to {}".format(
-                self.log_dir))
-            self.global_step_tensor = A.get_step()
-            self._setup_log()
-            self._setup_sensor()
-            self._setup_engine()
-            self._setup_summary()
-            self.saver = tf.train.Saver(tf.global_variables())
-            if self.sess is None:
-                config = tf.ConfigProto(allow_soft_placement=True)
-                config.gpu_options.allow_growth = True
-                self.sess = tf.Session(graph=self.graph, config=config)
+        self._setup_log()
+        self.sensor.setup()
+        self.engine = engines.get(brain=self.brain, kongfu=self.kongfu, **self.engine_para)
+        self.engine.setup()
+        # self._setup_summary()
+        # self.saver = tf.train.Saver(tf.global_variables())
+        # if self.sess is None:
+        #     config = tf.ConfigProto(allow_soft_placement=True)
+        #     config.gpu_options.allow_growth = True
+        #     self.sess = tf.Session(graph=self.graph, config=config)
 
     def teardown(self):
         """
@@ -294,63 +260,115 @@ class Kid(Block):
             loss, [eval]: float, float
                 Final validation loss and optional evaluation metric.
         """
-        try:
-            self.init(continue_from_chk_point)
-            # And then after everything is built, start the training loop.
-            self.log("Begin training brain: " + self.brain.name)
-            previous_step = tf.train.global_step(self.sess,
-                                                 self.global_step_tensor)
-            self.step = previous_step
-            # Note the epoch estimation is not accurate if the batch size
-            # cannot divide total number of training samples.
-            self.epoch = previous_step \
-                // self.sensor.num_batches_per_epoch_train
+        self.log("Begin training brain: " + self.brain.name)
+        # previous_step = tf.train.global_step(self.sess,
+        #                                      self.global_step_tensor)
+        # self.step = previous_step
+        # Note the epoch estimation is not accurate if the batch size
+        # cannot divide total number of training samples.
+        self.epoch = A.get_step() \
+            // self.sensor.num_batches_per_epoch_train
 
-            self.on_train_begin()
+        if A.backend() == A.TF:
+            # Do forward once to build ops.
+            self.step()
 
-            while self.step < self.max_steps + 1:
-                if self.step % self.val_log_step == 0 or\
-                   self.step == self.max_steps:
-                    if self.save_chk_point:
-                        self.save_to_ckpt()
-                    loss, eval_ = self.validate()
+        A.init()
+        self.on_train_begin()
 
-                self.forward_backward()
+        while A.get_step() < self.max_steps + 1:
+            # if A.get_step() % self.val_log_step == 0 or\
+            #    A.get_step() == self.max_steps:
+            #     if self.save_chk_point:
+            #         self.save_to_ckpt()
+            #     loss, eval_ = self.validate()
 
-                self.step += 1
+            start_time = time.time()
 
-                if self.step % self.sensor.num_batches_per_epoch_train is 0:
-                    self.epoch += 1
-                    self.on_epoch_end()
+            self.on_batch_begin()
+            try:
+                self.loss, self.evals = self.run_step()
+            except StopIteration:
+                # TODO: Just get and ignore the exception (for PyTorch) for
+                # now. In the future , it is a good idea to implement similar
+                # exception in sources of other backends..
+                pass
 
-                if self.step % self.train_log_step == 0:
-                    self.on_train_log_step()
+            self.step_time = time.time() - start_time
 
-            if return_eval:
-                return loss, eval_
-            else:
-                return loss
+            A.step()
 
-        except tf.OpError as e:
-            self.log("Tensorflow error when running: {}".format(e.message))
-            sys.exit(0)
+            if A.get_step() % self.sensor.num_batches_per_epoch_train is 0:
+                self.epoch += 1
+                self.on_epoch_end()
+
+            if A.get_step() % self.train_log_step == 0:
+                self.on_train_log_step()
+
+        # if return_eval:
+        #     return loss, eval_
+        # else:
+        #     return loss
+
+    def tf_step(self, update=True):
+        fd = self.get_train_feed_dict()
+        fetch = [self.engine.loss()]
+        fetch.extend(self.engine.eval())
+        if update:
+            fetch.append(self.engine.train_op)
+        result = A.run(fetch, feed_dict=fd)
+
+        return result[0], result[1:-1] if update else result[1:]
+
+    def run_step(self, update=True):
+        """
+        Computation wise, execute the computational graph for a step.
+        """
+        if A.backend() == A.TF:
+            return self.tf_step(update)
+        elif A.backend() == A.TORCH:
+            loss, evals = self.step(update)
+            loss = A.eval(loss)
+            evals = A.eval(evals)
+            return loss, evals
+
+    def step(self, update=True):
+        """
+        Computational graph wise, how the tensor should be run in a step.
+        """
+        self.sensor.forward()
+        data = self.sensor.data()
+        label = self.sensor.labels()
+        system_in = [data]
+        system_in.extend(label) if type(label) is list \
+            else system_in.append(label)
+
+        self.engine.forward(system_in)
+        if update:
+            self.engine.update()
+
+        loss = self.engine.loss()
+        evals = [e for e in self.engine.eval()]
+
+        return loss, evals
 
     def _setup_log(self):
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
-        # TODO: Think how to add a check that if log has initialized, do not do
-        # this any more.
         log.init("stdout")
         if self.log_to_file:
-            log.init(self.log_filepath)
+            log.add(self.log_filepath)
         if self.debug:
             log.setLevel(log.DEBUG)
         self.log("Logs will be save to: {}".format(self.log_dir))
 
     def _setup_summary(self):
         if self.do_summary:
+            # SummaryWriter to output summaries and the Graph.
+            A.summary.init(self.log_dir)
+
             summary_ops = A.get_collection(TRAIN_SUMMARY_COLLECTION)
             summary_ops.extend(A.get_collection(
                 TRAINING_DYNAMICS_COLLECTION))
@@ -361,35 +379,6 @@ class Kid(Block):
             self.summary_op = A.summary.merge(summary_ops)
             # Write the brain to tensorflow event file.
             A.summary.add_graph(self.graph)
-
-    def _setup_sensor(self):
-        # Build training graph.
-        self.sensor.forward()
-
-    def _setup_engine(self):
-        if type(self.engine_para) is str:
-            engine_name = self.engine_para
-        else:
-            try:
-                engine_name = self.engine_para["name"]
-            except KeyError as e:
-                e.message = "Engine {} name is not found.".format(engine_name)
-                raise e
-
-        if engine_name == "single":
-            self.engine = engines.SingleGPUEngine(self, name="SEngine")
-        elif engine_name == "data_parallel":
-            if type(self.engine_para) is str:
-                # TODO: automatically use the maximal even number of gpus.
-                num_gpu = 2
-            else:
-                num_gpu = self.engine_para["num_gpu"]
-            self.engine = engines.DataParallelEngine(num_gpu, kid=self, name="DEngine")
-        else:
-            raise Exception('No engine "{}". Perhaps you have a typo.'.format(
-                engine_name))
-
-        self.engine.forward()
 
     def init(self, continue_from_chk_point=None):
         """
@@ -407,16 +396,8 @@ class Kid(Block):
             # Train from pre-trained model.
             self.restore_from_ckpt()
         else:
-            with self.graph.as_default():
-                init = tf.global_variables_initializer()
-            self.sess.run(init)
-
-        # Start queue runner if needed.
-        if type(self.sensor) is sensors.IntegratedSensor:
-            if not self.initialized:
-                tf.train.start_queue_runners(sess=self.sess)
-
-        self.initialized = True
+            # TODO: recover from checkpoint may not work now
+            A.init()
 
         if self.max_epoch:
             # Convert the max epoch number to max steps.
@@ -451,41 +432,23 @@ class Kid(Block):
             self.error("No checkpoint found under %s!" % self.model_dir)
             sys.exit()
 
-    def fill_train_feed_dict(self):
+    def get_train_feed_dict(self):
         if type(self.sensor) is sensors.FeedSensor:
             # Placeholder of `FeedSensor` should be filled.
-            self.feed_dict = self.sensor.fill_feed_dict()
+            feed_dict = self.sensor.fill_feed_dict()
             if self.summary_on_val:
                 # Validation data is also needed, so add them in.
                 val_feed_dict = self.sensor.fill_feed_dict(True)
-                self.feed_dict.update(val_feed_dict)
+                feed_dict.update(val_feed_dict)
 
-        if self.kongfu.lr_scheme["name"] is LearningRateScheme.placeholder:
-            if not self.kongfu.lr_value:
-                raise Exception("You should feed a learning rate to"
-                                " `Kongfu.lr_value`")
-            lr_dict = {self.kongfu.learning_rate: self.kongfu.lr_value}
-            if self.feed_dict:
-                self.feed_dict.update(lr_dict)
-            else:
-                self.feed_dict = lr_dict
+        lr_dict = self.kongfu.get_feed_dict()
 
-    def forward_backward(self):
-        """
-        Train for one step.
-        """
-        # Run one step.
-        self.on_batch_begin()
+        if feed_dict:
+            feed_dict.update(lr_dict)
+        else:
+            feed_dict = lr_dict
 
-        self.fill_train_feed_dict()
-
-        fetch = [self.engine.train_op, self.engine.loss()]
-        fetch.extend(self.engine.eval())
-        start_time = time.time()
-        result = self.sess.run(fetch, feed_dict=self.feed_dict)
-        self.forward_backward_time = time.time() - start_time
-        self.loss_value = result[1]
-        self.evals = result[2:]
+        return feed_dict
 
     def on_train_log_step(self):
         """

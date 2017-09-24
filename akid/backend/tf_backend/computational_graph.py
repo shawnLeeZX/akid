@@ -24,10 +24,14 @@ float32 = tf.float32
 
 def init():
     global sess
-    sess = tf.Session()
+
+    config = tf.ConfigProto(allow_soft_placement=True)
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
     init  = tf.group(tf.global_variables_initializer(),
               tf.local_variables_initializer())
     sess.run(init)
+    tf.train.start_queue_runners(sess=sess)
 
 
 def close():

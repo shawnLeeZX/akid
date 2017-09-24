@@ -14,7 +14,11 @@ class TestSynapseLayers(AKidTestCase):
         super(TestSynapseLayers, self).setUp()
         sugar.init()
 
+        self.use_cuda_save = A.use_cuda()
+        A.use_cuda(False)
+
     def tearDown(self):
+        A.use_cuda(self.use_cuda_save)
         A.close()
 
     def test_ip_forward(self):

@@ -11,6 +11,9 @@ from akid.utils.test import AKidTestCase, TestFactory, main
 
 
 class TestEngine(AKidTestCase):
+    def test_single_gpu_engine(self):
+        pass
+
     def test_data_parallel(self):
         brain = LeNet(name="LeNet")
         source = MNISTFeedSource(name="MNIST",
