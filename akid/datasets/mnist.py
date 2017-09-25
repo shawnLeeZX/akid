@@ -198,5 +198,9 @@ class MNISTTorchSource(StaticSource, SupervisedSource):
                                       transform=transforms.Compose([
                                           transforms.ToTensor(),
                                           transforms.Normalize((0.1307,), (0.3081,))]))
+        self.val_dataset = datasets.MNIST(self.work_dir, train=False,
+                                      transform=transforms.Compose([
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.1307,), (0.3081,))]))
     def _forward(self):
         pass

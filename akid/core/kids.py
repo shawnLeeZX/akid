@@ -201,30 +201,27 @@ class Kid(Block):
 
         # Run one epoch of eval.
         eval_metric_values = [0] * len(self.engine.eval(get_val=True))
-        loss = 0
+        loss_sum = 0
         steps_per_epoch = self.sensor.num_batches_per_epoch_val
 
-        for step in xrange(steps_per_epoch):
-            if type(self.sensor) is sensors.FeedSensor:
-                feed_dict = self.sensor.fill_feed_dict(get_val=True)
+        step = 1
+        while step <= steps_per_epoch:
+            loss, evals = self.run_step(update=False, val=True)
 
-            fetch = [self.engine.loss(get_val=True)]
-            fetch.extend(self.engine.eval(get_val=True))
-            result = self.sess.run(fetch, feed_dict=feed_dict)
-
-            loss += result[0]
-            for i, v in enumerate(result[1:]):
+            loss_sum += loss
+            for i, v in enumerate(evals):
                 eval_metric_values[i] += v
+            step += 1
 
-        loss /= steps_per_epoch
+        loss_avg = loss_sum / steps_per_epoch
         for i, v in enumerate(eval_metric_values):
             eval_metric_values[i] = v / steps_per_epoch
 
-        self.loss = loss
+        self.loss = loss_avg
         self.evals = eval_metric_values
         self.on_val_log_step()
 
-        return loss, eval_metric_values
+        return loss_avg, eval_metric_values
 
     def setup(self):
         """
@@ -234,6 +231,14 @@ class Kid(Block):
         self.sensor.setup()
         self.engine = engines.get(brain=self.brain, kongfu=self.kongfu, **self.engine_para)
         self.engine.setup()
+
+        # Do forward once to build ops.
+        self.step()
+        if A.backend() == A.TORCH:
+            A.step()  # For PyTorch, the step matters
+        # Build validation ops
+        self.step(update=False, val=True)
+
         # self.saver = tf.train.Saver(tf.global_variables())
         # if self.sess is None:
         #     config = tf.ConfigProto(allow_soft_placement=True)
@@ -273,31 +278,20 @@ class Kid(Block):
         self.epoch = A.get_step() \
             // self.sensor.num_batches_per_epoch_train
 
-        # Do forward once to build ops.
-        self.step()
-        if A.backend() == A.TORCH:
-            A.step()  # For PyTorch, the step matters
-
         A.init()
         self.on_train_begin()
 
         while A.get_step() < self.max_steps + 1:
-            # if A.get_step() % self.val_log_step == 0 or\
-            #    A.get_step() == self.max_steps:
-            #     if self.save_chk_point:
-            #         self.save_to_ckpt()
-            #     loss, eval_ = self.validate()
+            if A.get_step() % self.val_log_step == 0 or\
+               A.get_step() == self.max_steps:
+                # if self.save_chk_point:
+                #     self.save_to_ckpt()
+                loss, eval_ = self.validate()
 
             start_time = time.time()
 
             self.on_batch_begin()
-            try:
-                self.loss, self.evals = self.run_step()
-            except StopIteration:
-                # TODO: Just get and ignore the exception (for PyTorch) for
-                # now. In the future , it is a good idea to implement similar
-                # exception in sources of other backends..
-                pass
+            self.loss, self.evals = self.run_step()
 
             self.step_time = time.time() - start_time
 
@@ -310,50 +304,50 @@ class Kid(Block):
             if A.get_step() % self.train_log_step == 0:
                 self.on_train_log_step()
 
-        # if return_eval:
-        #     return loss, eval_
-        # else:
-        #     return loss
+        if return_eval:
+            return loss, eval_
+        else:
+            return loss
 
-    def tf_step(self, update=True):
-        self.feed_dict = self.get_train_feed_dict()
-        fetch = [self.engine.loss()]
-        fetch.extend(self.engine.eval())
+    def tf_step(self, update=True, val=False):
+        self.feed_dict = self.get_feed_dict(val)
+        fetch = [self.engine.loss(val)]
+        fetch.extend(self.engine.eval(val))
         if update:
             fetch.append(self.engine.train_op)
         result = A.run(fetch, feed_dict=self.feed_dict)
 
         return result[0], result[1:-1] if update else result[1:]
 
-    def run_step(self, update=True):
+    def run_step(self, update=True, val=False):
         """
         Computation wise, execute the computational graph for a step.
         """
         if A.backend() == A.TF:
-            return self.tf_step(update)
+            return self.tf_step(update, val)
         elif A.backend() == A.TORCH:
-            loss, evals = self.step(update)
+            loss, evals = self.step(update, val)
             loss = A.eval(loss)
             evals = A.eval(evals)
             return loss, evals
 
-    def step(self, update=True):
+    def step(self, update=True, val=False):
         """
         Computational graph wise, how the tensor should be run in a step.
         """
-        self.sensor.forward()
-        data = self.sensor.data()
-        label = self.sensor.labels()
+        self.sensor.forward(val)
+        data = self.sensor.data(val)
+        label = self.sensor.labels(val)
         system_in = [data]
         system_in.extend(label) if type(label) is list \
             else system_in.append(label)
 
-        self.engine.forward(system_in)
+        self.engine.forward(system_in, val)
         if update:
             self.engine.update()
 
-        loss = self.engine.loss()
-        evals = [e for e in self.engine.eval()]
+        loss = self.engine.loss(val)
+        evals = [e for e in self.engine.eval(val)]
 
         return loss, evals
 
@@ -436,11 +430,12 @@ class Kid(Block):
             self.error("No checkpoint found under %s!" % self.model_dir)
             sys.exit()
 
-    def get_train_feed_dict(self):
+    def get_feed_dict(self, val=False):
         if type(self.sensor) is sensors.FeedSensor:
             # Placeholder of `FeedSensor` should be filled.
-            feed_dict = self.sensor.fill_feed_dict()
-            if self.summary_on_val:
+            feed_dict = self.sensor.fill_feed_dict(val)
+            # If val is True, we have gotten val data already.
+            if not val and self.summary_on_val:
                 # Validation data is also needed, so add them in.
                 val_feed_dict = self.sensor.fill_feed_dict(True)
                 feed_dict.update(val_feed_dict)

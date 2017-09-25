@@ -23,8 +23,6 @@ import abc
 
 import tensorflow as tf
 
-from .common import TRAINING_DYNAMICS_COLLECTION
-from . import common
 from .blocks import ProcessingBlock
 from .interface_blocks import UpdateBlock
 from .. import backend as A
@@ -98,52 +96,38 @@ class Engine(ProcessingBlock, UpdateBlock):
         #             grad,
         #             collections=[TRAINING_DYNAMICS_COLLECTION])
 
-    # def _forward(self, data):
-    #     return self._forward(data)
-        # TODO: the logging should not be here.
-        # self.log("Build training phase ...")
-        # self._forward_train(data)
-        # self.log("Build validation phase ...")
-        # self._forward_val(data)
-
     def _setup(self):
         self.brain.setup()
-        # self.val_brain = self.brain.get_val_copy()
+        if A.backend() == A.TF:
+            self.val_brain = self.brain.get_val_copy()
+            self.val_brain.setup()
+        elif A.backend() == A.TORCH:
+            self.val_brain = self.brain
+
         self.kongfu.set_var_list(self.brain.get_filters())
         self.kongfu.setup()
 
 
 class SingleGPUEngine(Engine):
-    def _forward(self, data):
-        return self.brain.forward(data)
+    def _forward(self, data, val=False):
+        if val:
+            if A.backend() == A.TORCH:
+                # For torch, val brain and brain are the same.
+                self.val_brain.set_val(True)
+                d = self.val_brain.forward(data)
+                self.val_brain.set_val(False)
+            elif A.backend() == A.TF:
+                d = self.val_brain.forward(data)
+            else:
+                raise ValueError("Backend not supported.")
+        else:
+            d = self.brain.forward(data)
+        return d
 
     def _update(self):
         grads = self.kongfu.forward(self.brain.loss)
         self.train_op = self.kongfu.update(grads)
         return self.train_op
-
-    def _forward_train(self, data):
-        self.brain.forward(data)
-
-        if self.brain.train_op is not None:
-            if type(self.brain.train_op) is list:
-                self.train_op_list = list(self.brain.train_op)
-            else:
-                self.train_op_list = [self.brain.train_op]
-        else:
-            self.train_op_list = []
-
-        self.grads = self.kongfu.forward(self.brain.loss)
-
-        return self.grads
-
-    def _forward_val(self):
-        data = self.sensor.data(get_val=True)
-        label = self.sensor.labels(get_val=True)
-        system_in = [data]
-        system_in.extend(label) if type(label) is list \
-            else system_in.append(label)
-        self.val_brain.forward(system_in)
 
     def loss(self, get_val=False):
         if not get_val:

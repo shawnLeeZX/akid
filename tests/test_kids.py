@@ -7,9 +7,13 @@ from akid import (
 )
 
 from akid.utils.test import AKidTestCase, TestFactory, main, debug_on
+from akid import backend as A
 
 
 class TestKid(AKidTestCase):
+    def setUp(self):
+        A.reset()
+
     def test_core(self):
         brain = TestFactory.get_test_brain()
         sensor = TestFactory.get_test_sensor()
@@ -31,6 +35,18 @@ class TestKid(AKidTestCase):
         loss = kid.practice()
         assert loss < 0.2, \
                 "Loss: {}".format(loss)
+
+    def test_validation(self):
+        brain = TestFactory.get_test_brain()
+        sensor = TestFactory.get_test_sensor()
+        kid = TestFactory.get_test_kid(sensor, brain)
+        kid.do_summary = False
+        kid.setup()
+
+        loss = kid.practice()
+        assert loss < 0.2, \
+                "Loss: {}".format(loss)
+
 
     # def test_saver(self):
     #     brain = TestFactory.get_test_brain()

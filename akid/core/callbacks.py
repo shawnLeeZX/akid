@@ -48,33 +48,33 @@ def on_train_log_step(kid):
 
 
 def on_val_log_step(kid):
-    if kid.do_summary:
-        # Add summary.
-        summary = tf.Summary()
-        summary.value.add(tag="Validation Loss", simple_value=kid.loss_value)
-        for i, v in enumerate(kid.evals):
-            summary.value.add(
-                tag=kid.engine.eval(get_val=True)[i].op.name,
-                simple_value=v)
-        kid.summary_writer.add_summary(summary, kid.step)
+    # if kid.do_summary:
+    #     # Add summary.
+    #     summary = tf.Summary()
+    #     summary.value.add(tag="Validation Loss", simple_value=kid.loss_value)
+    #     for i, v in enumerate(kid.evals):
+    #         summary.value.add(
+    #             tag=kid.engine.eval(get_val=True)[i].op.name,
+    #             simple_value=v)
+    #     kid.summary_writer.add_summary(summary, kid.step)
     # Log.
 
     # Log current validation.
-    name_to_print = [g.op.name for g in kid.engine.eval(get_val=True)]
+    name_to_print = [A.get_name(g) for g in kid.engine.eval(get_val=True)]
     eval_value_to_print = ["%0.04f" % v for v in kid.evals]
     eval_to_print = dict(zip(name_to_print, eval_value_to_print))
     log.info('  Num examples: {}  Evals : {}'.format(
         kid.sensor.source.num_val, eval_to_print))
 
     # Log current best validation.
-    name_to_print = [g.op.name + '_best'
+    name_to_print = [A.get_name(g) + '_best'
                      for g in kid.engine.eval(get_val=True)]
     eval_value_to_print = ["%0.04f" % v for v in kid.best_val_evals]
     eval_to_print = dict(zip(name_to_print, eval_value_to_print))
     log.info('Current best evals : {}'.format(eval_to_print))
 
     # Loss.
-    log.info('  Step %d: Validation loss = %.2f' % (kid.step, kid.loss_value))
+    log.info('  Step %d: Validation loss = %.2f' % (A.get_step(), kid.loss))
 
 
 def on_train_begin(kid):

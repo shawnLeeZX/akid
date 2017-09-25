@@ -70,7 +70,6 @@ from __future__ import absolute_import, division, print_function
 
 import inspect
 
-from ..layers.synapse_layers import SynapseLayer
 from .blocks import ProcessingLayer
 from .systems import System, SequentialSystem, GraphSystem, SequentialGSystem
 from .. import backend as A
@@ -97,8 +96,15 @@ class Brain(System, ProcessingLayer):
         """
         Get a copy for validation.
         """
-        val_copy = self.get_copy()
-        val_copy.set_val()
+        if A.backend() == A.TF:
+            val_copy = self.get_copy()
+        elif A.backend() == A.TORCH:
+            val_copy = self
+        else:
+            raise ValueError("Not supported backend.")
+
+        val_copy.set_val(True)
+
         return val_copy
 
     def get_shadow_copy(self):
@@ -107,13 +113,14 @@ class Brain(System, ProcessingLayer):
 
         return tower
 
-    def set_val(self):
+    def set_val(self, val):
         """
         Change the state of the brain to validation.
         """
-        self.is_val = True
+        assert type(val) is bool
+        self.is_val = val
         for b in self.blocks:
-            b.is_val = True
+            b.is_val = val
 
     def set_shadow(self):
         """

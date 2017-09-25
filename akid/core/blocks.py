@@ -379,7 +379,15 @@ class ProcessingLayer(GenerativeBlock):
         Since a processing layer is learned, it has to be taken out for
         evaluation from time to time.
         """
-        val_copy = self.get_copy()
+        if A.backend() == A.TF:
+            val_copy = self.get_copy()
+        elif A.backend() == A.TORCH:
+            # Since torch is dynamic graph, no need to create a copy for
+            # validation.
+            val_copy = self
+        else:
+            raise ValueError("Not supported backend.")
+
         val_copy.set_val()
         return val_copy
 
@@ -448,7 +456,7 @@ class ProcessingLayer(GenerativeBlock):
         super(ProcessingLayer, self)._pre_setup()
 
         if self.is_val:
-            self.var_scope.reuse_variables()
+            A.get_variable_scope().reuse_variables()
 
         if self.moving_average_decay:
             # We pass current training step to moving average to speed up

@@ -47,6 +47,11 @@ def step():
     _step += 1
 
 
+def reset_step():
+    global _step
+    _step = 0
+
+
 # Computation options
 # #########################################################################
 # TODO: this option does not work for tensorflow backend yet.

@@ -38,3 +38,8 @@ def backend():
     Public interface to get the backend in use.
     """
     return _BACKEND
+
+
+def reset():
+    reset_step()
+    close()

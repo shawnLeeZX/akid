@@ -150,8 +150,8 @@ class Sensor(ProcessingBlock):
         raise NotImplementedError("Each sensor needs to implement the method"
                                   " to actually provide data as tensors.")
 
-    def _post_forward(self):
-        super(Sensor, self)._post_forward()
+    def _post_forward(self, val, *args, **kwargs):
+        super(Sensor, self)._post_forward(*args, **kwargs)
         # if self.do_summary:
         #     self._image_summary(self.training_data.op.name,
         #                         self.training_data,
@@ -168,7 +168,7 @@ class Sensor(ProcessingBlock):
                              image_batch,
                              collections=[collection])
 
-    def _forward(self, train=True):
+    def _forward(self, val=False):
         """
         Generate placeholder or tensor variables to represent the the input
         data.
@@ -176,9 +176,9 @@ class Sensor(ProcessingBlock):
         # TODO: source may also need to be refactored similarly with sensor.
         self.source.forward()
 
-        if train:
+        if not val:
             if not self.done_first_pass:
-                self.log("Setting up training sensor ... ")
+                self.log("Forwarding data from training sensor ... ")
 
             if issubclass(type(self.source), sources.SupervisedSource):
                 self.training_data, self.training_labels \
@@ -191,7 +191,7 @@ class Sensor(ProcessingBlock):
 
         else:
             if not self.done_first_pass:
-                self.log("Setting up val sensor ... ")
+                self.log("Forwarding data from val sensor ... ")
 
             if issubclass(type(self.source), sources.SupervisedSource):
                 self.val_data, self.val_labels = self._forward_val()
@@ -411,16 +411,30 @@ class TorchSensor(Sensor):
         self.loader = th.utils.data.DataLoader(self.source.dataset,
                                                batch_size=self.batch_size,
                                                shuffle=True)
+        self.val_loader = th.utils.data.DataLoader(self.source.val_dataset,
+                                                   batch_size=self.val_batch_size)
         self.iter = self.loader.__iter__()
+        self.val_iter = self.val_loader.__iter__()
 
-    def next(self):
-        return self.iter.next()
+    def next(self, val=False):
+        if val:
+            try:
+                return self.val_iter.next()
+            except StopIteration:
+                self.val_iter = self.val_loader.__iter__()
+                return self.val_iter.next()
+        else:
+            try:
+                return self.iter.next()
+            except StopIteration:
+                self.iter = self.loader.__iter__()
+                return self.iter.next()
 
     def _forward_train(self):
         return [th.autograd.Variable(t.cuda()) for t in self.next()]
 
     def _forward_val(self):
-        pass
+        return [th.autograd.Variable(t.cuda()) for t in self.next(True)]
 
 
 __all__ = [name for name, x in locals().items() if
