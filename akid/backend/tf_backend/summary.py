@@ -50,6 +50,12 @@ def add_graph():
     summary_writer.add_graph(tf.get_default_graph())
 
 
+def add_scalar(name, value, step):
+    summary = tf.Summary()
+    summary.value.add(tag=name, simple_value=value)
+    summary_writer.add_summary(summary, step)
+
+
 def get_collection(name=None):
     if name:
         return tf.get_collection(name)

@@ -35,7 +35,8 @@ def init():
 
 
 def close():
-    sess.close()
+    if sess is not None:
+        sess.close()
     tf.reset_default_graph()
 
 

@@ -48,16 +48,16 @@ def on_train_log_step(kid):
 
 
 def on_val_log_step(kid):
-    # if kid.do_summary:
-    #     # Add summary.
-    #     summary = tf.Summary()
-    #     summary.value.add(tag="Validation Loss", simple_value=kid.loss_value)
-    #     for i, v in enumerate(kid.evals):
-    #         summary.value.add(
-    #             tag=kid.engine.eval(get_val=True)[i].op.name,
-    #             simple_value=v)
-    #     kid.summary_writer.add_summary(summary, kid.step)
-    # Log.
+    if kid.do_summary:
+        # Add summary.
+        A.summary.add_scalar(name="Validation Loss",
+                             value=kid.loss,
+                             step=A.get_step())
+        for i, v in enumerate(kid.evals):
+            A.summary.add_scalar(
+                name=A.get_name(kid.engine.eval(get_val=True)[i]) + "_val",
+                value=v,
+                step=A.get_step())
 
     # Log current validation.
     name_to_print = [A.get_name(g) for g in kid.engine.eval(get_val=True)]

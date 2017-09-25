@@ -219,7 +219,6 @@ class Kid(Block):
 
         self.loss = loss_avg
         self.evals = eval_metric_values
-        self.on_val_log_step()
 
         return loss_avg, eval_metric_values
 
@@ -286,7 +285,9 @@ class Kid(Block):
                A.get_step() == self.max_steps:
                 # if self.save_chk_point:
                 #     self.save_to_ckpt()
-                loss, eval_ = self.validate()
+                self.loss, self.evals = self.validate()
+                val_loss, val_evals = self.loss, self.evals
+                self.on_val_log_step()
 
             start_time = time.time()
 
@@ -305,9 +306,9 @@ class Kid(Block):
                 self.on_train_log_step()
 
         if return_eval:
-            return loss, eval_
+            return val_loss, val_evals
         else:
-            return loss
+            return val_loss
 
     def tf_step(self, update=True, val=False):
         self.feed_dict = self.get_feed_dict(val)

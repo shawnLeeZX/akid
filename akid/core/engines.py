@@ -100,7 +100,6 @@ class Engine(ProcessingBlock, UpdateBlock):
         self.brain.setup()
         if A.backend() == A.TF:
             self.val_brain = self.brain.get_val_copy()
-            self.val_brain.setup()
         elif A.backend() == A.TORCH:
             self.val_brain = self.brain
 

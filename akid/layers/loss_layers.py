@@ -23,7 +23,8 @@ class LossLayer(ProcessingLayer):
     def _setup(self):
         self.log("Using multiplier {}".format(self.multiplier))
 
-    def _post_forward(self, *args, **kwags):
+    def _post_forward(self, *args, **kwargs):
+        super(LossLayer, self)._post_forward(*args, **kwargs)
         self._loss = self._loss * self.multiplier
 
 

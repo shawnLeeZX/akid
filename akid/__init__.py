@@ -23,6 +23,9 @@ except ImportError as e:
     print("Cannot import observer. You probably run on a machine without"
           " matplotlib.")
 
+# Expose sub-modules
+import akid.nn as nn
+
 
 # Alert if AKID_DATA_PATH is not defined.
 AKID_DATA_PATH = os.getenv("AKID_DATA_PATH")

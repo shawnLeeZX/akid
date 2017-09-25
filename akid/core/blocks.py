@@ -476,8 +476,6 @@ class ProcessingLayer(GenerativeBlock):
             return
 
         if not self.is_val or self.is_val and self.do_summary_on_val:
-            self.log("Do tensorboard summary on outputs of {}".format(
-                self.name))
 
             collection_to_add = VALID_SUMMARY_COLLECTION if self.is_val \
                 else TRAIN_SUMMARY_COLLECTION
@@ -485,11 +483,15 @@ class ProcessingLayer(GenerativeBlock):
                 if type(self.data) is not list:
                     name = A.get_name(self.data)
                     if name:
+                        self.log("Do tensorboard summary on outputs {} of {}".format(
+                            name, self.name))
                         self._data_summary(self.data, collection_to_add)
 
             if self.loss is not None:
                 name =  A.get_name(self.loss)
                 if name:
+                    self.log("Do tensorboard summary on loss {} of {}".format(
+                        name, self.name))
                     A.summary.scalar(name,
                                      self.loss,
                                      collections=[collection_to_add])
@@ -498,12 +500,16 @@ class ProcessingLayer(GenerativeBlock):
                     for e in self.eval:
                         name = A.get_name(e)
                         if name:
+                            self.log("Do tensorboard summary on evals {} of {}".format(
+                                name, self.name))
                             A.summary.scalar(name,
                                             e,
                                              collections=[collection_to_add])
                 else:
                     name = A.get_name(self.eval)
                     if name:
+                        self.log("Do tensorboard summary on evals {} of {}".format(
+                            name, self.name))
                         A.summary.scalar(name,
                                          self.eval,
                                          collections=[collection_to_add])

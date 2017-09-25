@@ -80,18 +80,25 @@
     CLOSED: [2017-09-15 Fri 20:05]
     - State "CANCELLED"  from "TODO"       [2017-09-15 Fri 20:05] \\
       The behavior is fine
-*** STARTED kid also should be sub-class of block, they share the mechanism that decouple building computation graph and running sess
+*** DONE kid also should be sub-class of block, they share the mechanism that decouple building computation graph and running sess
+    CLOSED: [2017-09-25 Mon 15:57]
+    - State "DONE"       from "STARTED"    [2017-09-25 Mon 15:57]
 **** DONE Kid is a sub-class of Block
      CLOSED: [2017-04-12 Wed 19:16]
      - State "DONE"       from "TODO"       [2017-04-12 Wed 19:16]
-**** TODO But they do not share much, deal with computation graph and running sess
+**** CANCELLED But they do not share much, deal with computation graph and running sess
+     CLOSED: [2017-09-25 Mon 15:57]
+     - State "CANCELLED"  from "TODO"       [2017-09-25 Mon 15:57]
+*** DONE Write a better test for layers.
+    CLOSED: [2017-09-25 Mon 17:30]
+    - State "DONE"       from "TODO"       [2017-09-25 Mon 17:30]
+*** TODO summary on validation need extra works now for torch backend
 *** TODO make debug level switchable in kid
 *** TODO add shape of conv filter in
 *** TODO Think how to place PaddingLayer and Jokers into the right place
     Currently, PaddingLayer is Child of both ProcessingLayer and
     Joker. Essentially, it should be the child of certain general block.
 *** TODO Add option and flag to tuner to continue training from checkpoint.
-*** TODO Write a better test for layers.
 *** TODO Handle the epoch completed exception of tensorflow, so if things go wrong, it would fail loudly.
 *** TODO Remove summaries for the activations that obviously are not going to be sparse.
 *** TODO Add a source providing fake data to do finer granularity test.

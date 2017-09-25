@@ -66,6 +66,10 @@ def scalar(name, value, collections=None):
         _collections[c].append(ScalarSummaryOp(name))
 
 
+def add_scalar(name, value, step):
+    summary_writer.add_scalar(name, value, global_step=step)
+
+
 def add_graph():
     """Does nothing. Since the implementation of tensorboard-pytorch is buggy now."""
     pass
