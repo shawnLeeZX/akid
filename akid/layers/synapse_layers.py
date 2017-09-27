@@ -102,8 +102,13 @@ class SynapseLayer(ProcessingLayer):
     def _setup(self):
         self._para_init()
 
+        self.log("Weight shape {}".format(A.get_shape(self.weights)))
+
         if not self.initial_bias_value:
             self.log("Bias is disabled.")
+        else:
+            self.log("Bias shape {}".format(A.get_shape(self.biases)))
+
 
     def _post_setup(self):
         super(SynapseLayer, self)._post_setup()

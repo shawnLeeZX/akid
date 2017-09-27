@@ -4,28 +4,20 @@ from akid import Kid
 from akid import MomentumKongFu
 from akid import MNISTFeedSource
 
-from akid.models.brains import MnistTfTutorialNet
+from akid.models.brains import NewMnistTfTutorialNet
 from akid import LearningRateScheme
+from akid.utils.test import TestFactory
+from akid import backend as A
 
 
 def setup():
-    brain = MnistTfTutorialNet(name="mnist-tf-tutorial-net")
-    source = MNISTFeedSource(name="MNIST",
-                             url='http://yann.lecun.com/exdb/mnist/',
-                             work_dir=AKID_DATA_PATH + '/mnist',
-                             num_train=55000,
-                             num_val=5000,
-                             center=True,
-                             scale=True)
-
-    sensor = FeedSensor(name='data',
-                        source_in=source,
-                        batch_size=64,
-                        val_batch_size=100)
+    brain = NewMnistTfTutorialNet(name="mnist-tf-tutorial-net")
+    sensor = TestFactory.get_test_sensor()
     kid = Kid(
         sensor,
         brain,
         MomentumKongFu(
+            # lr_scheme here does not have effect, only left for reference.
             lr_scheme={
                 "name": LearningRateScheme.exp_decay,
                 "base_lr": 0.01,

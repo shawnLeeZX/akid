@@ -14,6 +14,7 @@ from akid.layers import (
     CollapseOutLayer,
     GroupSoftmaxLayer
 )
+from akid import backend as A
 
 
 class AlexNet(GraphBrain):
@@ -127,26 +128,26 @@ class LeNet(GraphBrain):
     def __init__(self, **kwargs):
         super(LeNet, self).__init__(**kwargs)
         self.attach(ConvolutionLayer(ksize=[5, 5],
-                                     strides=[1, 1, 1, 1],
+                                     strides=[1, 1],
                                      padding="SAME",
                                      in_channel_num=1,
                                      out_channel_num=32,
                                      name="conv1"))
         self.attach(ReLULayer(name="relu1"))
-        self.attach(PoolingLayer(ksize=[1, 2, 2, 1],
-                                 strides=[1, 2, 2, 1],
+        self.attach(PoolingLayer(ksize=[2, 2],
+                                 strides=[2, 2],
                                  padding="SAME",
                                  name="pool1"))
 
         self.attach(ConvolutionLayer(ksize=[5, 5],
-                                     strides=[1, 1, 1, 1],
+                                     strides=[1, 1],
                                      padding="SAME",
                                      in_channel_num=32,
                                      out_channel_num=64,
                                      name="conv2"))
         self.attach(ReLULayer(name="relu2"))
-        self.attach(PoolingLayer(ksize=[1, 5, 5, 1],
-                                 strides=[1, 2, 2, 1],
+        self.attach(PoolingLayer(ksize=[5, 5],
+                                 strides=[2, 2],
                                  padding="SAME",
                                  name="pool2"))
 
@@ -176,7 +177,7 @@ class MnistTfTutorialNet(GraphBrain):
     def __init__(self, **kwargs):
         super(MnistTfTutorialNet, self).__init__(**kwargs)
         self.attach(ConvolutionLayer(ksize=[5, 5],
-                                     strides=[1, 1, 1, 1],
+                                     strides=[1, 1],
                                      padding="SAME",
                                      initial_bias_value=0.,
                                      init_para={"name": "truncated_normal",
@@ -186,13 +187,13 @@ class MnistTfTutorialNet(GraphBrain):
                                      out_channel_num=32,
                                      name="conv1"))
         self.attach(ReLULayer(name="relu1"))
-        self.attach(PoolingLayer(ksize=[1, 2, 2, 1],
-                                 strides=[1, 2, 2, 1],
+        self.attach(PoolingLayer(ksize=[2, 2],
+                                 strides=[2, 2],
                                  padding="SAME",
                                  name="pool1"))
 
         self.attach(ConvolutionLayer(ksize=[5, 5],
-                                     strides=[1, 1, 1, 1],
+                                     strides=[1, 1],
                                      padding="SAME",
                                      initial_bias_value=0.1,
                                      init_para={"name": "truncated_normal",
@@ -202,8 +203,8 @@ class MnistTfTutorialNet(GraphBrain):
                                      out_channel_num=64,
                                      name="conv2"))
         self.attach(ReLULayer(name="relu2"))
-        self.attach(PoolingLayer(ksize=[1, 5, 5, 1],
-                                 strides=[1, 2, 2, 1],
+        self.attach(PoolingLayer(ksize=[5, 5],
+                                 strides=[2, 2],
                                  padding="SAME",
                                  name="pool2"))
 
@@ -222,6 +223,70 @@ class MnistTfTutorialNet(GraphBrain):
                                       initial_bias_value=0.1,
                                       init_para={"name": "truncated_normal",
                                                  "stddev": 0.1},
+                                      wd={"type": "l2", "scale": 5e-4},
+                                      name="ip2"))
+
+        self.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[{"name": "ip2", "idxs": [0]},
+                    {"name": "system_in", "idxs": [1]}],
+            name="loss"))
+
+
+class NewMnistTfTutorialNet(GraphBrain):
+    """
+    A multiple layer network with parameters from the MNIST tutorial of
+    tensorflow. Changed the initialization methods from truncated normal to
+    default.
+    """
+    def __init__(self, **kwargs):
+        super(NewMnistTfTutorialNet, self).__init__(**kwargs)
+        self.attach(ConvolutionLayer(ksize=[5, 5],
+                                     strides=[1, 1],
+                                     padding="SAME",
+                                     initial_bias_value=0.,
+                                     init_para={"name": "default"},
+                                     wd={"type": "l2", "scale": 5e-4},
+                                     in_channel_num=1,
+                                     out_channel_num=32,
+                                     name="conv1"))
+        self.attach(ReLULayer(name="relu1"))
+        self.attach(PoolingLayer(ksize=[2, 2],
+                                 strides=[2, 2],
+                                 padding="SAME",
+                                 name="pool1"))
+
+        self.attach(ConvolutionLayer(ksize=[5, 5],
+                                     strides=[1, 1],
+                                     padding="SAME",
+                                     initial_bias_value=0.1,
+                                     init_para={"name": "default"},
+                                     wd={"type": "l2", "scale": 5e-4},
+                                     in_channel_num=32,
+                                     out_channel_num=64,
+                                     name="conv2"))
+        self.attach(ReLULayer(name="relu2"))
+        self.attach(PoolingLayer(ksize=[5, 5],
+                                 strides=[2, 2],
+                                 padding="SAME",
+                                 name="pool2"))
+
+        self.attach(InnerProductLayer(
+            # The difference is caused by different way of doing padding in TF
+            # and Torch.
+            in_channel_num=3136 if A.backend() == A.TF else 2304,
+            out_channel_num=512,
+            initial_bias_value=0.1,
+            init_para={"name": "default"},
+            wd={"type": "l2", "scale": 5e-4},
+            name="ip1"))
+        self.attach(ReLULayer(name="relu3"))
+        self.attach(DropoutLayer(keep_prob=0.5, name="dropout1"))
+
+        self.attach(InnerProductLayer(in_channel_num=512,
+                                      out_channel_num=10,
+                                      initial_bias_value=0.1,
+                                      init_para={"name": "default"},
                                       wd={"type": "l2", "scale": 5e-4},
                                       name="ip2"))
 

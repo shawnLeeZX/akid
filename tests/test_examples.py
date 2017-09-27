@@ -1,4 +1,4 @@
-from akid.utils.test import AKidTestCase, main
+from akid.utils.test import AKidTestCase, main, debug_on
 
 
 class TestExamples(AKidTestCase):
@@ -10,12 +10,12 @@ class TestExamples(AKidTestCase):
         assert eval_[0] > 0.99, \
             "Critical failure. DO a full check."
 
-    def test_alex_net(self):
-        from akid.examples import alex_net
-        kid = alex_net.setup()
-        kid.max_steps = 1000
-        loss = kid.practice()
-        assert loss < 3.2
+    # def test_alex_net(self):
+    #     from akid.examples import alex_net
+    #     kid = alex_net.setup()
+    #     kid.max_steps = 1000
+    #     loss = kid.practice()
+    #     assert loss < 3.2
 
 
 if __name__ == "__main__":

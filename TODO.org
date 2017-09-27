@@ -92,9 +92,11 @@
 *** DONE Write a better test for layers.
     CLOSED: [2017-09-25 Mon 17:30]
     - State "DONE"       from "TODO"       [2017-09-25 Mon 17:30]
+*** DONE add shape of conv filter in
+    CLOSED: [2017-09-26 Tue 14:12]
+    - State "DONE"       from "TODO"       [2017-09-26 Tue 14:12]
 *** TODO summary on validation need extra works now for torch backend
 *** TODO make debug level switchable in kid
-*** TODO add shape of conv filter in
 *** TODO Think how to place PaddingLayer and Jokers into the right place
     Currently, PaddingLayer is Child of both ProcessingLayer and
     Joker. Essentially, it should be the child of certain general block.

@@ -574,10 +574,7 @@ class DropoutLayer(ProcessingLayer):
         self.keep_prob = keep_prob
 
     def _forward(self, input):
-        if self.is_val:
-            self._data = tf.identity(input)
-        else:
-            self._data = tf.nn.dropout(input, self.keep_prob, seed=common.SEED)
+        self._data = A.nn.dropout(input, self.keep_prob, self.is_val)
 
 
 __all__ = [name for name, x in locals().items() if not inspect.ismodule(x)]

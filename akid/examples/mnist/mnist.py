@@ -12,12 +12,13 @@ source = MNISTFeedSource(name="MNIST",
                          work_dir=AKID_DATA_PATH + '/mnist',
                          center=True,
                          scale=True,
-                         num_train=50000,
+                         num_train=60000,
                          num_val=10000)
 
 s = Kid(FeedSensor(name='data', source_in=source),
         brain,
-        MomentumKongFu())
+        MomentumKongFu(),
+        max_steps=1000)
 s.setup()
 
 s.practice()

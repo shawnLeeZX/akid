@@ -1,5 +1,6 @@
 import tensorflow as tf
 import computational_graph as cg
+from akid.common import SEED
 
 
 def depthwise_conv2d(input, filter, bias=None, strides=1, padding='VALID', name=None):
@@ -14,13 +15,13 @@ def depthwise_conv2d(input, filter, bias=None, strides=1, padding='VALID', name=
 
 def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
     ksize = expand_kernel(ksize)
-    strides = expand_kernel(ksize)
+    strides = expand_kernel(strides)
     return tf.nn.max_pool(value, ksize, strides, padding, data_format, name)
 
 
 def max_pool_with_argmax(input, ksize, strides, padding, Targmax=None, name=None):
     ksize = expand_kernel(ksize)
-    strides = expand_kernel(ksize)
+    strides = expand_kernel(strides)
     return tf.nn.max_pool_with_argmax(input, ksize, strides, padding, Targmax=Targmax, name=name)
 
 
@@ -185,6 +186,16 @@ def class_acccuracy(predictions, labels, name=None):
 
     return tf.reduce_mean(tf.cast(correct, tf.float32),
                           name=name)
+
+
+def dropout(v, keep_prob, val=False, in_place=False, name=None):
+    if in_place:
+        raise ValueError("In place is not supported in tensorflow backend.")
+
+    if val:
+        return tf.identity(v, name=name)
+    else:
+        return tf.nn.dropout(input, keep_prob, seed=SEED, name=name)
 
 
 def expand_kernel(ksize):

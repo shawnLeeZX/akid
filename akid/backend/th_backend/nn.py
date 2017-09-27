@@ -22,7 +22,9 @@ def l1_loss(var, name=None):
 def conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
     shape = cg.get_shape(filter)
     H, W = shape[-2], shape[-1]
-    padding = padding_str2tuple(padding, H, W)
+    shape = cg.get_shape(input)
+    H_in, W_in = shape[-2], shape[-1]
+    padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
     return F.conv2d(input, filter, bias, stride=tuple(strides), padding=padding)
 
 
@@ -36,14 +38,23 @@ def inner_product(input, W, bias=None, name=None):
 
 @cache_name_if_exist
 def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
-    padding = padding_str2tuple(padding, ksize[0], ksize[1])
-    # The format of torch is two tuple ksize instead of 4.
+    H, W = ksize[0], ksize[1]
+    shape = cg.get_shape(value)
+    H_in, W_in = shape[-2], shape[-1]
+    padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
+    # The format of ksize in torch is a tuple of size 2 instead of 4 in
+    # tensorflow.
     return F.max_pool2d(value, ksize, tuple(strides), padding)
 
 
 @cache_name_if_exist
 def relu(v):
     return F.relu(v)
+
+
+@cache_name_if_exist
+def dropout(v, keep_prob, val=False, in_place=False, name=None):
+    return F.dropout(v, 1-keep_prob, training=not val, inplace=in_place)
 
 
 @cache_name_if_exist
@@ -70,7 +81,7 @@ def class_acccuracy(predictions, labels, name=None):
     return acc
 
 
-def padding_str2tuple(padding, H, W):
+def padding_str2tuple(H_in, W_in, strides, padding, H, W):
     """
     Convert padding from string to tuple. Thea meaning of string is from
     tensorflow.
@@ -78,8 +89,21 @@ def padding_str2tuple(padding, H, W):
     if padding == 'VALID':
         padding = 0
     elif padding == 'SAME':
-        padding = (H//2, W//2)
+        H_pad = get_padding_SAME(H_in, strides[0], H)
+        W_pad = get_padding_SAME(W_in, strides[1], W)
+        padding = (H_pad, W_pad)
     else:
         raise ValueError("{} padding is not supported. Should be VALID or SAME".format(padding))
+
+    return padding
+
+
+def get_padding_SAME(input_size, stride, ksize):
+    out_size = (input_size + stride - 1) // stride
+    padding_needed = max(0, (out_size - 1) * stride + ksize - input_size)
+    padding_before = padding_needed // 2
+    padding_after = padding_needed - padding_before
+    # Since torch seems not to support 4 tuple padding, just return the left part
+    padding = padding_before
 
     return padding
