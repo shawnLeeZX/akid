@@ -767,3 +767,30 @@ class ImagenetResNet(ResNet):
             inputs=[{"name": "ip"},
                     {"name": "system_in", "idxs": [1]}],
             name="softmax"))
+
+
+class PatriceNet(GraphBrain):
+    """
+    Reproduction of the paper: *Best Practices for Convolutional Neural
+    Networks Applied to Visual Document Analysis*.
+    """
+    def __init__(self, **kwargs):
+        super(PatriceNet, self).__init__(**kwargs)
+
+        self.attach(InnerProductLayer(in_channel_num=784,
+                                      out_channel_num=800,
+                                      init_para={"name": "normal",
+                                                 "stddev": 0.05},
+                                      name="ip1"))
+        self.attach(ReLULayer(name="relu1"))
+        self.attach(InnerProductLayer(in_channel_num=800,
+                                      out_channel_num=10,
+                                      init_para={"name": "normal",
+                                                 "stddev": 0.05},
+                                      name="ip2"))
+        self.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[
+                {"name": "ip2", "idxs": [0]},
+                {"name": "system_in", "idxs": [1]}],
+            name="loss"))

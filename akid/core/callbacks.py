@@ -106,3 +106,9 @@ def on_train_begin(kid):
 
 def on_batch_begin(kid):
     pass
+
+
+def on_epoch_end(kid):
+    log.info("Epoch {} finished.".format(kid.epoch))
+    kid.loss, kid.evals = kid.validate()
+    kid.on_val_log_step()

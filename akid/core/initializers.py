@@ -141,6 +141,17 @@ class TheOldInitializer(Initializer):
         return value
 
 
+class FixedStdInitializer(Initializer):
+    def __init__(self, stddev, seed):
+        self.std = stddev
+
+    def __call__(self, shape):
+        value = np.random.normal(loc=0, scale=self.std, size=shape)
+        value = A.Tensor(value)
+
+        return value
+
+
 class ConstantInitializer(Initializer):
     def __init__(self, value=0):
         super(ConstantInitializer, self).__init__()
@@ -170,6 +181,11 @@ if A.backend() == A.TF:
                         # `1/sqrt(dim)`. For the meaning of `dim`, see the doc
                         # of `tf.uniform_unit_scaling_initializer`.
                         default_paras={'factor': 1.0/(3)**0.5})
+    InitializerRegistry("normal",
+                tf.truncated_normal_initializer,
+                "Required fields: stddev (Standard deviation). It is another name "
+                "for the truncated normal initializer offered in tensorflow",
+                ("stddev",))
     InitializerRegistry("truncated_normal",
                 tf.truncated_normal_initializer,
                 "Required fields: stddev (Standard deviation)",
@@ -195,3 +211,7 @@ elif A.backend() == A.TORCH:
                         ConstantInitializer,
                         None,
                         ("value",))
+    InitializerRegistry("normal",
+                        FixedStdInitializer,
+                        FixedStdInitializer.__doc__,
+                        ("stddev",))

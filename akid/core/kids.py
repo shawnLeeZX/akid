@@ -64,6 +64,8 @@ class Kid(Block):
                  log_to_file=True,
                  val_log_step=1000,
                  train_log_step=100,
+                 log_by_epoch=False,
+                 log_by_step=True,
                  save_chk_point=True,
                  do_summary=True,
                  summary_on_val=False,
@@ -111,6 +113,10 @@ class Kid(Block):
                 should be taken.
             train_log_step: int
                 After how many steps training statistics should be logged.
+            log_by_epoch: bool
+                Whether to log at the end of each epoch.
+            log_by_step: bool
+                Whether to log at every `val_log_step`.
             do_summary: Boolean
                 If False, no tensorboard summaries will be saved at all. Note
                 that if `Brain` or `Sensor`'s `do_summary` option is True, they
@@ -154,6 +160,8 @@ class Kid(Block):
 
         self.train_log_step = train_log_step
         self.val_log_step = val_log_step
+        self.log_by_epoch = log_by_epoch
+        self.log_by_step = log_by_step
         self.summary_on_val = summary_on_val
         self.do_summary = do_summary
         self.save_chk_point = save_chk_point
@@ -180,6 +188,9 @@ class Kid(Block):
 
                 from .callbacks import on_batch_begin
                 self.on_batch_begin.append(on_batch_begin)
+
+                from .callbacks import on_epoch_end
+                self.on_epoch_end.append(on_epoch_end)
 
         self.hooks = hooks()
 
@@ -281,8 +292,9 @@ class Kid(Block):
         self.on_train_begin()
 
         while A.get_step() < self.max_steps + 1:
-            if A.get_step() % self.val_log_step == 0 or\
-               A.get_step() == self.max_steps:
+            if self.log_by_step and \
+               (A.get_step() % self.val_log_step == 0 or\
+                A.get_step() == self.max_steps):
                 # if self.save_chk_point:
                 #     self.save_to_ckpt()
                 self.loss, self.evals = self.validate()
@@ -298,7 +310,8 @@ class Kid(Block):
 
             A.step()
 
-            if A.get_step() % self.sensor.num_batches_per_epoch_train is 0:
+            if self.log_by_epoch \
+               and A.get_step() % self.sensor.num_batches_per_epoch_train is 0:
                 self.epoch += 1
                 self.on_epoch_end()
 

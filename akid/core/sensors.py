@@ -46,6 +46,7 @@ from .jokers import JokerSystem
 from .blocks import ProcessingBlock
 from . import sources
 from .common import TRAIN_SUMMARY_COLLECTION, VALID_SUMMARY_COLLECTION
+from akid import backend as A
 
 
 class Sensor(ProcessingBlock):
@@ -428,6 +429,7 @@ class TorchSensor(Sensor):
                 return self.iter.next()
             except StopIteration:
                 self.iter = self.loader.__iter__()
+                A.inc_epoch()
                 return self.iter.next()
 
     def _forward_train(self):

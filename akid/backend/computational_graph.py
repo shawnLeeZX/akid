@@ -52,6 +52,21 @@ def reset_step():
     _step = 0
 
 
+_epoch = 0
+
+def get_epoch():
+    return _epoch
+
+
+def inc_epoch():
+    global _epoch
+    _epoch += 1
+
+
+def reset_epoch():
+    global _epoch
+    _epoch = 0
+
 # Computation options
 # #########################################################################
 # TODO: this option does not work for tensorflow backend yet.
