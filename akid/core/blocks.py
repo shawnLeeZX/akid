@@ -447,8 +447,9 @@ class ProcessingLayer(GenerativeBlock):
             kwargs.pop("name")
             init = initializers.get(name, **kwargs)
 
-        self.log("Variables of {} uses initializer {} with arguments {}".format(
-            self.name, name, kwargs))
+        if not self.is_setup:
+            self.log("Variables of {} uses initializer {} with arguments {}".format(
+                self.name, name, kwargs))
 
         return init
 

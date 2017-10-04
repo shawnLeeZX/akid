@@ -1,6 +1,6 @@
 import tensorflow as tf
 import computational_graph as cg
-from akid.common import SEED
+from akid.core.common import SEED
 
 
 def depthwise_conv2d(input, filter, bias=None, strides=1, padding='VALID', name=None):

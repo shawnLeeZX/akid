@@ -67,6 +67,7 @@ class Kid(Block):
                  log_by_epoch=False,
                  log_by_step=True,
                  save_chk_point=True,
+                 continue_from_chk_point=False,
                  do_summary=True,
                  summary_on_val=False,
                  debug=False):
@@ -165,6 +166,9 @@ class Kid(Block):
         self.summary_on_val = summary_on_val
         self.do_summary = do_summary
         self.save_chk_point = save_chk_point
+        self.continue_from_chk_point = continue_from_chk_point
+
+        self.initialized = False
 
         # Set up hooks.
         class hooks(object):
@@ -208,6 +212,9 @@ class Kid(Block):
                 `Kid`'s reference to evaluation metrics and loss are both
                 updated.
         """
+        if A.backend() == A.TF and not self.initialized:
+            A.init(self.continue_from_chk_point, self.model_dir)
+
         self.log('Validation Data Eval:')
 
         # Run one epoch of eval.
@@ -238,6 +245,11 @@ class Kid(Block):
         Set up logging and the computation graph.
         """
         self._setup_log()
+
+        if A.backend() == A.TORCH and self.continue_from_chk_point:
+            log.info("Recovering net from checkpoint %s." % self.model_dir)
+            A.restore(self.model_dir)
+
         self.sensor.setup()
         self.engine = engines.get(brain=self.brain, kongfu=self.kongfu, **self.engine_para)
         self.engine.setup()
@@ -249,30 +261,12 @@ class Kid(Block):
         # Build validation ops
         self.step(update=False, val=True)
 
-        # self.saver = tf.train.Saver(tf.global_variables())
-        # if self.sess is None:
-        #     config = tf.ConfigProto(allow_soft_placement=True)
-        #     config.gpu_options.allow_growth = True
-        #     self.sess = tf.Session(graph=self.graph, config=config)
-
-    def teardown(self):
-        """
-        Close sessions.
-
-        This method has not been tested whether it works or not. It stays here
-        to remind that any session created by kid may cause memory leak.
-        """
-        self.sess.close()
-        self.sess.reset()
-
-    def practice(self, continue_from_chk_point=False, return_eval=False):
+    def practice(self, return_eval=False):
         """
         Improve the performance of the kid's brain by practicing, aka
         applying back propagation to train neural network.
 
         Args:
-            continue_from_chk_point: Boolean
-                Setup configuration. Passed to `setup`
             return_eval: bool
                 Return evaluation metric after trainning is finished.
         Return:
@@ -288,15 +282,25 @@ class Kid(Block):
         self.epoch = A.get_step() \
             // self.sensor.num_batches_per_epoch_train
 
-        A.init()
+        if A.backend() == A.TF:
+            # The checkpoint recovery has to be here, given that it needs to be
+            # after the computational graph being set up.
+            A.init(self.continue_from_chk_point, self.model_dir)
+            self.initialized = True
+        elif A.backend() == A.TORCH:
+            A.init() # This actually does nothing.
+            self.initialized = True
+        else:
+            raise ValueError("Backend {} not supported".format(A.backend()))
+
         self.on_train_begin()
 
         while A.get_step() < self.max_steps + 1:
             if self.log_by_step and \
                (A.get_step() % self.val_log_step == 0 or\
                 A.get_step() == self.max_steps):
-                # if self.save_chk_point:
-                #     self.save_to_ckpt()
+                if self.save_chk_point:
+                    self.save_to_ckpt()
                 self.loss, self.evals = self.validate()
                 val_loss, val_evals = self.loss, self.evals
                 self.on_val_log_step()
@@ -314,6 +318,7 @@ class Kid(Block):
                and A.get_step() % self.sensor.num_batches_per_epoch_train is 0:
                 self.epoch += 1
                 self.on_epoch_end()
+                val_loss, val_evals = self.loss, self.evals
 
             if A.get_step() % self.train_log_step == 0:
                 self.on_train_log_step()
@@ -392,57 +397,10 @@ class Kid(Block):
             self.summary_op = A.summary.merge(summary_ops)
             A.summary.add_graph()
 
-    def init(self, continue_from_chk_point=None):
-        """
-        Initialize computational graph for training. It initializes or restores
-        variables, starts queues and so on.
-
-        Args:
-            continue_from_chk_point: Boolean
-                Continue from a previous training or not. If it is True, a
-                folder named `model` must exist under `Kid`'s `log_dir`
-                with saved models.
-        """
-        # Initialization.
-        if continue_from_chk_point:
-            # Train from pre-trained model.
-            self.restore_from_ckpt()
-        else:
-            # TODO: recover from checkpoint may not work now
-            A.init()
-
-        if self.max_epoch:
-            # Convert the max epoch number to max steps.
-            self.max_steps \
-                = self.sensor.num_batches_per_epoch_train * self.max_epoch
-
     def save_to_ckpt(self):
-        step = tf.train.global_step(self.sess, self.global_step_tensor)
-        self.saver.save(self.sess,
-                        self.model_dir + "/checkpoint",
-                        global_step=step)
+        A.save(self.model_dir)
         self.log("Checkpoint at step {} saved to folder:"
-                 " {}".format(step, self.model_dir))
-
-    def restore_from_ckpt(self):
-        """
-        Restore variables of this net from the latest checkpoint of
-        `model_dir`.
-
-        Return:
-            Training step of the checkpoint the net are recovering from.
-        """
-        checkpoint = tf.train.get_checkpoint_state(self.model_dir)
-        if checkpoint and checkpoint.model_checkpoint_path:
-            self.log("Recovering net from checkpoint %s."
-                     % checkpoint.model_checkpoint_path)
-            self.saver.restore(self.sess, checkpoint.model_checkpoint_path)
-            filename = checkpoint.model_checkpoint_path.split('/')[-1]
-            step = int(filename.split('-')[-1])
-            return step
-        else:
-            self.error("No checkpoint found under %s!" % self.model_dir)
-            sys.exit()
+                 " {}".format(A.get_step(), self.model_dir))
 
     def get_feed_dict(self, val=False):
         if type(self.sensor) is sensors.FeedSensor:
@@ -486,6 +444,11 @@ class Kid(Block):
             func(self)
 
     def on_train_begin(self):
+        if self.max_epoch:
+            # Convert the max epoch number to max steps.
+            self.max_steps \
+                = self.sensor.num_batches_per_epoch_train * self.max_epoch
+
         for func in self.hooks.on_batch_begin:
             func(self)
         for func in self.hooks.on_train_begin:

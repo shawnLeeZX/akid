@@ -6,11 +6,14 @@ NOTE
 To use tensorflow backend to execute/evaluate any graph built, run `init`
 beforehand.
 """
+import sys
+
 from uuid import uuid4
 import numpy as np
 import tensorflow as tf
 
 from .. import computational_graph as cg_general
+from akid.utils import glog as log
 
 
 # Build a global session to use
@@ -18,19 +21,29 @@ from .. import computational_graph as cg_general
 # A bug in tensorflow: Exception AttributeError: "'NoneType' object has no attribute 'TF_DeleteStatus'" in <bound method Session.__del__ of <tensorflow.python.client.session.Session object at 0x7f43105e9dd0>> ignored
 # Should be fixed by now: https://github.com/tensorflow/tensorflow/issues/3388
 sess = None
+saver = None
 
 float32 = tf.float32
 
 
-def init():
+def init(continue_from_chk_point=False, model_dir=None):
     global sess
+    global saver
+
+    saver = tf.train.Saver(tf.global_variables())
 
     config = tf.ConfigProto(allow_soft_placement=True)
     config.gpu_options.allow_growth = True
     sess = tf.Session(config=config)
-    init  = tf.group(tf.global_variables_initializer(),
-              tf.local_variables_initializer())
-    sess.run(init)
+
+    if continue_from_chk_point:
+        log.info("Recovering net from checkpoint %s." % model_dir)
+        restore(model_dir)
+    else:
+        init  = tf.group(tf.global_variables_initializer(),
+                         tf.local_variables_initializer())
+        sess.run(init)
+
     tf.train.start_queue_runners(sess=sess)
 
 
@@ -55,6 +68,25 @@ def get_variable(name=None, shape=None,
                                initializer=initializer, trainable=trainable)
     else:
         raise NotImplementedError("Normal Variable creation has not been implemented yet.")
+
+
+def save(path):
+    saver.save(sess,
+               path + "/checkpoint",
+               global_step=cg_general.get_step())
+
+
+def restore(path):
+    checkpoint = tf.train.get_checkpoint_state(path)
+    if checkpoint and checkpoint.model_checkpoint_path:
+        saver.restore(sess, checkpoint.model_checkpoint_path)
+        filename = checkpoint.model_checkpoint_path.split('/')[-1]
+        step = int(filename.split('-')[-1])
+        cg_general.set_step(step)
+    else:
+        log.error("No checkpoint found under %s!" % path)
+        sys.exit()
+
 
 
 def get_name(v):

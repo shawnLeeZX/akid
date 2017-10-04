@@ -1,6 +1,8 @@
 """
 PyTorch backend for akid.
 """
+import os
+
 import numpy as np
 import torch as th
 from torch.autograd import Variable
@@ -10,6 +12,11 @@ from .. import computational_graph as cg
 
 # Maintain two hash table for looking up variables.
 tensor_by_name = {}
+
+# the number of checkpoints to save maximally
+_max_checkpoint_count = 5
+_checkpoint_count = 0
+_checkpoint_name_queue = []
 
 
 def get_variable(name=None, shape=None,
@@ -55,6 +62,46 @@ def cache_tensor(tensor, name):
     # variable. We occasionally cache numeric values as well, e.g. learning rate.
     if isinstance(tensor, Variable):
         tensor.name = name
+
+
+def save(path):
+    """
+    Save trainable variables and current step number to file. If a maximal
+    number of checkpoints have been reached, the old ones will be deleted.
+
+    Note that data concerning training are not all saved yet, e.g. the previous
+    gradient that is used for momentum optimizer, which would make the
+    continued training slightly different from the original one, but the guess
+    is it does not matter much.
+    """
+    tensor_by_name['step'] = cg.get_step()
+    name = path + "/checkpoint-{}".format(cg.get_step())
+    th.save(tensor_by_name, name)
+    os.symlink('checkpoint-{}'.format(cg.get_step()), path + "/checkpoint")
+
+    _checkpoint_name_queue.append(name)
+    if len(_checkpoint_name_queue) >= _max_checkpoint_count:
+        name = _checkpoint_name_queue.pop(0)
+        os.remove(name)
+
+
+def restore(path):
+    """
+    Restore variables from checkpoints saved under `path`.
+
+    The logic works like tensorflow --- the recovery is name based. As long as
+    the code that builds the computational graph does not change, the variable
+    of each block will be created with the same name as the saved one, so when
+    the network is being built, the variables would be created with the
+    restored values.
+    """
+    global tensor_by_name
+    tensor_by_name = th.load(path + "/checkpoint")
+    cg.set_step(tensor_by_name.pop('step'))
+    # Put the name back. Seems torch's save does not save additional names
+    for k in tensor_by_name:
+        if type(tensor_by_name[k]) is Variable:
+            tensor_by_name[k].name = k
 
 
 def _get_name_with_scope(name):

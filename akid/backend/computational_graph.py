@@ -52,6 +52,11 @@ def reset_step():
     _step = 0
 
 
+def set_step(step):
+    global _step
+    _step = step
+
+
 _epoch = 0
 
 def get_epoch():

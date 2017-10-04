@@ -36,19 +36,24 @@ class TestKid(AKidTestCase):
         assert loss < 0.2, \
                 "Loss: {}".format(loss)
 
-    # def test_saver(self):
-    #     brain = TestFactory.get_test_brain()
-    #     source = TestFactory.get_test_feed_source()
-    #     kid = TestFactory.get_test_kid(source, brain)
-    #     kid.setup()
+    def test_saver(self):
+        brain = TestFactory.get_test_brain()
+        sensor = TestFactory.get_test_sensor()
+        kid = TestFactory.get_test_kid(sensor, brain)
+        kid.max_steps = 900
+        kid.setup()
 
-    #     loss = kid.practice()
-    #     assert loss < 0.2
+        loss = kid.practice()
+        assert loss < 0.2
 
-    #     kid.restore_from_ckpt()
-    #     loss, _ = kid.validate()
-    #     assert loss < 0.2, \
-    #             "Loss is {}".format(loss)
+        kid.continue_from_chk_point = True
+        A.get_variable_scope().reuse_variables()
+        kid.setup()
+        loss, _ = kid.validate()
+        assert loss < 0.2, \
+                "Loss is {}".format(loss)
+        # The extra 1 is caused by the breaking of the loop
+        self.assertEquals(A.get_step(), 901)
 
     # def test_log_to_file_flag(self):
     #     brain = TestFactory.get_test_brain()
