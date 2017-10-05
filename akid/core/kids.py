@@ -318,6 +318,8 @@ class Kid(Block):
                 self.epoch += 1
                 self.on_epoch_end()
                 if self.log_by_epoch:
+                    if self.save_chk_point:
+                        self.save_to_ckpt()
                     self.loss, self.evals = self.validate()
                     self.on_val_log_step()
                     val_loss, val_evals = self.loss, self.evals

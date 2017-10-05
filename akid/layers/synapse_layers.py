@@ -104,7 +104,7 @@ class SynapseLayer(ProcessingLayer):
 
         self.log("Weight shape {}".format(A.get_shape(self.weights)))
 
-        if not self.initial_bias_value:
+        if self.initial_bias_value is None:
             self.log("Bias is disabled.")
         else:
             self.log("Bias shape {}".format(A.get_shape(self.biases)))
@@ -442,10 +442,12 @@ class InnerProductLayer(SynapseLayer):
         self.shape = [self.in_channel_num, self.out_channel_num]
         self.weights = self._get_variable(
             'weights', self.shape, self._get_initializer(self.init_para))
-        self.biases = self._get_variable(
-            'biases',
-            shape=[self.out_channel_num],
-            initializer=self._get_initializer({"name": "constant", "value": self.initial_bias_value}))
+
+        if self.initial_bias_value is not None:
+            self.biases = self._get_variable(
+                'biases',
+                shape=[self.out_channel_num],
+                initializer=self._get_initializer({"name": "constant", "value": self.initial_bias_value}))
 
 
 class InvariantInnerProductLayer(SynapseLayer):

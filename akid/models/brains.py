@@ -779,14 +779,18 @@ class PatriceNet(GraphBrain):
 
         self.attach(InnerProductLayer(in_channel_num=784,
                                       out_channel_num=800,
-                                      init_para={"name": "normal",
-                                                 "stddev": 0.05},
+                                      # init_para={"name": "normal",
+                                      #            "stddev": 0.05},
+                                      initial_bias_value=0,
+                                      wd=None,
                                       name="ip1"))
         self.attach(ReLULayer(name="relu1"))
         self.attach(InnerProductLayer(in_channel_num=800,
                                       out_channel_num=10,
-                                      init_para={"name": "normal",
-                                                 "stddev": 0.05},
+                                      initial_bias_value=0,
+                                      # init_para={"name": "normal",
+                                      #            "stddev": 0.05},
+                                      wd=None,
                                       name="ip2"))
         self.attach(SoftmaxWithLossLayer(
             class_num=10,
