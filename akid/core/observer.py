@@ -386,8 +386,7 @@ class Observer(object):
                         square=True, robust=True,
                         **kwargs)
         else:
-            sns.heatmap(data=img,
-                        vmin=0, vmax=img.max(),
+            sns.heatmap(data=img, center=0,
                         xticklabels=False, yticklabels=False,
                         square=True,
                         **kwargs)
@@ -772,7 +771,7 @@ class Observer(object):
         ret = A.eval(block.var_list)
         w, b = ret[0], ret[1]
         if A.backend() == A.TORCH:
-            if len(w) == 4:
+            if len(w.shape) == 4:
                 w = np.einsum('{}->{}'.format('oihw', 'hwio'), w)
         if block.bag:
             if "filters_to_visual" in block.bag:
