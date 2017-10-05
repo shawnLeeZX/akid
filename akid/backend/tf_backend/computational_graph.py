@@ -22,6 +22,7 @@ from akid.utils import glog as log
 # Should be fixed by now: https://github.com/tensorflow/tensorflow/issues/3388
 sess = None
 saver = None
+initialized = False
 
 float32 = tf.float32
 
@@ -29,22 +30,26 @@ float32 = tf.float32
 def init(continue_from_chk_point=False, model_dir=None):
     global sess
     global saver
+    global initialized
 
-    saver = tf.train.Saver(tf.global_variables())
+    if not initialized:
+        saver = tf.train.Saver(tf.global_variables())
 
-    config = tf.ConfigProto(allow_soft_placement=True)
-    config.gpu_options.allow_growth = True
-    sess = tf.Session(config=config)
+        config = tf.ConfigProto(allow_soft_placement=True)
+        config.gpu_options.allow_growth = True
+        sess = tf.Session(config=config)
 
-    if continue_from_chk_point:
-        log.info("Recovering net from checkpoint %s." % model_dir)
-        restore(model_dir)
-    else:
-        init  = tf.group(tf.global_variables_initializer(),
-                         tf.local_variables_initializer())
-        sess.run(init)
+        if continue_from_chk_point:
+            log.info("Recovering net from checkpoint %s." % model_dir)
+            restore(model_dir)
+        else:
+            init  = tf.group(tf.global_variables_initializer(),
+                            tf.local_variables_initializer())
+            sess.run(init)
 
-    tf.train.start_queue_runners(sess=sess)
+        tf.train.start_queue_runners(sess=sess)
+
+        initialized = True
 
 
 def close():

@@ -32,6 +32,7 @@ from ..layers.synapse_layers import (
 from ..layers.activation_layers import ReLULayer
 from .sensors import FeedSensor
 from ..utils import glog as log, tf_to_caffe
+from .. import backend as A
 
 # Big figure size for visualization large amount of filters.
 _FIG_SIZE = (100, 100)
@@ -236,39 +237,35 @@ class Observer(object):
                 means the number of filters in a column.
         """
         log.info("Begin to draw filters of {}".format(self.kid.brain.name))
-        try:
-            self._maybe_setup_kid()
+        self._maybe_setup_kid()
 
-            with self.kid.sess.as_default():
-                self.kid.restore_from_ckpt()
-                for block in self.kid.brain.blocks:
-                    if layers:
-                        if block.name not in layers:
-                            continue
-                    if not issubclass(type(block), SynapseLayer):
-                        continue
-                    log.info("Begin to tile the filter of layer {}".format(
-                        block.name))
-                    filters_img = self._tile_filters(self.kid.sess,
-                                                     block,
-                                                     layout,
-                                                     padding=2)
-                    title = "{} Layer".format(block.name)
-                    # Visualization will be saved to an sub-folder of
-                    # self.kid.model_dir
-                    visualization_dir = self.kid.model_dir + "/visualization"
-                    if not os.path.exists(visualization_dir):
-                        os.mkdir(visualization_dir)
-                    filename = visualization_dir + '/' \
-                        + block.name + "_para.png"
-                    self._heatmap_to_file(
-                        filters_img,
-                        title,
-                        filename,
-                        fig_size=_FIG_SIZE if big_resolution else None)
-        except tf.OpError as e:
-            log.info("Tensorflow error when running: {}".format(e.message))
-            sys.exit(0)
+        if A.backend() == A.TF:
+            A.init(continue_from_chk_point=True, model_dir=self.kid.model_dir)
+
+        for block in self.kid.brain.blocks:
+            if layers:
+                if block.name not in layers:
+                    continue
+            if not issubclass(type(block), SynapseLayer):
+                continue
+            log.info("Begin to tile the filter of layer {}".format(
+                block.name))
+            filters_img = self._tile_filters(block,
+                                             layout,
+                                             padding=2)
+            title = "{} Layer".format(block.name)
+            # Visualization will be saved to an sub-folder of
+            # self.kid.model_dir
+            visualization_dir = self.kid.model_dir + "/visualization"
+            if not os.path.exists(visualization_dir):
+                os.mkdir(visualization_dir)
+            filename = visualization_dir + '/' \
+                + block.name + "_para.png"
+            self._heatmap_to_file(
+                filters_img,
+                title,
+                filename,
+                fig_size=_FIG_SIZE if big_resolution else None)
 
     def do_stat_on_filters(self):
         """
@@ -346,6 +343,10 @@ class Observer(object):
             # Do not do summary during visualization so we do not need to
             # create useless event files.
             self.kid.do_summary = False
+
+            if A.backend() == A.TF:
+                A.restore(self.kid.model_dir)
+
             self.kid.setup()
 
     def _feed_data(self, sess, get_val=False):
@@ -385,7 +386,8 @@ class Observer(object):
                         square=True, robust=True,
                         **kwargs)
         else:
-            sns.heatmap(data=img, center=0,
+            sns.heatmap(data=img,
+                        vmin=0, vmax=img.max(),
                         xticklabels=False, yticklabels=False,
                         square=True,
                         **kwargs)
@@ -429,7 +431,7 @@ class Observer(object):
         canvas : numpy.array
             A background image matrix.
         """
-        return np.ones((height, width)) * 0.5
+        return np.ones((height, width)) * 0
 
     def _get_shape_to_draw(self, filter_weights, name):
         """
@@ -720,8 +722,8 @@ class Observer(object):
             pad_w = 1
         # Calculate the size of the final image.
         # Arrange image in a grid form as square as possible.
-        cols = np.ceil(np.sqrt(channel_num))
-        rows = np.ceil(channel_num / cols)
+        cols = int(np.ceil(np.sqrt(channel_num)))
+        rows = int(np.ceil(channel_num / cols))
         pad_h = height + pad_h
         pad_w = width + pad_w
         out_img_h = pad_h * rows
@@ -729,7 +731,7 @@ class Observer(object):
         out_img = self._get_a_canvas(out_img_h, out_img_w)
         # Fill the feature map in the output image.
         for map_idx in xrange(0, channel_num):
-            row_idx = np.floor(map_idx / cols)
+            row_idx = int(np.floor(map_idx / cols))
             col_idx = map_idx % cols
             x = row_idx * pad_h
             y = col_idx * pad_w
@@ -739,7 +741,6 @@ class Observer(object):
         return out_img
 
     def _tile_filters(self,
-                      sess,
                       block,
                       layout,
                       padding=1):
@@ -752,8 +753,6 @@ class Observer(object):
 
         Parameters
         ----------
-        sess: tf.Session
-            The session the brain of this block is built.
         block: akid.layers.ConnectionLayer
             Which block's filters to visualize.
         layout: an dict
@@ -770,7 +769,11 @@ class Observer(object):
             issubclass(block_type, InnerProductLayer), \
             "Block type {} is not supported!".format(block_type)
 
-        w, b = block.var_list[0].eval(sess), block.var_list[1].eval(sess)
+        ret = A.eval(block.var_list)
+        w, b = ret[0], ret[1]
+        if A.backend() == A.TORCH:
+            if len(w) == 4:
+                w = np.einsum('{}->{}'.format('oihw', 'hwio'), w)
         if block.bag:
             if "filters_to_visual" in block.bag:
                 filters_to_visual = block.bag["filters_to_visual"]
@@ -780,11 +783,10 @@ class Observer(object):
         try:
             layout_type = layout["type"]
         except KeyError as e:
-            log.info("Error: {}. Layout `type` is not found in layout: {}. A"
-                     " layout type is needed to determine how to draw"
-                     " filters. You perhaps have a typo".format(e.message,
-                                                                layout))
-            sys.exit(1)
+            raise KeyError("Error: {}. Layout `type` is not found in layout: {}. A"
+                           " layout type is needed to determine how to draw"
+                           " filters. You perhaps have a typo".format(e.message,
+                                                                      layout))
 
         if layout_type is "square":
             shape = w.shape
@@ -800,7 +802,12 @@ class Observer(object):
 
                 # We do not want to modify block.in_shape's value. So make a
                 # copy of it.
-                shape_to_draw = [i for i in block.in_shape]
+                if len(block.in_shape) == 3:
+                    if A.backend() == A.TORCH:
+                        c_in, h_in, w_in = block.in_shape[0], block.in_shape[1], block.in_shape[2]
+                        shape_to_draw = [h_in, w_in, c_in]
+                else:
+                    shape_to_draw = [i for i in block.in_shape]
                 shape_to_draw.append(w.shape[-1])
 
                 # If previous layer is IP layer, we just square tile it.
