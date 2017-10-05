@@ -77,7 +77,11 @@ def save(path):
     tensor_by_name['step'] = cg.get_step()
     name = path + "/checkpoint-{}".format(cg.get_step())
     th.save(tensor_by_name, name)
-    os.symlink('checkpoint-{}'.format(cg.get_step()), path + "/checkpoint")
+    src = 'checkpoint-{}'.format(cg.get_step())
+    dst = path + "/checkpoint"
+    if os.path.exists(dst):
+        os.remove(dst)
+    os.symlink(src, dst)
 
     _checkpoint_name_queue.append(name)
     if len(_checkpoint_name_queue) >= _max_checkpoint_count:

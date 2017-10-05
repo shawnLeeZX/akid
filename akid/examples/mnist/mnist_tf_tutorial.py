@@ -10,6 +10,10 @@ from akid.utils.test import TestFactory
 from akid import backend as A
 
 
+def update_lr(kid):
+    kid.kongfu.set_lr(kid.kongfu.get_lr() * 0.95)
+
+
 def setup():
     brain = NewMnistTfTutorialNet(name="mnist-tf-tutorial-net")
     sensor = TestFactory.get_test_sensor()
@@ -17,6 +21,7 @@ def setup():
         sensor,
         brain,
         MomentumKongFu(
+            lr=0.01,
             # lr_scheme here does not have effect, only left for reference.
             lr_scheme={
                 "name": LearningRateScheme.exp_decay,
@@ -26,6 +31,9 @@ def setup():
                 "decay_epoch_num": 1},
             momentum=0.9),
         max_steps=20000)
+
+    kid.hooks.on_epoch_end.append(update_lr)
+
     kid.setup()
 
     return kid

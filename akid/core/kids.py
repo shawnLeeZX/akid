@@ -314,11 +314,13 @@ class Kid(Block):
 
             A.step()
 
-            if self.log_by_epoch \
-               and A.get_step() % self.sensor.num_batches_per_epoch_train is 0:
+            if A.get_step() % self.sensor.num_batches_per_epoch_train is 0:
                 self.epoch += 1
                 self.on_epoch_end()
-                val_loss, val_evals = self.loss, self.evals
+                if self.log_by_epoch:
+                    self.loss, self.evals = self.validate()
+                    self.on_val_log_step()
+                    val_loss, val_evals = self.loss, self.evals
 
             if A.get_step() % self.train_log_step == 0:
                 self.on_train_log_step()
