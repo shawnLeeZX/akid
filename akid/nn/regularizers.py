@@ -4,8 +4,8 @@ from .. import backend as A
 regularizers = {}
 
 
-def compute(name, **kwargs):
-    reg = regularizers[name]
+def compute(reg_name, **kwargs):
+    reg = regularizers[reg_name]
 
     # Make sure required fields exist.
     for p in reg.required_fields:

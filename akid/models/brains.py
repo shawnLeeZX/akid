@@ -798,3 +798,50 @@ class PatriceNet(GraphBrain):
                 {"name": "ip2", "idxs": [0]},
                 {"name": "system_in", "idxs": [1]}],
             name="loss"))
+
+
+class IntriguingConvNet(GraphBrain):
+    """
+    The modified version of simple convnet on MNIST from *Intriguing properties
+    of neural networks*.
+    """
+    def __init__(self, **kwargs):
+        super(IntriguingConvNet, self).__init__(**kwargs)
+
+        self.attach(ConvolutionLayer(ksize=[5, 5],
+                                     strides=[1, 1],
+                                     padding="SAME",
+                                     in_channel_num=1,
+                                     out_channel_num=32,
+                                     name="conv1"))
+        self.attach(ReLULayer(name="relu1"))
+        self.attach(ConvolutionLayer(ksize=[5, 5],
+                                     strides=[2, 2],
+                                     padding="SAME",
+                                     in_channel_num=32,
+                                     out_channel_num=64,
+                                     name="conv2"))
+        self.attach(ReLULayer(name="relu2"))
+        self.attach(InnerProductLayer(in_channel_num=10816,
+                                      out_channel_num=64,
+                                      initial_bias_value=0,
+                                      # init_para={"name": "normal",
+                                      #            "stddev": 0.05},
+                                      # wd=None,
+                                      name="ip1"))
+        self.attach(ReLULayer(name="relu3",
+                              summarize_output=True,
+        ))
+        self.attach(InnerProductLayer(in_channel_num=64,
+                                      out_channel_num=10,
+                                      initial_bias_value=0,
+                                      # init_para={"name": "normal",
+                                      #            "stddev": 0.05},
+                                      wd=None,
+                                      name="ip2"))
+        self.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[
+                {"name": "ip2", "idxs": [0]},
+                {"name": "system_in", "idxs": [1]}],
+            name="loss"))

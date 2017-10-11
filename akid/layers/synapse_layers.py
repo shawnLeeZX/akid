@@ -395,15 +395,24 @@ class InnerProductLayer(SynapseLayer):
 
     def _forward(self, input):
         input = self._reshape(input)
-        ip = A.nn.inner_product(input, self.weights, bias=self.biases)
+        ip = A.nn.inner_product(input,
+                                self.weights,
+                                bias=self.biases,
+                                name='fmap' if self.summarize_output else None)
         self._data = ip
 
         if self.wd and self.wd["scale"] is not 0:
-            self._loss = nn.regularizers.compute(self.wd["type"], var=self.weights, scale=self.wd["scale"])
+            self._loss = nn.regularizers.compute(self.wd["type"],
+                                                 var=self.weights,
+                                                 scale=self.wd["scale"],
+                                                 name='weight_loss' if self.summarize_output else None)
 
         if self.initial_bias_value is not None:
             if self.wd_on_bias and self.wd["scale"] is not 0:
-                loss = nn.regularizers.compute(self.wd["type"], var=self.biases, scale=self.wd["scale"])
+                loss = nn.regularizers.compute(self.wd["type"],
+                                               var=self.biases,
+                                               scale=self.wd["scale"],
+                                               name='bias_loss' if self.summarize_output else None)
 
                 if self._loss is not None:
                     self._loss += loss

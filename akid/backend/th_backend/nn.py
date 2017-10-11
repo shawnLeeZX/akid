@@ -48,7 +48,7 @@ def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
 
 
 @cache_name_if_exist
-def relu(v):
+def relu(v, name=None):
     return F.relu(v)
 
 

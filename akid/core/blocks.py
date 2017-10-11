@@ -156,7 +156,7 @@ class ProcessingBlock(Block):
     in functions in the hooks.
     """
 
-    def __init__(self, do_summary=True, bag=None, **kwargs):
+    def __init__(self, do_summary=True, bag=None, summarize_output=False, **kwargs):
         """
         Create a layer and name it.
 
@@ -172,12 +172,18 @@ class ProcessingBlock(Block):
                 A dictionary that holds any further ad hoc information one
                 wants to keep in this block, such as a list of filters you want
                 to visualize later.
+            summarize_output: bool
+                Summarize on output, including data, loss etc. If true, a name
+                tag will be given to the outputs, consequently, summarizing
+                events will be created for tensorboard. This semantics is
+                enforced by each individual layer, by implementing properly.
         """
         super(ProcessingBlock, self).__init__(**kwargs)
 
         self.do_summary = do_summary
         self.log("{} has bag: {}".format(self.name, bag))
         self.bag = bag
+        self.summarize_output = summarize_output
 
         # Hooks
         self.pre_forward_hook = []
@@ -537,12 +543,12 @@ class ProcessingLayer(GenerativeBlock):
                 if shape == 0 or shape == 1:
                     A.summary.scalar(name, d, collections=[collection])
                 else:
-                    A.summary.histogram(name + '/activations',
+                    A.summary.histogram(name,
                                     d,
                                     collections=[collection])
                     if sparsity_summary:
                         A.summary.scalar(name + '/' + SPARSITY_SUMMARY_SUFFIX,
-                                        A.nn.zero_fraction(d),
+                                        A.nn.zero_fraction(d, name=name.split('/')[-1] + '/' + SPARSITY_SUMMARY_SUFFIX),
                                         collections=[collection])
 
     def _post_setup(self):

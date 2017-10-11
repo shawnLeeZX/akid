@@ -5,7 +5,6 @@ import tensorflow as tf
 from tensorflow.python.training import moving_averages
 
 from ..core.blocks import ProcessingLayer
-from ..core import common
 from .. import backend as A
 
 
@@ -111,7 +110,9 @@ class MaxPoolingLayer(ProcessingLayer):
 
 class ReLULayer(ProcessingLayer):
     def _forward(self, input):
-        self._data = A.nn.relu(input)
+        self._data = A.nn.relu(
+            input,
+            name='fmap' if self.summarize_output else None)
         return self._data
 
     def backward(self, X_in):
