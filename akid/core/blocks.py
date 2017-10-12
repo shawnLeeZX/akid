@@ -49,6 +49,7 @@ from .common import (
 )
 from ..core import initializers
 from .. import backend as A
+from .interface_blocks import UpdateBlock
 
 
 class Block(object):
@@ -317,7 +318,7 @@ class GenerativeBlock(ShadowableBlock):
             raise NotImplemented("This block does not have generated data.")
 
 
-class ProcessingLayer(GenerativeBlock):
+class ProcessingLayer(GenerativeBlock, UpdateBlock):
     """
     An abstract layer for data processing layer in the brain.
 

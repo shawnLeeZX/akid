@@ -1,6 +1,4 @@
 import inspect
-import sys
-import abc
 
 import tensorflow as tf
 

@@ -7,9 +7,10 @@ import copy
 
 from .blocks import GenerativeBlock
 from .. import backend as A
+from .interface_blocks import UpdateBlock
 
 
-class System(GenerativeBlock):
+class System(GenerativeBlock, UpdateBlock):
     """
     A top level class to model a system that is purposeless. It means this
     system does not serve a clear purpose, but an aggregation of blocks.
@@ -139,6 +140,16 @@ class SequentialSystem(System):
         self._data = data
 
         return self._data
+
+    def on_update(self):
+        l = self.blocks[0]
+        # The Riemannian metric is None for the first layer
+        l.on_update(None)
+
+        l_prev = l
+        for l in self.blocks[1:]:
+            l.on_update(l_prev.K)
+            l_prev = l
 
 
 class GraphSystem(SequentialSystem):

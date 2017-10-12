@@ -126,6 +126,10 @@ class ReLULayer(ProcessingLayer):
 
         return self._data_g
 
+    def on_update(self, K_prev):
+        # Keep propagating the Riemannian metric.
+        self.K = K_prev
+
 
 class ColorizationReLULayer(ProcessingLayer):
     def __init__(self, wipe_negative=False, **kwargs):

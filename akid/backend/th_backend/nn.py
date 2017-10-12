@@ -81,6 +81,58 @@ def class_acccuracy(predictions, labels, name=None):
     return acc
 
 
+@cache_name_if_exist
+def nn_riemannic_metric(K, W, b):
+    """
+    Given Riemannian metric of the previous layer, compute that of this layer.
+
+    Due to the fact that computing similarity between group action generated
+    filters would require backtracking computation of similarity of all spatial
+    location in the image, which is not feasible, only similarity between
+    filters of different channels are used.
+
+    Args:
+        K: the Riemannian metric
+        W: the weigth matrix, 4D or 2D, or None (means identity matrix)
+        b: the bias vector
+    """
+    shape = cg.get_shape(W)
+
+    if len(shape) == 4:
+        c_out, c_in, h, w = shape
+        W = W.permute(2, 3, 0, 1).contiguous()
+        W = W.view(h*w, c_out, c_in)
+        W_T = th.transpose(W, 1, 2)
+        # Compute sum_{H * W}(WKW^{T}_{i})
+        if K is not None:
+            left = th.matmul(W, K)
+        else:
+            left = W
+        if b is not None:
+            mat = th.ger(b, b)  # Outer product
+            K_out = th.addbmm(mat, left, W_T)
+        else:
+            K_out = th.sum(th.bmm(left, W_T), dim=0)
+
+    elif len(shape) == 2:
+        if K is not None:
+            right = th.matmul(K, W)
+        else:
+            right = W
+
+        if b is not None:
+            mat = th.ger(b, b)  # Outer product
+            K_out = th.addmm(mat, W.t(), right)
+        else:
+            K_out = th.mm(W.t(), right)
+    else:
+        raise ValueError("Shape {} is not supported".format(shape))
+
+    K_out = K_out * (K_out > 0).float()
+
+    return K_out
+
+
 def padding_str2tuple(H_in, W_in, strides, padding, H, W):
     """
     Convert padding from string to tuple. Thea meaning of string is from

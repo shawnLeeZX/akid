@@ -129,6 +129,12 @@ class SynapseLayer(ProcessingLayer):
     def _pre_forward(self, *args, **kwargs):
         super(SynapseLayer, self)._pre_forward(*args, **kwargs)
 
+    def on_update(self, K_prev):
+        # Save the metric for this RKHS
+        self.metric = K_prev
+        # Compute the metric for the next layer
+        self.K = A.nn.nn_riemannic_metric(K_prev, self.weights, self.biases)
+
     def on_para_update(self):
         if self.max_norm:
             self.log("Using max norm constrain of {}.".format(self.max_norm))
@@ -183,6 +189,8 @@ class ConvolutionLayer(SynapseLayer):
                 [self.out_channel_num if not self.depthwise else self.out_channel_num * self.in_channel_num],
                 initializer=self._get_initializer(init_para={"name": "constant",
                                                              "value": self.initial_bias_value}))
+        else:
+            self.biases = None
 
         self.log("Padding method {}.".format(self.padding), debug=True)
 
@@ -457,6 +465,21 @@ class InnerProductLayer(SynapseLayer):
                 'biases',
                 shape=[self.out_channel_num],
                 initializer=self._get_initializer({"name": "constant", "value": self.initial_bias_value}))
+        else:
+            self.biases = None
+
+    def on_update(self, K_prev):
+        # Save the metric for this RKHS
+        self.metric = K_prev
+        # Compute the metric for the next layer
+        if len(self.in_shape) == 3:
+            shape = self.in_shape[:]
+            shape.insert(0, self.out_channel_num)
+            W = A.reshape(self.weights, shape)
+        else:
+            W = self.weights
+
+        self.K = A.nn.nn_riemannic_metric(K_prev, W, self.biases)
 
 
 class InvariantInnerProductLayer(SynapseLayer):
