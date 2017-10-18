@@ -25,6 +25,10 @@ from akid.models.brains import OneLayerBrain
 from akid import backend as A
 
 
+def skipUnless(cond, msg=None):
+    return unittest.skipUnless(cond, msg)
+
+
 def main():
     unittest.main()
 
@@ -116,6 +120,7 @@ class TestSuite():
         modules_to_test.append('test_synapse_layers')
         modules_to_test.append('test_kongfus')
         modules_to_test.append('test_kids')
+        modules_to_test.append('test_initializer')
         # for test in test_dir:
         #     if test.startswith('test') and test.endswith('.py'):
         #         modules_to_test.append(test.rstrip('.py'))

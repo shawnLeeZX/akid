@@ -3,6 +3,9 @@ The module to holds variable initializers.
 
 To get an initializer, call `get`.
 """
+from __future__ import division
+
+
 import numpy as np
 import math
 
@@ -101,6 +104,15 @@ class InitializerRegistry(object):
 
 
 class Initializer(object):
+    def __init__(self, seed=SEED):
+        np.random.seed(seed)
+
+        # A flag to indicate the initializer is native to akid. This flag is
+        # necessary is due to the fact that sometimes circular import may
+        # arise, so the issubclass check may not applicable.
+        self.native = True
+
+
     def compute_fan_in(self, shape):
         if A.backend() == A.TF:
             # The weight layout of tf is HWIO.
@@ -129,9 +141,6 @@ class TheOldInitializer(Initializer):
     The old way of doing initialization before even the (Glorot
     paper)(http://proceedings.mlr.press/v9/glorot10a.html).
     """
-    def __init__(self, seed):
-        np.random.seed(seed)
-
     def __call__(self, shape):
         n = self.compute_fan_in(shape)
         stdv = 1. / math.sqrt(n)
@@ -142,7 +151,8 @@ class TheOldInitializer(Initializer):
 
 
 class FixedStdInitializer(Initializer):
-    def __init__(self, stddev, seed):
+    def __init__(self, stddev, **kwargs):
+        super(FixedStdInitializer, self).__init__(**kwargs)
         self.std = stddev
 
     def __call__(self, shape):
@@ -163,6 +173,29 @@ class ConstantInitializer(Initializer):
         return v
 
 
+class XavierInitializer(Initializer):
+    """
+    The initialization method from [Understanding the difficulty of training deep feedforward neural networks](http://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf).
+    """
+    def __call__(self, shape):
+        if A.backend() == A.TORCH:
+            # Weight shape format oihw
+            n_out = shape[0]
+            n_in = 1
+            for i in shape[1:]:
+                n_in *= i
+        elif A.backend() == A.TF:
+            n_out = shape[-1]
+            n_in = 1
+            for i in shape[:-1]:
+                n_in *= i
+        std = np.sqrt(2/(n_in + n_out))
+        v = np.random.normal(loc=0, scale=std, size=shape)
+        v = A.Tensor(v)
+
+        return v
+
+
 # CAUTION: if only one required field exists, use ("require",) instead of
 # ("require") to make it a tuple.
 
@@ -170,9 +203,11 @@ InitializerRegistry("tensor",
             None,
             "Require fields: value (Tensor holds the initial values)",
             ("value",))
+InitializerRegistry("xavier",
+                    XavierInitializer,
+                    XavierInitializer.__doc__)
 
 if A.backend() == A.TF:
-    # TODO: port the initializers that I coded myself to torch.
     import tensorflow as tf
     InitializerRegistry("default",
                         tf.uniform_unit_scaling_initializer,

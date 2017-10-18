@@ -13,6 +13,8 @@ class TestKongFu(AKidTestCase):
         self.use_cuda_save = A.use_cuda()
         A.use_cuda(False)
 
+        A.reset()
+
     def tearDown(self):
         A.use_cuda(self.use_cuda_save)
 

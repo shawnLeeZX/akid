@@ -57,7 +57,7 @@ def cnn_block(ksize=None,
 
     if ksize:
         block.append(ConvolutionLayer(ksize=ksize,
-                                      strides=[1, 1, 1, 1],
+                                      strides=[1, 1],
                                       padding=conv_padding,
                                       initial_bias_value=initial_bias_value,
                                       init_para=init_para,
@@ -67,10 +67,6 @@ def cnn_block(ksize=None,
                                       out_channel_num=out_channel_num,
                                       name="conv{}".format(counter)))
         if pool_size:
-            pool_size.insert(0, 1)
-            pool_size.append(1)
-            pool_stride.insert(0, 1)
-            pool_stride.append(1)
             block.append(PoolingLayer(ksize=pool_size,
                                       strides=pool_stride,
                                       padding="SAME",

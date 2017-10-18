@@ -57,6 +57,9 @@ def close():
         sess.close()
     tf.reset_default_graph()
 
+    global initialized
+    initialized = False
+
 
 def get_variable(name=None, shape=None,
                  initializer=None, trainable=True,
@@ -69,8 +72,15 @@ def get_variable(name=None, shape=None,
         shape = None
 
     if shared:
+        if hasattr(initializer, "native"):
+            # Use naive initializer instead of that of tensorflow
+            init = initializer(shape)
+            shape = None
+        else:
+            init = initializer
+
         return tf.get_variable(name, shape,
-                               initializer=initializer, trainable=trainable)
+                               initializer=init, trainable=trainable)
     else:
         raise NotImplementedError("Normal Variable creation has not been implemented yet.")
 
