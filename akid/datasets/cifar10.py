@@ -11,11 +11,13 @@ import cPickle as pickle
 
 import numpy as np
 import tensorflow as tf
+from torchvision import datasets, transforms
 
 from ..core.sources import (
     InMemoryFeedSource,
     SupervisedSource,
-    ClassificationTFSource
+    ClassificationTFSource,
+    StaticSource
 )
 from .datasets import DataSet, DataSets
 
@@ -302,3 +304,26 @@ class Cifar10TFSource(Cifar10Source, ClassificationTFSource):
         result.uint8image = tf.transpose(depth_major, [1, 2, 0])
 
         return result
+
+
+class Cifar10TorchSource(StaticSource, SupervisedSource):
+    def _setup(self):
+        convert = transforms.Compose([
+            transforms.ToTensor(),
+            # lambda x: x.permute(2, 0, 1),
+            transforms.Normalize([i/255 for i in [125.3, 123.0, 113.9]],
+                                 [i/255 for i in [63.0, 62.1, 66.7]]),
+        ])
+        train_transform = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.Pad(4),
+            transforms.RandomCrop(32),
+            convert,
+        ])
+
+        self.dataset = datasets.CIFAR10(self.work_dir, train=True, download=True,
+                                        transform=train_transform)
+        self.val_dataset = datasets.CIFAR10(self.work_dir, train=False,
+                                            transform=convert)
+    def _forward(self):
+        pass
