@@ -37,6 +37,10 @@ def histogram(name, values, collections=None, step=None):
     tf.summary.histogram(name, values, collections)
 
 
+def image(name, values, collections=None, step=None):
+    tf.summary.image(name, values, collections=collections)
+
+
 def scalar(name, value, collections=None, step=None):
     """
     Same as `histogram`.

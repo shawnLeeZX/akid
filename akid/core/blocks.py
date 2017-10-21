@@ -582,6 +582,10 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
             total_para_num += para_num
         log.info("This layer has {} parameters.".format(total_para_num))
 
+    def on_update(self, K_prev):
+        # Keep propagating the Riemannian metric.
+        self.K = K_prev
+
     def on_para_update(self):
         """
         Operations to run after parameter update.

@@ -48,6 +48,17 @@ def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
 
 
 @cache_name_if_exist
+def avg_pool(value, ksize, strides, padding, name=None):
+    H, W = ksize[0], ksize[1]
+    shape = cg.get_shape(value)
+    H_in, W_in = shape[-2], shape[-1]
+    padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
+    # The format of ksize in torch is a tuple of size 2 instead of 4 in
+    # tensorflow.
+    return F.avg_pool2d(value, ksize, tuple(strides), padding)
+
+
+@cache_name_if_exist
 def relu(v, name=None):
     return F.relu(v)
 

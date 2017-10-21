@@ -153,21 +153,28 @@ class Sensor(ProcessingBlock):
 
     def _post_forward(self, val, *args, **kwargs):
         super(Sensor, self)._post_forward(*args, **kwargs)
-        # if self.do_summary:
-        #     self._image_summary(self.training_data.op.name,
-        #                         self.training_data,
-        #                         TRAIN_SUMMARY_COLLECTION)
-        #     self._image_summary(self.val_data.op.name,
-        #                         self.val_data,
-        #                         VALID_SUMMARY_COLLECTION)
+
+        if self.done_first_pass:
+            return
+
+        if self.do_summary:
+            if not val:
+                self._image_summary(A.get_name(self.training_data),
+                                    self.training_data,
+                                    TRAIN_SUMMARY_COLLECTION)
+            else:
+                # TODO: bug refer to __init__ of ProcessingLayer
+                self._image_summary(A.get_name(self.val_data),
+                                    self.val_data,
+                                    VALID_SUMMARY_COLLECTION)
 
     def _image_summary(self, name, image_batch, collection):
-            tf.summary.histogram(name,
-                                 image_batch,
-                                 collections=[collection])
-            tf.summary.image(name,
-                             image_batch,
-                             collections=[collection])
+            A.summary.histogram(name,
+                                image_batch,
+                                collections=[collection])
+            A.summary.image(name,
+                            image_batch,
+                            collections=[collection])
 
     def _forward(self, val=False):
         """
@@ -433,10 +440,16 @@ class TorchSensor(Sensor):
                 return self.iter.next()
 
     def _forward_train(self):
-        return [th.autograd.Variable(t.cuda()) for t in self.next()]
+        ret = [th.autograd.Variable(t.cuda() if A.use_cuda() else t) for t in self.next()]
+        A.cache_tensor(ret[0], "data")
+        A.cache_tensor(ret[1], "labels")
+        return ret
 
     def _forward_val(self):
-        return [th.autograd.Variable(t.cuda()) for t in self.next(True)]
+        ret = [th.autograd.Variable(t.cuda() if A.use_cuda() else t) for t in self.next(True)]
+        A.cache_tensor(ret[0], "val_data")
+        A.cache_tensor(ret[1], "val_labels")
+        return ret
 
 
 __all__ = [name for name, x in locals().items() if

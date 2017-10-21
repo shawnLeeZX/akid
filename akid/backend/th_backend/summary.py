@@ -44,6 +44,17 @@ class ScalarSummaryOp(SummaryOp):
             self.name, v, global_step=step)
 
 
+class ImageSummaryOp(SummaryOp):
+    def __call__(self, step):
+        t = cg.tensor_by_name[self.name]
+        if len(t.size()) == 4:
+            t = t[0]
+            t = t.permute(1, 2, 0)
+        v = cg.eval(t)  if type(t) is Variable else t
+        summary_writer.add_image(
+            self.name + ' image', v, global_step=step)
+
+
 def init(dir=None):
     """
     Create the summary file writer.
@@ -64,6 +75,11 @@ def histogram(name, values, collections=None):
 def scalar(name, value, collections=None):
     for c in collections:
         _collections[c].append(ScalarSummaryOp(name))
+
+
+def image(name, value, collections=None):
+    for c in collections:
+        _collections[c].append(ImageSummaryOp(name))
 
 
 def add_scalar(name, value, step):

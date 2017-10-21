@@ -4,6 +4,7 @@ import tensorflow as tf
 
 from ..core.blocks import ProcessingLayer
 from ..core.jokers import Joker
+from .. import backend as A
 
 
 class ReshapeLayer(ProcessingLayer):
@@ -21,13 +22,13 @@ class ReshapeLayer(ProcessingLayer):
         self.intrinsic_shape = shape
 
     def _forward(self, input):
-        batch_size = input.get_shape().as_list()[0]
+        batch_size = A.get_shape(input)[0]
         if self.intrinsic_shape:
             shape = list(self.intrinsic_shape)
         else:
             shape = [-1]
         shape.insert(0, batch_size)
-        self._data = tf.reshape(input, shape)
+        self._data = A.reshape(input, shape)
 
 
 class PaddingLayer(ProcessingLayer, Joker):
