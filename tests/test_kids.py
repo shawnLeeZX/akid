@@ -37,21 +37,32 @@ class TestKid(AKidTestCase):
                 "Loss: {}".format(loss)
 
     def test_saver(self):
+        lr_ref = 0.001
+        def update_lr(kid):
+            if A.get_step() > 890:
+                kid.kongfu.set_lr(lr_ref)
+
         brain = TestFactory.get_test_brain()
         sensor = TestFactory.get_test_sensor()
         kid = TestFactory.get_test_kid(sensor, brain)
         kid.max_steps = 900
+        kid.hooks.on_batch_begin.append(update_lr)
         kid.setup()
 
         loss = kid.practice()
-        assert loss < 0.2
+        self.assertLess(loss, 0.2)
 
-        kid.continue_from_chk_point = True
         A.get_variable_scope().reuse_variables()
+        kid.continue_from_chk_point = True
+        kid.inference_mode = True
         kid.setup()
-        loss, _ = kid.validate()
-        assert loss < 0.2, \
-                "Loss is {}".format(loss)
+        self.assertEquals(kid.kongfu.get_lr(), lr_ref)
+        loss_recovered, _ = kid.validate()
+
+        # WARNING: the recovered loss is not exactly the same for tensorflow
+        # backend. For now it is classified as numerical reason, but it should
+        # be further investigated when using tensorflow.
+        self.assertLess(abs(loss - loss_recovered), 10e-3)
         # The extra 1 is caused by the breaking of the loop
         self.assertEquals(A.get_step(), 901)
 

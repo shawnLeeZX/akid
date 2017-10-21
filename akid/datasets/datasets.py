@@ -14,6 +14,7 @@ class DataSet(object):
                  labels,
                  center=False,
                  scale=False,
+                 shuffle=True,
                  fake_data=False):
         if fake_data:
             self._num_examples = 10000
@@ -30,6 +31,7 @@ class DataSet(object):
 
         self._images = images
         self._labels = labels
+        self.shuffle = shuffle
         self._epochs_completed = 0
         self._index_in_epoch = 0
 
@@ -62,10 +64,11 @@ class DataSet(object):
             # Finished epoch
             self._epochs_completed += 1
             # Shuffle the data
-            perm = numpy.arange(self._num_examples)
-            numpy.random.shuffle(perm)
-            self._images = self._images[perm]
-            self._labels = self._labels[perm]
+            if self.shuffle:
+                perm = numpy.arange(self._num_examples)
+                numpy.random.shuffle(perm)
+                self._images = self._images[perm]
+                self._labels = self._labels[perm]
             # Start next epoch
             start = 0
             self._index_in_epoch = batch_size

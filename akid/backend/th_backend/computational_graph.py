@@ -8,6 +8,7 @@ import torch as th
 from torch.autograd import Variable
 
 from .. import computational_graph as cg
+from akid.utils import glog as log
 
 
 # Maintain two hash table for looking up variables.
@@ -23,6 +24,8 @@ def get_variable(name=None, shape=None,
                  initializer=None, trainable=True,
                  shared=True):
     """
+    Create or reuse variables.
+
     `shared`, and `trainable` are not used yet. They are legacy code from
     tensorflow, which may be useful when torch is used for distributed
     training.
@@ -34,6 +37,7 @@ def get_variable(name=None, shape=None,
         if reuse:
             # Return the variable if already allocated.
             if name in tensor_by_name:
+                log.info("Reuse variable {}".format(name))
                 return tensor_by_name[name]
         elif name in tensor_by_name:
             name = _append_num(name)
@@ -54,6 +58,13 @@ def get_variable(name=None, shape=None,
         cache_tensor(t, name)
 
     return t
+
+
+def retrieve_tensor(name):
+    """
+    Retrieve tensor by name.
+    """
+    return tensor_by_name[name]
 
 
 def cache_tensor(tensor, name):
@@ -106,6 +117,8 @@ def restore(path):
     for k in tensor_by_name:
         if type(tensor_by_name[k]) is Variable:
             tensor_by_name[k].name = k
+
+    cg.get_variable_scope().reuse_variables()
 
 
 def _get_name_with_scope(name):

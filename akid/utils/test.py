@@ -62,8 +62,8 @@ class TestFactory(object):
         return MNISTFeedSource(
             name="MNIST_feed",
             url='http://yann.lecun.com/exdb/mnist/',
-            num_train=50000,
-            num_val=5000,
+            num_train=60000,
+            num_val=10000,
             scale=True)
 
     @staticmethod
@@ -78,7 +78,9 @@ class TestFactory(object):
     @staticmethod
     def get_test_sensor():
         if A.backend() == A.TF:
-            return FeedSensor(source_in=TestFactory.get_test_feed_source(), name='data')
+            return FeedSensor(source_in=TestFactory.get_test_feed_source(),
+                              val_batch_size=100,
+                              name='data')
         elif A.backend() == A.TORCH:
             return TorchSensor(
                 MNISTTorchSource(work_dir=AKID_DATA_PATH + '/mnist',

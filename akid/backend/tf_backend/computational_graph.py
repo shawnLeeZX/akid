@@ -12,7 +12,7 @@ from uuid import uuid4
 import numpy as np
 import tensorflow as tf
 
-from .. import computational_graph as cg_general
+from .. import computational_graph as cg
 from akid.utils import glog as log
 
 
@@ -88,7 +88,7 @@ def get_variable(name=None, shape=None,
 def save(path):
     saver.save(sess,
                path + "/checkpoint",
-               global_step=cg_general.get_step())
+               global_step=cg.get_step())
 
 
 def restore(path):
@@ -97,7 +97,7 @@ def restore(path):
         saver.restore(sess, checkpoint.model_checkpoint_path)
         filename = checkpoint.model_checkpoint_path.split('/')[-1]
         step = int(filename.split('-')[-1])
-        cg_general.set_step(step)
+        cg.set_step(step)
     else:
         log.error("No checkpoint found under %s!" % path)
         sys.exit()
@@ -214,11 +214,11 @@ def standardize_data_format(data, old_format):
             `SUPPORT_DATA_FORMAT` and `SUPPORT_PARA_FORMAT` for supported
             strings.
     """
-    if old_format not in cg_general.SUPPORT_PARA_FORMAT \
-       and old_format not in cg_general.SUPPORT_DATA_FORMAT:
+    if old_format not in cg.SUPPORT_PARA_FORMAT \
+       and old_format not in cg.SUPPORT_DATA_FORMAT:
         raise ValueError("The data format {} is not well specified.".format(old_format))
 
-    if old_format in cg_general.SUPPORT_PARA_FORMAT:
+    if old_format in cg.SUPPORT_PARA_FORMAT:
         out_format = 'hwio'
     else:
         out_format = 'nhwc'

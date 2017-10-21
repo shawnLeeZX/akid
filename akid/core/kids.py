@@ -68,6 +68,7 @@ class Kid(Block):
                  log_by_step=True,
                  save_chk_point=True,
                  continue_from_chk_point=False,
+                 inference_mode=False,
                  do_summary=True,
                  summary_on_val=False,
                  debug=False):
@@ -118,6 +119,9 @@ class Kid(Block):
                 Whether to log at the end of each epoch.
             log_by_step: bool
                 Whether to log at every `val_log_step`.
+            inference_mode: bool
+                If the kid is set up as inference mode, stuffs related to
+                training will not be built.
             do_summary: Boolean
                 If False, no tensorboard summaries will be saved at all. Note
                 that if `Brain` or `Sensor`'s `do_summary` option is True, they
@@ -163,6 +167,7 @@ class Kid(Block):
         self.val_log_step = val_log_step
         self.log_by_epoch = log_by_epoch
         self.log_by_step = log_by_step
+        self.inference_mode = inference_mode
         self.summary_on_val = summary_on_val
         self.do_summary = do_summary
         self.save_chk_point = save_chk_point
@@ -248,18 +253,23 @@ class Kid(Block):
 
         if A.backend() == A.TORCH and self.continue_from_chk_point:
             log.info("Recovering net from checkpoint %s." % self.model_dir)
-            A.restore(self.model_dir)
+            self.restore()
 
         self.sensor.setup()
         self.engine = engines.get(brain=self.brain, kongfu=self.kongfu, **self.engine_para)
         self.engine.setup()
 
         # Do forward once to build ops.
-        self.step()
+        self.step(update=False if self.inference_mode else True)
         if A.backend() == A.TORCH:
             A.step()  # For PyTorch, the step matters
         # Build validation ops
         self.step(update=False, val=True)
+
+    def restore(self):
+        if A.backend() ==  A.TORCH and not self.inference_mode:
+            self.kongfu.set_lr(A.retrieve_tensor('lr'))
+        A.restore(self.model_dir)
 
     def practice(self, return_eval=False):
         """
@@ -402,6 +412,10 @@ class Kid(Block):
             A.summary.add_graph()
 
     def save_to_ckpt(self):
+        # For torch background, the learning rate will be used during setup
+        # phase, so it should be saved.
+        if A.backend() == A.TORCH:
+            A.cache_tensor(self.kongfu.get_lr(), 'lr')
         A.save(self.model_dir)
         self.log("Checkpoint at step {} saved to folder:"
                  " {}".format(A.get_step(), self.model_dir))

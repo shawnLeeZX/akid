@@ -103,6 +103,10 @@ def on_train_begin(kid):
     log.info("Step {}: loss = {:.5f} eval = {}".format(
         A.get_step(), kid.loss, eval_to_print))
 
+    # Initial validation
+    kid.loss, kid.evals = kid.validate()
+    kid.on_val_log_step()
+
 
 def on_batch_begin(kid):
     pass

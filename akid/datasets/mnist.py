@@ -74,6 +74,7 @@ class MNISTFeedSource(InMemoryFeedSource, SupervisedSource):
                                      scale=self.scale)
         test_dataset = DataSet(test_images,
                                test_labels,
+                               shuffle=False,
                                center=self.center,
                                scale=self.scale)
 
@@ -193,7 +194,7 @@ class RotatedMNISTFeedSource(InMemoryFeedSource, SupervisedSource):
 
 
 class MNISTTorchSource(StaticSource, SupervisedSource):
-    def setup(self):
+    def _setup(self):
         self.dataset = datasets.MNIST(self.work_dir, train=True, download=True,
                                       transform=transforms.Compose([
                                           transforms.ToTensor(),

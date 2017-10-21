@@ -95,6 +95,8 @@
 *** DONE add shape of conv filter in
     CLOSED: [2017-09-26 Tue 14:12]
     - State "DONE"       from "TODO"       [2017-09-26 Tue 14:12]
+*** TODO running kidvalidate() in tensorflow backend does not have exactly the same result, check why
+    See the WARNING of test_kids.py
 *** TODO summary on validation need extra works now for torch backend
 *** TODO make debug level switchable in kid
 *** TODO Think how to place PaddingLayer and Jokers into the right place

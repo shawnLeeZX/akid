@@ -192,6 +192,9 @@ class ProcessingBlock(Block):
 
         # Some operations only run at the first forward pass, so set a flag.
         self.done_first_pass = False
+        # TODO: here is a bug, that any first pass operation related to
+        # validation won't be run, since in the training phase of the first
+        # pass, the flag has been used.
 
     @abc.abstractmethod
     def data(self):
@@ -455,8 +458,9 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
             init = initializers.get(name, **kwargs)
 
         if not self.is_setup:
-            self.log("Variables of {} uses initializer {} with arguments {}".format(
-                self.name, name, kwargs))
+            self.log("Variables of {} will use initializer {} with arguments {}"
+                     " if the variables have not existed yet".format(
+                         self.name, name, kwargs))
 
         return init
 
