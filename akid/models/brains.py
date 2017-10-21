@@ -845,3 +845,108 @@ class IntriguingConvNet(GraphBrain):
                 {"name": "ip2", "idxs": [0]},
                 {"name": "system_in", "idxs": [1]}],
             name="loss"))
+
+
+class AllConvNet(GraphBrain):
+    """
+    All Convolutional Network on CIFAR-10.
+    """
+    def __init__(self, **kwargs):
+        super(AllConvNet, self).__init__(**kwargs)
+
+        self.attach(DropoutLayer(keep_prob=0.8, name="dropout1"))
+        self.attach(ConvolutionLayer(ksize=[3, 3],
+                                     strides=[1, 1],
+                                     padding="SAME",
+                                     init_para={"name": "xavier"},
+                                     wd={"type": "l2", "scale": 0.001},
+                                     in_channel_num=3,
+                                     out_channel_num=96,
+                                     name="conv1"))
+        self.attach(ReLULayer(name="relu1"))
+        self.attach(ConvolutionLayer(ksize=[3, 3],
+                                     strides=[1, 1],
+                                     padding="SAME",
+                                     init_para={"name": "xavier"},
+                                     wd={"type": "l2", "scale": 0.001},
+                                     in_channel_num=96,
+                                     out_channel_num=96,
+                                     name="conv2"))
+        self.attach(ReLULayer(name="relu2"))
+        self.attach(ConvolutionLayer(ksize=[3, 3],
+                                     strides=[2, 2],
+                                     padding="SAME",
+                                     init_para={"name": "xavier"},
+                                     wd={"type": "l2", "scale": 0.001},
+                                     in_channel_num=96,
+                                     out_channel_num=96,
+                                     name="conv3"))
+        self.attach(DropoutLayer(keep_prob=0.5, name="dropout2"))
+        self.attach(ReLULayer(name="relu3"))
+        self.attach(ConvolutionLayer(ksize=[3, 3],
+                                     strides=[1, 1],
+                                     padding="SAME",
+                                     init_para={"name": "xavier"},
+                                     wd={"type": "l2", "scale": 0.001},
+                                     in_channel_num=96,
+                                     out_channel_num=192,
+                                     name="conv4"))
+        self.attach(ReLULayer(name="relu4"))
+        self.attach(ConvolutionLayer(ksize=[3, 3],
+                                     strides=[1, 1],
+                                     padding="SAME",
+                                     init_para={"name": "xavier"},
+                                     wd={"type": "l2", "scale": 0.001},
+                                     in_channel_num=192,
+                                     out_channel_num=192,
+                                     name="conv5"))
+        self.attach(ReLULayer(name="relu5"))
+        self.attach(ConvolutionLayer(ksize=[3, 3],
+                                     strides=[2, 2],
+                                     padding="SAME",
+                                     init_para={"name": "xavier"},
+                                     wd={"type": "l2", "scale": 0.001},
+                                     in_channel_num=192,
+                                     out_channel_num=192,
+                                     name="conv6"))
+        self.attach(DropoutLayer(keep_prob=0.5, name="dropout3"))
+        self.attach(ReLULayer(name="relu6"))
+        self.attach(ConvolutionLayer(ksize=[3, 3],
+                                     strides=[1, 1],
+                                     padding="VALID",
+                                     init_para={"name": "xavier"},
+                                     wd={"type": "l2", "scale": 0.001},
+                                     in_channel_num=192,
+                                     out_channel_num=192,
+                                     name="conv7"))
+        self.attach(ReLULayer(name="relu7"))
+        self.attach(ConvolutionLayer(ksize=[1, 1],
+                                     strides=[1, 1],
+                                     padding="VALID",
+                                     init_para={"name": "xavier"},
+                                     wd={"type": "l2", "scale": 0.001},
+                                     in_channel_num=192,
+                                     out_channel_num=192,
+                                     name="conv8"))
+        self.attach(ReLULayer(name="relu8"))
+        self.attach(ConvolutionLayer(ksize=[1, 1],
+                                     strides=[1, 1],
+                                     padding="VALID",
+                                     init_para={"name": "xavier"},
+                                     wd={"type": "l2", "scale": 0.001},
+                                     in_channel_num=192,
+                                     out_channel_num=10,
+                                     name="conv9"))
+        self.attach(ReLULayer(name="relu9"))
+        self.attach(PoolingLayer(ksize=[6, 6],
+                                 strides=[1, 1],
+                                 padding="VALID",
+                                 type="avg",
+                                 name="global_pool"))
+        self.attach(ReshapeLayer(name="reshape"))
+        self.attach(SoftmaxWithLossLayer(
+            class_num=10,
+            inputs=[
+                {"name": "reshape", "idxs": [0]},
+                {"name": "system_in", "idxs": [1]}],
+            name="loss"))
