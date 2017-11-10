@@ -39,13 +39,18 @@ class System(GenerativeBlock, UpdateBlock):
         self.block_names = []
 
     def get_copy(self):
-        self_copy = copy.copy(self)
+        self_copy = super(System, self).get_copy()
 
         self_copy.blocks = []
         for b in self.blocks:
             self_copy.blocks.append(b.get_copy())
 
         return self_copy
+
+    def set_shadow(self):
+        super(System, self).set_shadow()
+        for b in self.blocks:
+            b.set_shadow()
 
     def get_last_layer_name(self):
         """
@@ -83,8 +88,8 @@ class System(GenerativeBlock, UpdateBlock):
         block_in.do_summary = self.do_summary
         self.blocks.append(block_in)
 
-    def set_do_summary(self, v):
-        self.do_summary = v
+    def set_do_summary_flag(self, v):
+        super(System, self).set_do_summary_flag(v)
         for b in self.blocks:
             b.do_summary = v
 
@@ -123,25 +128,25 @@ class SequentialSystem(System):
         previous_data_name = 'system_in'
         for l in self.blocks:
 
-            l.forward(data)
+            data_out = l.forward(data)
 
             if not self.done_first_pass:
                 name = A.get_name(data)
                 p_name = name if name else previous_data_name
-                name = A.get_name(l.data)
+                name = A.get_name(data_out)
                 n_name = name if name else l.name
                 self.log("Connected: {} -> {}".format(p_name, n_name))
                 previous_data_name = l.name
 
                 if shape:
-                    self.log("Top shape: {}".format(A.get_shape(l.data)))
+                    self.log("Top shape: {}".format(A.get_shape(data_out)))
             data = l.data
 
         self._data = data
 
-        return self._data
+        return data_out
 
-    def on_update(self):
+    def _on_update(self):
         l = self.blocks[0]
         # The Riemannian metric is None for the first layer
         l.on_update(None)
@@ -183,7 +188,8 @@ class GraphSystem(SequentialSystem):
         """
         # Normalize input to a list for convenience even if there is only one
         # input.
-        data = data_in if type(data_in) is list else [data_in]
+        t = type(data_in)
+        data = data_in if t is list or t is tuple else [data_in]
 
         if not self.done_first_pass:
             self.log("System input shape: {}".format(
@@ -276,6 +282,8 @@ class GraphSystem(SequentialSystem):
             previous_data_name = l.name
 
         self._data = data
+
+        return data
 
 
 class SequentialGSystem(GraphSystem):

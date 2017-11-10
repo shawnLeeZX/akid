@@ -60,6 +60,7 @@ class Sensor(ProcessingBlock):
                  source_in,
                  batch_size=100,
                  val_batch_size=100,
+                 shuffle_train=True,
                  **kwargs):
         """
         Args:
@@ -78,6 +79,7 @@ class Sensor(ProcessingBlock):
         self.batch_size = batch_size
         self.val_batch_size = val_batch_size
         self.source = source_in
+        self.shuffle_train = shuffle_train
 
         if issubclass(type(self.source), sources.StaticSource):
             self.num_batches_per_epoch_train \
@@ -418,7 +420,7 @@ class TorchSensor(Sensor):
         # TODO: try use pin memory.
         self.loader = th.utils.data.DataLoader(self.source.dataset,
                                                batch_size=self.batch_size,
-                                               shuffle=True)
+                                               shuffle=self.shuffle_train)
         self.val_loader = th.utils.data.DataLoader(self.source.val_dataset,
                                                    batch_size=self.val_batch_size)
         self.iter = self.loader.__iter__()

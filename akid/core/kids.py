@@ -70,7 +70,7 @@ class Kid(Block):
                  continue_from_chk_point=False,
                  inference_mode=False,
                  do_summary=True,
-                 summary_on_val=False,
+                 do_summary_on_val=False,
                  debug=False):
         """
         Assemble a sensor, a brain, and a KongFu to start the survival game.
@@ -123,14 +123,11 @@ class Kid(Block):
                 If the kid is set up as inference mode, stuffs related to
                 training will not be built.
             do_summary: Boolean
-                If False, no tensorboard summaries will be saved at all. Note
-                that if `Brain` or `Sensor`'s `do_summary` option is True, they
-                will not be unset. Though during training, they would not be
-                used. This makes possible that objects other than this kid
-                could use the summary ops created by the brain or sensor.
-            summary_on_val: Boolean
-                Whether to collect summary on the validation brain. This option
-                is for debugging purpose. It is useful to see how summary in
+                If False, no tensorboard summaries will be saved at all.
+            do_summary_on_val: Boolean
+                Whether to collect summary on the validation brain. This flag
+                has no effect when `do_summary` is False. This option is for
+                debugging purpose. It is useful to see how summary in
                 activation of validation brain is different from training
                 brain. However, if such option is used, accuracy on validation
                 set will become inaccurate. This is because input from
@@ -168,7 +165,7 @@ class Kid(Block):
         self.log_by_epoch = log_by_epoch
         self.log_by_step = log_by_step
         self.inference_mode = inference_mode
-        self.summary_on_val = summary_on_val
+        self.do_summary_on_val = do_summary_on_val
         self.do_summary = do_summary
         self.save_chk_point = save_chk_point
         self.continue_from_chk_point = continue_from_chk_point
@@ -255,6 +252,12 @@ class Kid(Block):
             log.info("Recovering net from checkpoint %s." % self.model_dir)
             self.restore()
 
+        self.sensor.set_do_summary_flag(self.do_summary)
+        # TODO: sensor may should belong to ProcessingLayer instead of ProcessingBlock.
+        # self.sensor.set_do_summary_on_val_flag(self.do_summary_on_val)
+        self.brain.set_do_summary_flag(self.do_summary)
+        self.brain.set_do_summary_on_val_flag(self.do_summary_on_val)
+
         self.sensor.setup()
         self.engine = engines.get(brain=self.brain, kongfu=self.kongfu, **self.engine_para)
         self.engine.setup()
@@ -284,9 +287,6 @@ class Kid(Block):
                 Final validation loss and optional evaluation metric.
         """
         self.log("Begin training brain: " + self.brain.name)
-        # previous_step = tf.train.global_step(self.sess,
-        #                                      self.global_step_tensor)
-        # self.step = previous_step
         # Note the epoch estimation is not accurate if the batch size
         # cannot divide total number of training samples.
         self.epoch = A.get_step() \
@@ -389,11 +389,13 @@ class Kid(Block):
             os.makedirs(self.log_dir)
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
-        log.init("stdout")
+        log.init("stdout", akid_logger=True)
         if self.log_to_file:
             log.add(self.log_filepath)
         if self.debug:
             log.setLevel(log.DEBUG)
+        else:
+            log.setLevel(log.INFO)
         self.log("Logs will be save to: {}".format(self.log_dir))
 
     def setup_summary(self):
@@ -404,7 +406,7 @@ class Kid(Block):
             summary_ops = A.summary.get_collection(TRAIN_SUMMARY_COLLECTION)
             summary_ops.extend(A.summary.get_collection(
                 TRAINING_DYNAMICS_COLLECTION))
-            if self.summary_on_val:
+            if self.do_summary_on_val:
                 val_summary_ops = A.summary.get_collection(
                     VALID_SUMMARY_COLLECTION)
                 summary_ops.extend(val_summary_ops)
@@ -425,7 +427,7 @@ class Kid(Block):
             # Placeholder of `FeedSensor` should be filled.
             feed_dict = self.sensor.fill_feed_dict(val)
             # If val is True, we have gotten val data already.
-            if not val and self.summary_on_val:
+            if not val and self.do_summary and self.do_summary_on_val:
                 # Validation data is also needed, so add them in.
                 val_feed_dict = self.sensor.fill_feed_dict(True)
                 feed_dict.update(val_feed_dict)

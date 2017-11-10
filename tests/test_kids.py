@@ -36,6 +36,18 @@ class TestKid(AKidTestCase):
         assert loss < 0.2, \
                 "Loss: {}".format(loss)
 
+    def test_summary_on_val(self):
+        brain = TestFactory.get_test_brain()
+        sensor = TestFactory.get_test_sensor()
+        kid = TestFactory.get_test_kid(sensor, brain)
+        kid.do_summary = True
+        kid.do_summary_on_val = True
+        kid.setup()
+
+        loss = kid.practice()
+        assert loss < 0.2, \
+                "Loss: {}".format(loss)
+
     def test_saver(self):
         lr_ref = 0.001
         def update_lr(kid):

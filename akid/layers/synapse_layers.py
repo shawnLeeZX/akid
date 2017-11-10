@@ -129,7 +129,7 @@ class SynapseLayer(ProcessingLayer):
     def _pre_forward(self, *args, **kwargs):
         super(SynapseLayer, self)._pre_forward(*args, **kwargs)
 
-    def on_update(self, K_prev):
+    def _on_update(self, K_prev):
         # Save the metric for this RKHS
         self.metric = K_prev
         # Compute the metric for the next layer
@@ -427,6 +427,8 @@ class InnerProductLayer(SynapseLayer):
                 else:
                     self._loss = loss
 
+        return self._data
+
     def _reshape(self, input):
         """
         Flatten all input feature maps.
@@ -468,7 +470,7 @@ class InnerProductLayer(SynapseLayer):
         else:
             self.biases = None
 
-    def on_update(self, K_prev):
+    def _on_update(self, K_prev):
         # Save the metric for this RKHS
         self.metric = K_prev
         # Compute the metric for the next layer
@@ -544,4 +546,4 @@ class RenderingMixtureLayer(SynapseLayer):
 
 
 __all__ = [name for name, x in locals().items() if
-           not inspect.ismodule(x) and not inspect.isabstract(x)]
+           not inspect.ismodule(x)]

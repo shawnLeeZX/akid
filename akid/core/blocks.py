@@ -68,8 +68,11 @@ class Block(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, name=None):
+    def __init__(self, name=None, debug=False, **kwargs):
+        super(Block, self).__init__(**kwargs)
+
         self.name = name
+        self.debug = debug
 
         # TODO: create a mechanism to get default name
         if not name:
@@ -83,6 +86,10 @@ class Block(object):
         self.pre_setup_hook = []
 
         self.is_setup = None
+
+        # Enable logging to stderr for each individual, so logging is available
+        # when not using the Kid.
+        log.init(akid_logger=True)
 
     def setup(self):
         with A.variable_scope(self.name):
@@ -151,10 +158,11 @@ class ProcessingBlock(Block):
     leads to a forward propagation in neural networks to do posterior inference
     (the statement may not hold exactly when the neural network does not learn
     a probability). The concrete forward propagation of sub-classes should be
-    implemented in `_forward` method. To add arbitrary code before and after
-    `_forward`, use `pre_forward_hook`; to add after, use
-    `post_forward_hook`. All arguments passed to `_forward` are also available
-    in functions in the hooks.
+    implemented in `_forward` method. The return value of `_forward` will be
+    returned by `forward`. To add arbitrary code before and after `_forward`,
+    use `pre_forward_hook`; to add after, use `post_forward_hook`. All
+    arguments passed to `_forward` are also available in functions in the
+    hooks.
     """
 
     def __init__(self, do_summary=True, bag=None, summarize_output=False, **kwargs):
@@ -192,9 +200,6 @@ class ProcessingBlock(Block):
 
         # Some operations only run at the first forward pass, so set a flag.
         self.done_first_pass = False
-        # TODO: here is a bug, that any first pass operation related to
-        # validation won't be run, since in the training phase of the first
-        # pass, the flag has been used.
 
     @abc.abstractmethod
     def data(self):
@@ -207,6 +212,9 @@ class ProcessingBlock(Block):
         raise NotImplementedError("Each concrete block needs to implement this"
                                   " method to provide an interface to offer"
                                   " data!")
+
+    def set_do_summary_flag(self, v):
+        self.do_summary = v
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -221,15 +229,12 @@ class ProcessingBlock(Block):
 
         with A.variable_scope(self.name):
             self._pre_forward(*args, **kwargs)
-            self._forward(*args, **kwargs)
+            out = self._forward(*args, **kwargs)
             self._post_forward(*args, **kwargs)
             if not self.done_first_pass:
                 self.done_first_pass = True
 
-        # TODO: see how to return the forward data directly, so to keep the
-        # semantics right. Currently, it does not work when self.data is a
-        # function.
-        return self.data
+        return out
 
     def _pre_forward(self, *args, **kwargs):
         for f in self.pre_forward_hook:
@@ -262,15 +267,16 @@ class ShadowableBlock(ProcessingBlock):
         # Whether this processing block is a shallow replica.
         self.is_shadow = False
 
-    def _pre_forward(self, *args, **kwargs):
-        if not self.is_shadow:
-            for f in self.pre_forward_hook:
-                f(*args, **kwargs)
-
-    def _post_forward(self, *args, **kwargs):
-        if not self.is_shadow:
-            for f in self.post_forward_hook:
-                f(*args, **kwargs)
+    def setup(self):
+        """
+        For shadow copies, only broadcast parameters need to be retrieved
+        again, so only `_setup` will be called.
+        """
+        if self.is_shadow:
+            with A.variable_scope(self.name):
+                self._setup()
+        else:
+            super(ShadowableBlock, self).setup()
 
     def set_shadow(self):
         """
@@ -330,7 +336,8 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
     interface to provide the data it processes.
 
     For now, all processing layers only have one output, and provide it via
-    property `data`. So it overrides the `data` method of `ProcessingBlock`.
+    property `data`, which can be a list to hold multiple data. So it overrides
+    the `data` method of `ProcessingBlock`.
 
     Optionally a `ProcessingLayer` could have a `loss` property for loss (or
     losses) in this layer and a `eval` property for any evaluation metrics in
@@ -344,7 +351,8 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
     def __init__(self,
                  moving_average_decay=None,
                  inputs=None,
-                 wd={"type": "l2", "scale": 5e-4},
+                 # wd={"type": "l2", "scale": 5e-4},  # Save for future reference.
+                 wd=None,
                  do_summary_on_val=False,
                  **kwargs):
         """
@@ -381,6 +389,22 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
 
         # A Boolean flag to indicate whether this block is in validation mode.
         self.is_val = False
+        self.done_first_pass_val = False
+
+    def forward(self, *args, **kwargs):
+        out = super(ProcessingLayer, self).forward(*args, **kwargs)
+
+        if not self.done_first_pass_val and self.is_val:
+            self.done_first_pass_val = True
+
+        return out
+
+    def set_shadow(self):
+        super(ProcessingLayer, self).set_shadow()
+        self.var_list = []
+
+    def set_do_summary_on_val_flag(self, v):
+        self.do_summary_on_val = v
 
     def get_val_copy(self):
         """
@@ -391,6 +415,7 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
         """
         if A.backend() == A.TF:
             val_copy = self.get_copy()
+            val_copy.name = self.name + '_val'
         elif A.backend() == A.TORCH:
             # Since torch is dynamic graph, no need to create a copy for
             # validation.
@@ -481,69 +506,64 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
     def _post_forward(self, *args, **kwargs):
         super(ProcessingLayer, self)._post_forward(*args, **kwargs)
 
-        if self.done_first_pass:
+        # Do not do summary for shadow copies.
+        if self.is_shadow and not self.debug:
+            return
+
+        # If has done forward for building computational graphs that exist in
+        # form of ops, return. But it is possible we still need to build ops
+        # for validation block.
+        if self.done_first_pass and not self.is_val:
             return
 
         if not self.do_summary:
             return
 
-        if not self.is_val or self.is_val and self.do_summary_on_val:
-
-            collection_to_add = VALID_SUMMARY_COLLECTION if self.is_val \
-                else TRAIN_SUMMARY_COLLECTION
+        if not self.is_val\
+           or (self.is_val\
+               and self.do_summary_on_val\
+               and not self.done_first_pass_val):
             if self.data is not None:
-                if type(self.data) is not list:
-                    name = A.get_name(self.data)
-                    if name:
-                        self.log("Do tensorboard summary on outputs {} of {}".format(
-                            name, self.name))
-                        self._data_summary(self.data, collection_to_add)
-
+                self._data_summary(self.data, sparsity_summary=True)
             if self.loss is not None:
-                name =  A.get_name(self.loss)
-                if name:
-                    self.log("Do tensorboard summary on loss {} of {}".format(
-                        name, self.name))
-                    A.summary.scalar(name,
-                                     self.loss,
-                                     collections=[collection_to_add])
+                self._data_summary(self.loss)
             if self.eval is not None:
-                if type(self.eval) is list:
-                    for e in self.eval:
-                        name = A.get_name(e)
-                        if name:
-                            self.log("Do tensorboard summary on evals {} of {}".format(
-                                name, self.name))
-                            A.summary.scalar(name,
-                                            e,
-                                             collections=[collection_to_add])
-                else:
-                    name = A.get_name(self.eval)
-                    if name:
-                        self.log("Do tensorboard summary on evals {} of {}".format(
-                            name, self.name))
-                        A.summary.scalar(name,
-                                         self.eval,
-                                         collections=[collection_to_add])
+                self._data_summary(self.eval)
 
-    def _data_summary(self, data, collection=TRAIN_SUMMARY_COLLECTION, sparsity_summary=True):
+    @property
+    def outputs(self):
+        """
+        Return all outputs of this block in a list.
+
+        Outputs that are accessed thorough functions call will not be included.
+        """
+        outputs = []
+        if self.data:
+            outputs.extend(self.data) if type(self.data) is list else outputs.append(self.data)
+        if self.eval:
+            outputs.extend(self.eval)
+        if not callable(self.loss):
+            if self.loss:
+                outputs.extend(self.loss) if type(self.loss) is list else outputs.append(self.loss)
+
+        return outputs
+
+    def _data_summary(self, data, sparsity_summary=False):
         """
         Helper function to do statistical summary on the bundle of data.
-
-        Args:
-            collection: which op collection to add to. It should be one of
-                TRAIN_SUMMARY_COLLECTION or VALID_SUMMARY_COLLECTION from
-                akid.core.common.
         """
-        assert collection is TRAIN_SUMMARY_COLLECTION or \
-            collection is VALID_SUMMARY_COLLECTION, \
-            "{} is not one of those defined in common.py. Some thing is wrong"
+        collection = VALID_SUMMARY_COLLECTION if self.is_val \
+            else TRAIN_SUMMARY_COLLECTION
+
         if type(data) is not list and type(data) is not tuple:
             data = [data]
 
         for d in data:
             name = A.get_name(d)
             if name:
+                self.log("Do tensorboard summary on outputs {} of {}".format(
+                    name, self.name))
+
                 shape = len(A.get_shape(d))
                 if shape == 0 or shape == 1:
                     A.summary.scalar(name, d, collections=[collection])
@@ -552,9 +572,17 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
                                     d,
                                     collections=[collection])
                     if sparsity_summary:
-                        A.summary.scalar(name + '/' + SPARSITY_SUMMARY_SUFFIX,
-                                        A.nn.zero_fraction(d, name=name.split('/')[-1] + '/' + SPARSITY_SUMMARY_SUFFIX),
-                                        collections=[collection])
+                        A.summary.scalar(
+                            A.append_suffix(name, SPARSITY_SUMMARY_SUFFIX),
+                            A.nn.zero_fraction(d,
+                                               # The scope removing does
+                                               # nothing for tensorflow
+                                               # backend, since the name gotten
+                                               # is already scope removed.
+                                               name=A.remove_scope_from_name(name) \
+                                               + '/' \
+                                               + SPARSITY_SUMMARY_SUFFIX),
+                            collections=[collection])
 
     def _post_setup(self):
         super(ProcessingLayer, self)._post_setup()
@@ -567,8 +595,6 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
                 self._var_summary(A.get_name(var) + "_average", var_average)
 
         if self.do_summary:
-            log.info("Do tensorboard summary on variables of {}".format(
-                self.name))
             for var in self.var_list:
                 self._var_summary(A.get_name(var), var)
 
@@ -580,9 +606,9 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
             for dim in shape:
                 para_num *= dim
             total_para_num += para_num
-        log.info("This layer has {} parameters.".format(total_para_num))
+        self.log("This layer has {} parameters.".format(total_para_num))
 
-    def on_update(self, K_prev):
+    def _on_update(self, K_prev):
         # Keep propagating the Riemannian metric.
         self.K = K_prev
 
@@ -599,6 +625,8 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
             return []
 
     def _var_summary(self, tag, var):
+        self.log("Do tensorboard summary on variables {} of {}".format(
+            A.get_name(var), self.name))
         if len(A.get_shape(var)) is 0:
             A.summary.scalar(tag,
                              var,
@@ -606,6 +634,7 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
         else:
             A.summary.histogram(tag,
                                 var,
+                                summary_on_grad=True,
                                 collections=[TRAIN_SUMMARY_COLLECTION])
 
     @property
@@ -677,7 +706,7 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
                     A.get_name(var)))
                 var = self.moving_averages.average(var)
             else:
-                log.debug("Reuse paras {}".format(A.get_name(var)))
+                self.log("Reuse paras {}".format(A.get_name(var)))
         else:
             # Append it to the var list, do moving average later in
             # `_post_setup`.

@@ -15,6 +15,8 @@ save gradients (for back propagation).
 """
 import os
 
+import tensorflow as tf
+
 from .computational_graph import *
 
 
@@ -43,3 +45,7 @@ def backend():
 def reset():
     reset_step()
     close()
+    # We use scope management from tensorflow, so reset graph
+    tf.reset_default_graph()
+    if _BACKEND == TORCH:
+        summary.reset_collections()

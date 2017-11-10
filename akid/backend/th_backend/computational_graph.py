@@ -37,7 +37,7 @@ def get_variable(name=None, shape=None,
         if reuse:
             # Return the variable if already allocated.
             if name in tensor_by_name:
-                log.info("Reuse variable {}".format(name))
+                log.debug("Reuse variable {}".format(name))
                 return tensor_by_name[name]
         elif name in tensor_by_name:
             name = _append_num(name)
@@ -73,6 +73,14 @@ def cache_tensor(tensor, name):
     # variable. We occasionally cache numeric values as well, e.g. learning rate.
     if isinstance(tensor, Variable):
         tensor.name = name
+
+
+def cache_tensor_auto_scope(tensor, name):
+    """
+    Cache `tensor` with `name`, whose scope information is prepended.
+    """
+    name = _get_name_with_scope(name)
+    cache_tensor(tensor, name)
 
 
 def save(path):
@@ -123,7 +131,32 @@ def restore(path):
 
 def _get_name_with_scope(name):
     scope_name = cg.get_scope_name()
-    name = '{}/{}'.format(scope_name, name)
+    if cg.use_cuda():
+        name = '{}/{}:{}'.format(scope_name, name, int(th.cuda.current_device()))
+    else:
+        name = '{}/{}'.format(scope_name, name)
+    return name
+
+
+def remove_scope_from_name(name):
+    """
+    Remove scope and device information in the name.
+    """
+    if cg.use_cuda():
+        name, _ = name.split(':')
+
+    name = name.split('/')[-1]
+
+    return name
+
+
+def append_suffix(name, suffix):
+    """
+    Append suffix to the name of a tensor, above the level of devices.
+    """
+    name, device = name.split(':')
+    name += '/' + suffix
+    name += ':' + device
     return name
 
 
@@ -147,6 +180,10 @@ def _append_num(name):
 
     TODO: no validation for bad naming now.
     """
+    # The number needs to be added before device id.
+    if name[-2] == ':':
+        name, device_id = name.split(':')
+
     if name[-2] != '_':
         # means no number has been appended before
         name = "{}_1".format(name)
@@ -160,10 +197,13 @@ def _append_num(name):
         for p in parts:
             name += p
 
+    # Add back the device id.
+    name += ":" + device_id
+
     return name
 
 
-def get_name(v):
+def get_name(v, with_device_id=True):
     """
     Given a tensor, return its name if available.
 
@@ -171,7 +211,10 @@ def get_name(v):
     to identify a Tensor.
     """
     if hasattr(v, "name"):
-        return v.name
+        if with_device_id:
+            return v.name
+        else:
+            return v.name.split(':')[0]
     else:
         return None
 
@@ -220,7 +263,8 @@ def close():
     """
     The same as `init()`.
     """
-    pass
+    global tensor_by_name
+    tensor_by_name = {}
 
 
 def eval(t):
@@ -263,6 +307,11 @@ def mul(a, b, name=None):
     return a * b
 
 
+@cache_name_if_exist
+def mean(v, name=None):
+    return th.mean(v)
+
+
 def get_shape(t):
     if type(t) is Variable:
         return list(t.data.shape)
@@ -303,3 +352,17 @@ def add_n(l, name=None):
         acc += v
 
     return acc
+
+
+@cache_name_if_exist
+def div(v, denominator, name=None):
+    return th.div(v, denominator)
+
+
+def scatter(data, devices):
+    return th.nn.parallel._functions.Scatter(devices, dim=0)(data)
+
+
+@cache_name_if_exist
+def gather(data, output_device, name=None):
+    return th.nn.parallel._functions.Gather(output_device, dim=0)(*data)

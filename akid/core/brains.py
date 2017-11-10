@@ -130,6 +130,11 @@ class Brain(System, ProcessingLayer):
         for b in self.blocks:
             b.set_shadow()
 
+    def set_do_summary_on_val_flag(self, v):
+        super(Brain, self).set_do_summary_on_val_flag(v)
+        for b in self.blocks:
+            b.do_summary_on_val = v
+
     def get_filters(self, names=None):
         """
         A public interface to expose filters of this brain.
@@ -163,24 +168,11 @@ class Brain(System, ProcessingLayer):
         super(Brain, self)._pre_forward(*args, **kwargs)
 
     def _post_forward(self, *args, **kwargs):
-        super(Brain, self)._post_forward(*args, **kwargs)
-
         self._gather_loss()
         self._gather_evals()
         self._gather_train_ops()
 
-        if self.done_first_pass:
-            return
-
-        if not self.do_summary:
-            return
-
-        if not self.is_val or self.is_val and self.do_summary_on_val:
-            self.log("Do tensorboard summary on loss of {}".format(
-                self.name))
-            collection_to_add = VALID_SUMMARY_COLLECTION if self.is_val \
-                else TRAIN_SUMMARY_COLLECTION
-            A.summary.scalar(A.get_name(self.loss), self.loss, collections=[collection_to_add])
+        super(Brain, self)._post_forward(*args, **kwargs)
 
     def _gather_loss(self):
         """

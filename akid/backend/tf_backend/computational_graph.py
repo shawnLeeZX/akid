@@ -55,7 +55,6 @@ def init(continue_from_chk_point=False, model_dir=None):
 def close():
     if sess is not None:
         sess.close()
-    tf.reset_default_graph()
 
     global initialized
     initialized = False
@@ -109,9 +108,28 @@ def get_name(v):
     Only return the last part in the name hierarchy. For the reason, see the
     same function of PyTorch backend.
     """
-    parts = v.op.name.split('/')
-    name = parts[-1]
+    if v is not None:
+        parts = v.op.name.split('/')
+        name = parts[-1]
+        return name
+    else:
+        return None
+
+
+def remove_scope_from_name(name):
+    """
+    Remove scope and device information in the name.
+    """
+    name = name.split('/')[-1]
+
     return name
+
+
+def append_suffix(name, suffix):
+    """
+    Append suffix to the name of a tensor, above the level of devices.
+    """
+    return name + '/' + suffix
 
 
 def Tensor(X_in, requires_grad=False):
@@ -189,8 +207,16 @@ def mul(a, b, name=None):
     return tf.multiply(a, b, name)
 
 
+def mean(v, name=None):
+    return tf.reduce_mean(v, name=name)
+
+
 def add_n(l, name=None):
     return tf.add_n(l, name=name)
+
+
+def div(v, denominator, name=None):
+    return tf.div(v, denominator, name=name)
 
 
 def zero_fraction(data):
@@ -231,3 +257,10 @@ def standardize_data_format(data, old_format):
 
 def get_random_name():
     return uuid4().hex
+
+
+def scatter(data, devices, name=None):
+    # Since tensorflow handles all communications, just split the data with the
+    # right number.
+    num_split = len(devices)
+    return tf.split(axis=0, num_or_size_splits=num_split, value=data, name=name)

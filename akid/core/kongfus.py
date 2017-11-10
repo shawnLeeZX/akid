@@ -78,7 +78,10 @@ class KongFu(ShadowableBlock, UpdateBlock):
 
         super(KongFu, self).__init__(**kwargs)
         self._lr_value = lr
-        self.var_list = var_list
+        if var_list is None:
+            self.var_list = []
+        else:
+            self.var_list = var_list
 
         # Deprecated. Save for compatibility.
         if lr is None:
@@ -113,6 +116,9 @@ class KongFu(ShadowableBlock, UpdateBlock):
 
     def set_var_list(self, var_list):
         self.var_list = var_list
+
+    def append_var_list(self, var_list):
+        self.var_list.extend(var_list)
 
     def get_lr(self):
         return self._lr_value
@@ -156,6 +162,7 @@ class KongFu(ShadowableBlock, UpdateBlock):
         Build and return training ops according to the loss.
         """
         self._data = A.train.compute_gradients(self.opt, loss)
+        return self._data
 
     def _update(self, grads):
         return A.train.apply_gradients(self.opt, grads)

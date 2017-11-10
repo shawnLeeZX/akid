@@ -1,5 +1,7 @@
 """A simple Google-style logging wrapper.
 
+Adopted from: https://github.com/benley/python-glog.
+
 This library attempts to greatly simplify logging in Python applications.
 Nobody wants to spend hours pouring over the PEP 282 logger documentation, and
 almost nobody actually needs things like loggers that can be reconfigured over
@@ -14,6 +16,9 @@ the network.  We just want to get on with writing our apps.
 
 * Your apps and scripts will all have a consistent log format, and the same
   predictable behaviours.
+
+* It is designed to work with `akid`, so akid can centralize control of
+  logging, by indicating `akid_logger` as True when calling `init`.
 
 ## Behaviours
 
@@ -74,27 +79,18 @@ flags, like so:
 Happy logging!
 """
 import sys
-
 import logging
 import time
-
 import gflags
+import types
+import os
+
+from .tools import currentframe
 
 gflags.DEFINE_integer('verbosity', logging.INFO, 'Logging verbosity.',
                       short_name='v')
 FLAGS = gflags.FLAGS
-
 file_names = []
-
-logger = logging.getLogger("glog")
-debug = logger.debug
-info = logger.info
-warning = logger.warning
-warn = logger.warning
-error = logger.error
-exception = logger.exception
-fatal = logger.fatal
-log = logger.log
 
 
 def format_message(record):
@@ -143,13 +139,47 @@ def setLevel(newlevel):
     logger.debug('Log level set to %s', newlevel)
 
 
-def init(filename=None):
+def init(filename=None, akid_logger=False):
+    """
+    If `akid_logger` is True, the logger is used for logging in `akid`, in
+    which case the frame will be traced back to the caller of `Block.log` or
+    any `log` of its subclasses.
+    """
     global logger, debug, info, warning, warn, error, exception, fatal, log
 
     if logger:
         return
 
     logger = logging.getLogger("glog")
+
+    if akid_logger:
+        def findCaller(self):
+            """
+            Find the stack frame of the caller so that we can note the source
+            file name, line number and function name.
+            """
+            f = currentframe()
+            #On some versions of IronPython, currentframe() returns None if
+            #IronPython isn't run with -X:Frames.
+            if f is not None:
+                f = f.f_back
+            rv = "(unknown file)", 0, "(unknown function)"
+            while hasattr(f, "f_code"):
+                co = f.f_code
+                filename = os.path.normcase(co.co_filename)
+                # Backtrack to akid
+                if "akid" not in filename:
+                    f = f.f_back
+                    continue
+                # Backtrack to methods that are not called `log`
+                if co.co_name == "log":
+                    f = f.f_back
+                    continue
+                rv = (co.co_filename, f.f_lineno, co.co_name)
+                break
+            return rv
+
+        logger.findCaller = types.MethodType(findCaller, logger)
 
     logger.propagate = False
 

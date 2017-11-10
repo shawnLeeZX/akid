@@ -39,6 +39,21 @@ class AKidTestCase(TestCase):
             msg = self._formatMessage(None, '\n{}\n == \n{}\n'.format(a, b))
             raise self.failureException(msg)
 
+    def assertTensorEquals(self, a, b):
+        a = A.eval(a)
+        b = A.eval(b)
+        if not (a == b).all():
+            msg = self._formatMessage(None, '\n{}\n == \n{}\n'.format(a, b))
+            raise self.failureException(msg)
+
+    def assertTensorAlmostEquals(self, a, b):
+        diff = a - b
+        diff = A.eval(diff)
+        diff = abs(diff)
+        if not (diff < 10e-7).all():
+            msg = self._formatMessage(None, '\ndiff:\n{}\n'.format(diff))
+            raise self.failureException(msg)
+
 
 class TestFactory(object):
     """
@@ -87,6 +102,8 @@ class TestFactory(object):
                                  num_train=60000,
                                  num_val=10000,
                                  name='mnist'),
+                # Do not shuffle training set for reproducible test
+                shuffle_train=False,
                 name='mnist')
 
 
@@ -123,6 +140,7 @@ class TestSuite():
         modules_to_test.append('test_kongfus')
         modules_to_test.append('test_kids')
         modules_to_test.append('test_initializer')
+        modules_to_test.append('test_engines')
         # for test in test_dir:
         #     if test.startswith('test') and test.endswith('.py'):
         #         modules_to_test.append(test.rstrip('.py'))

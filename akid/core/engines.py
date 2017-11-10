@@ -26,6 +26,7 @@ import tensorflow as tf
 from .blocks import ProcessingBlock
 from .interface_blocks import UpdateBlock
 from .. import backend as A
+from .. import parallel as P
 
 
 class Engine(ProcessingBlock, UpdateBlock):
@@ -44,6 +45,7 @@ class Engine(ProcessingBlock, UpdateBlock):
     def __init__(self, brain, kongfu, **kwargs):
         if "name" not in kwargs:
             kwargs["name"] = 'engine'
+        kwargs["call_on_update"] = True
 
         super(Engine, self).__init__(**kwargs)
 
@@ -96,6 +98,8 @@ class Engine(ProcessingBlock, UpdateBlock):
         #             grad,
         #             collections=[TRAINING_DYNAMICS_COLLECTION])
 
+
+class SingleGPUEngine(Engine):
     def _setup(self):
         self.brain.setup()
         if A.backend() == A.TF:
@@ -106,15 +110,16 @@ class Engine(ProcessingBlock, UpdateBlock):
         self.kongfu.set_var_list(self.brain.get_filters())
         self.kongfu.setup()
 
-
-class SingleGPUEngine(Engine):
     def _forward(self, data, val=False):
         if val:
             if A.backend() == A.TORCH:
                 # For torch, val brain and brain are the same.
                 self.val_brain.set_val(True)
+                pushed_name = self.brain.name
+                self.val_brain.name = self.brain.name + "_val"
                 d = self.val_brain.forward(data)
                 self.val_brain.set_val(False)
+                self.val_brain.name = pushed_name
             elif A.backend() == A.TF:
                 d = self.val_brain.forward(data)
             else:
@@ -180,7 +185,7 @@ class SingleGPUEngine(Engine):
         return layer
 
 
-class DataParallelEngine(Engine):
+class DataParallelEngine(SingleGPUEngine):
     """
     This engine will implement typical parallelism in training neural
     network. It splits the batch, and train a fraction of them in an individual
@@ -189,9 +194,139 @@ class DataParallelEngine(Engine):
     Due to the known fact that communication between GPUs are slow, the average
     of gradient is done on CPU.
     """
-    def __init__(self, num_gpu, **kwargs):
+    def __init__(self, gpu_num=None, **kwargs):
         super(DataParallelEngine, self).__init__(**kwargs)
-        self.num_gpu = num_gpu
+        # TODO: if num_gpu is None, use all available ones.
+        self.gpu_num = gpu_num
+        self.devices = [i for i in xrange(gpu_num)]
+
+        if A.backend() != A.TORCH:
+            raise ValueError("Backend other torch has not been implemented yet.")
+            # TODO: note that the weight decay computation in the old code of
+            # tensorflow may be wrong, which makes each replica creates a copy
+            # of the weight decay. It may make the weight decay 8 or 4 larger
+            # than the reported value, which may be the reason why the
+            # reproduced resnet has a lower accuracy. Check when implement
+            # tensorflow data parallel.
+
+    def _setup(self):
+        if self.gpu_num == 1:
+            super(DataParallelEngine, self)._setup()
+            return
+
+        # Set up the primary computational graph, and replicate.
+        self.brain.setup()
+        A.get_variable_scope().reuse_variables()
+        # Replicate the parameters.
+        self._sync(self.brain.get_filters(), self.devices)
+
+        self.towers = self._shadow_copy(self.brain)
+        if A.backend() == A.TF:
+            self.val_brain = self.brain.get_val_copy()
+            self.val_towers = self._shadow_copy(self.val_brain)
+        else:
+            self.val_brain = self.brain
+            self.val_towers = self.towers
+
+        self.kongfu.set_var_list(self.brain.get_filters())
+        self.kongfu.setup()
+
+    def _shadow_copy(self, brain):
+        """
+        Make `self.gpu_num` number of shadow copy of `brain`. A list of shadow
+        copies will be returned. The original brain will be put at the first of
+        the list.
+        """
+        # Set up shadow copies.
+        towers = []
+        towers.append(brain)
+        for i in xrange(1, self.gpu_num):
+            with P.device('/gpu:{}'.format(i)):
+                tower = brain.get_shadow_copy()
+                tower.setup()
+                towers.append(tower)
+
+        return towers
+
+    def _forward(self, data, val=False):
+        if self.gpu_num == 1:
+            d = super(DataParallelEngine, self)._forward(data, val)
+            return d
+
+        # Else, do data parallel.
+        # Scatter the data to shadow devices.
+        data = P.scatter(data, self.devices)
+
+        # Forward propagate the scattered data.
+        if A.backend() == A.TORCH:
+            if val:
+                pushed_name = self.brain.name
+                for t in self.towers:
+                    t.set_val(True)
+                    t.name = t.name + "_val"
+
+        # results here is a general mechanism to gather result, which is
+        # another use here though, since loss and evaluation metrics is
+        # gathered through loss and eval in towers' attributes.
+        results = []
+        threads = []
+        for i in xrange(self.gpu_num):
+            with P.device("/gpu:{}".format(i)):
+                # TODO: think how to handle tensorflow
+                ret, t = P.thread_run(self.towers[i].forward, data[i])
+                results.append(ret)
+                threads.append(t)
+        for t in threads:
+            t.join()
+        # Gather the result, and compute average loss
+        losses = [t.loss for t in self.towers]
+
+        loss = self._average(losses)
+        evals = [t.eval for t in self.towers]
+        eval = self._average(evals)
+
+        if val:
+            # import ipdb; ipdb.set_trace()
+            self._val_loss = loss
+            self._val_eval = eval
+            for t in self.towers:
+                t.set_val(False)
+                t.name = pushed_name
+        else:
+            self._train_loss = loss
+            self._train_eval = eval
+
+        return loss
+
+    def _update(self, *args, **kwargs):
+        # TODO: test the behavior of tensorflow, given that the loss is gather
+        # from different GPU
+        grads = self.kongfu.forward(self._train_loss)
+        self.train_op = self.kongfu.update(grads)
+        return self.train_op
+
+    def _sync(self, variables, devices):
+        """
+        Synchronize parameters to devices specified.
+
+        Args:
+            variables: a list of variables
+            devices: a list of id for GPUs.
+        """
+        if A.backend() == A.TORCH:
+            # Tensorflow handles all communication, no need for this. Do this
+            # for torch.
+            P.broadcast(variables, devices)
+
+    def _on_update(self, *args, **kwargs):
+        # If the backend is torch, broadcast the parameters from primary device
+        # to shadow copies.
+        if A.backend() == A.TORCH:
+            self._sync(self.brain.get_filters(), self.devices)
+            # Let the shadow copy retried its parameters again.
+            with A.variable_scope(self.name):
+                A.get_variable_scope().reuse_variables()
+                self.towers = self._shadow_copy(self.brain)
 
     def get_layer_data(self, name, get_val=False):
         if get_val:
@@ -220,46 +355,33 @@ class DataParallelEngine(Engine):
         Given data and labels, split them and return.
         """
         with A.variable_scope("data_split"):
-            splitted_data = tf.split(axis=0, num_or_size_splits=self.num_gpu, value=data)
+            splitted_data = tf.split(axis=0, num_or_size_splits=self.gpu_num, value=data)
             if type(label) is list:
                 splitted_labels = []
                 for i in xrange(0, len(label)):
-                    splitted_labels.append(tf.split(axis=0, num_or_size_splits=self.num_gpu, value=label[i]))
+                    splitted_labels.append(tf.split(axis=0, num_or_size_splits=self.gpu_num, value=label[i]))
                 splitted_labels = zip(*splitted_labels)
             else:
-                splitted_labels = tf.split(axis=0, num_or_size_splits=self.num_gpu, value=label)
+                splitted_labels = tf.split(axis=0, num_or_size_splits=self.gpu_num, value=label)
 
         return splitted_data, splitted_labels
 
-    def _setup_system_in(self, data, label):
-        """
-        Given data and label, create the list of input for the brain.
-
-        Args:
-            data: tf.Tensor
-                The data tensor.
-            label: list of tf.Tensor or tf.Tensor
-                List of label tensors or a single label tensor.
-
-        Return:
-            system_in: list
-                A list of tensors merge `data` and `label`.
-        """
-        system_in = [data]
-        system_in.extend(list(label)) \
-            if type(label) in (list, tuple)\
-            else system_in.append(label)
-        return system_in
-
-    def _average_loss(self, towers):
+    def _average(self, data):
         """
         Given a list of computing towers, average their loss, and return.
         """
-        with A.variable_scope("loss_average"):
-            sum_of_loss = tf.add_n([t.loss for t in towers])
-            loss = tf.div(sum_of_loss, self.num_gpu, name="avg")
+        # TODO: think how the gather works in tensorflow
+        data_gathered = P.gather(data)
+        data_reduced = []
+        if type(data_gathered) is list:
+            for i, d in enumerate(data_gathered):
+                data_reduced.append(
+                    A.mean(d, name=A.get_name(data[0][i], with_device_id=False) + "_reduced"))
+        else:
+            data_reduced = A.mean(data_gathered,
+                                  name=A.get_name(data[0], with_device_id=False) + "_reduced")
 
-        return loss
+        return data_reduced
 
     def _average_eval(self, towers):
         """
@@ -271,7 +393,7 @@ class DataParallelEngine(Engine):
             for i in xrange(0, len(towers[0].eval)):
                 sum_of_eval = tf.add_n([t.eval[i] for t in towers])
                 eval = tf.div(sum_of_eval,
-                              self.num_gpu,
+                              self.gpu_num,
                               name="{}_avg".format(towers[0].eval[i].op.name))
                 eval_list.append(eval)
 
@@ -298,7 +420,7 @@ class DataParallelEngine(Engine):
         tower = self.brain
         kongfu = self.kongfu
         self.train_op_list = []
-        for i in xrange(0, self.num_gpu):
+        for i in xrange(0, self.gpu_num):
             self.log("Setting up tower {} for training".format(i))
             with tf.device('/gpu:{}'.format(i)):
                 # Set up a tower
@@ -320,7 +442,7 @@ class DataParallelEngine(Engine):
 
                 # Create the next tower.
                 # Do not do copy at the last tower.
-                if i is not self.num_gpu - 1:
+                if i is not self.gpu_num - 1:
                     tower = tower.get_shadow_copy()
                     kongfu = kongfu.get_shadow_copy()
 
@@ -342,14 +464,14 @@ class DataParallelEngine(Engine):
         # Set up val brains according to the number of gpus used.
         self.val_towers = []
         tower = self.val_brain
-        for i in xrange(0, self.num_gpu):
+        for i in xrange(0, self.gpu_num):
             self.log("Setting up tower {} for validation".format(i))
             with tf.device('/gpu:{}'.format(i)):
                 system_in = self._setup_system_in(splitted_data[i],
                                                   splitted_labels[i])
                 tower.forward(system_in)
                 self.val_towers.append(tower)
-                if i is not self.num_gpu - 1:
+                if i is not self.gpu_num - 1:
                     tower = tower.get_shadow_copy()
 
         with tf.device('/cpu:0'):
@@ -446,3 +568,6 @@ def get(name, **kwargs):
 EngineRegistry('single',
                SingleGPUEngine,
                "Single GPU engine")
+EngineRegistry('data_parallel',
+               DataParallelEngine,
+               "Data Parallel Engine")

@@ -17,6 +17,7 @@ from akid.core.common import *
 from akid.core.brains import *
 from akid.core import initializers
 from akid.core import common
+from akid.core import engines
 try:
     from akid.core.observer import *
 except ImportError as e:

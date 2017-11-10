@@ -14,6 +14,12 @@ def _do_summary(kid):
         if A.backend() == A.TF:
             feed_dict = kid.feed_dict
         elif A.backend() == A.TORCH:
+            if kid.do_summary_on_val:
+                # If doing summary on validation set, a step needs to be run to
+                # update the feature maps. Tensorflow will do this
+                # automatically, so forward once only for torch.
+                kid.step(update=False, val=True)
+
             feed_dict = None
 
         A.summary.run_summary_op(kid.summary_op, feed_dict=feed_dict)
@@ -55,7 +61,7 @@ def on_val_log_step(kid):
                              step=A.get_step())
         for i, v in enumerate(kid.evals):
             A.summary.add_scalar(
-                name=A.get_name(kid.engine.eval(get_val=True)[i]) + "_val",
+                name=A.append_suffix(A.get_name(kid.engine.eval(get_val=True)[i]), "val"),
                 value=v,
                 step=A.get_step())
 

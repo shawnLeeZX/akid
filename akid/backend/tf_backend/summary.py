@@ -30,9 +30,9 @@ def init(dir=None):
     log.info("Summary event file will be saved to {}".format(dir))
 
 
-def histogram(name, values, collections=None, step=None):
+def histogram(name, values, summary_on_grad=False, collections=None, step=None):
     """
-    `step` is not used, just for compatibility with PyTorch.
+    `step`, `summary_on_grad` are not used, just for compatibility with PyTorch.
     """
     tf.summary.histogram(name, values, collections)
 
