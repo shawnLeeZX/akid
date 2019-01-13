@@ -97,9 +97,9 @@ class MergeLayer(ProcessingLayer):
     Merge layers with the same shape by element-wise addition.
     """
     def _forward(self, inputs):
-        shape = inputs[0].get_shape().as_list()
+        shape = A.get_shape(inputs[0])
         for t in inputs:
-            t_shape = t.get_shape().as_list()
+            t_shape = A.get_shape(t)
             assert t_shape == shape,\
                 "Tensors to merge do not have the same shape as {} (found {})".format(shape, t_shape)
 

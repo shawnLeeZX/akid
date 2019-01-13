@@ -270,9 +270,9 @@ class Kid(Block):
         self.step(update=False, val=True)
 
     def restore(self):
+        A.restore(self.model_dir)
         if A.backend() ==  A.TORCH and not self.inference_mode:
             self.kongfu.set_lr(A.retrieve_tensor('lr'))
-        A.restore(self.model_dir)
 
     def practice(self, return_eval=False):
         """
@@ -343,6 +343,7 @@ class Kid(Block):
             return val_loss
 
     def tf_step(self, update=True, val=False):
+        self.sensor.set_val(val)
         self.feed_dict = self.get_feed_dict(val)
         fetch = [self.engine.loss(val)]
         fetch.extend(self.engine.eval(val))
@@ -368,9 +369,10 @@ class Kid(Block):
         """
         Computational graph wise, how the tensor should be run in a step.
         """
-        self.sensor.forward(val)
-        data = self.sensor.data(val)
-        label = self.sensor.labels(val)
+        self.sensor.set_val(val)
+        self.sensor.forward()
+        data = self.sensor.data
+        label = self.sensor.labels
         system_in = [data]
         system_in.extend(label) if type(label) is list \
             else system_in.append(label)
@@ -423,18 +425,21 @@ class Kid(Block):
                  " {}".format(A.get_step(), self.model_dir))
 
     def get_feed_dict(self, val=False):
+        feed_dict = None
         if type(self.sensor) is sensors.FeedSensor:
             # Placeholder of `FeedSensor` should be filled.
-            feed_dict = self.sensor.fill_feed_dict(val)
+            feed_dict = self.sensor.fill_feed_dict()
             # If val is True, we have gotten val data already.
             if not val and self.do_summary and self.do_summary_on_val:
                 # Validation data is also needed, so add them in.
-                val_feed_dict = self.sensor.fill_feed_dict(True)
+                self.sensor.set_val(True)
+                val_feed_dict = self.sensor.fill_feed_dict()
+                self.sensor.set_val(False)
                 feed_dict.update(val_feed_dict)
 
         lr_dict = self.kongfu.get_feed_dict()
 
-        if feed_dict:
+        if feed_dict is not None:
             feed_dict.update(lr_dict)
         else:
             feed_dict = lr_dict

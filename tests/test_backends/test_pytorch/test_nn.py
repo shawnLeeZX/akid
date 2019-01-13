@@ -85,5 +85,21 @@ class TestNn(AKidTestCase):
         out_eval = A.eval(out)
         self.assertNdarrayEquals(out_eval, out_ref)
 
+    def test_normalize_weight_4d(self):
+        W = A.Tensor(np.ones((2, 2, 2, 2)))
+        W = A.nn.normalize_weight(W)
+
+        W_ref = A.Tensor(np.ones((2, 2, 2, 2)) * np.sqrt(0.125))
+
+        self.assertTensorEquals(W, W_ref)
+
+    def test_normalize_weight_2d(self):
+        W = A.Tensor(np.ones((2, 2)))
+        W = A.nn.normalize_weight(W)
+
+        W_ref = A.Tensor(np.ones((2, 2)) * np.sqrt(1./2))
+
+        self.assertTensorEquals(W, W_ref)
+
 if __name__ == "__main__":
     main()

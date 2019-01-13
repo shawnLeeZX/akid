@@ -110,8 +110,9 @@ class KongFu(ShadowableBlock, UpdateBlock):
         self._lr_value = lr
 
         if A.backend() == A.TORCH:
-            for pg in self.opt.param_groups:
-                pg['lr'] = lr
+            if self.is_setup:
+                for pg in self.opt.param_groups:
+                    pg['lr'] = lr
             A.cache_tensor(self._lr_value, LEARNING_RATE_TAG)
 
     def set_var_list(self, var_list):
@@ -221,7 +222,8 @@ class MomentumKongFu(KongFu):
 
 class GradientDescentKongFu(KongFu):
     def _get_optimizer(self, lr):
-        return A.train.GradientDescentOptimizer(lr)
+        return A.train.GradientDescentOptimizer(lr,
+                                                self.var_list)
 
 
 class AdamKongFu(KongFu):

@@ -2,11 +2,11 @@ import tensorflow as tf
 import numpy as np
 from akid.utils import glog as log
 
-from akid.utils.test import AKidTestCase, main, TestFactory
+from akid.utils.test import AKidTestCase, main, TestFactory, skipUnless
 from akid import GraphBrain
 from akid.sugar import cnn_block
 from akid import sugar
-from akid.layers import SoftmaxWithLossLayer
+from akid.layers import SoftmaxWithLossLayer, BatchNormalizationLayer
 from akid import backend as A
 
 
@@ -17,7 +17,9 @@ class TestActivationLayers(AKidTestCase):
     def setUp(self):
         super(TestActivationLayers, self).setUp()
         sugar.init()
+        A.reset()
 
+    @skipUnless(A.backend() == A.TF)
     def test_softmax_normalization(self):
         brain = GraphBrain(name="test_brain")
         brain.attach(cnn_block(ksize=[5, 5],
@@ -63,6 +65,7 @@ class TestActivationLayers(AKidTestCase):
         loss = kid.practice()
         assert loss < 1.5
 
+    @skipUnless(A.backend() == A.TF)
     def test_gsmax_tensor_input(self):
         from akid.layers import GroupSoftmaxLayer
         from math import log
@@ -78,6 +81,7 @@ class TestActivationLayers(AKidTestCase):
                                 0.2560102,  0.2560102,  0.2560102])
             assert np.sum(abs(out - out_ref)) <= 10e-4
 
+    @skipUnless(A.backend() == A.TF)
     def test_gsmax_list_input(self):
         from akid.layers import GroupSoftmaxLayer
         from math import log
@@ -93,53 +97,45 @@ class TestActivationLayers(AKidTestCase):
                                 0.2560102,  0.2560102,  0.2560102])
             assert np.sum(abs(out - out_ref)) <= 10e-4
 
-    def test_bn(self):
-        brain = GraphBrain(name="test_brain")
-        brain.attach(cnn_block(ksize=[5, 5],
-                               initial_bias_value=0.,
-                               init_para={"name": "truncated_normal",
-                                          "stddev": 0.1},
-                               wd={"type": "l2", "scale": 5e-4},
-                               in_channel_num=1,
-                               out_channel_num=32,
-                               pool_size=[5, 5],
-                               pool_stride=[5, 5],
-                               activation={"type": "relu"},
-                               bn={"channel_num": 32, "gamma_init": 1., "share_gamma": True}))
+    def test_bn_2d(self):
+        l = BatchNormalizationLayer(10, 0, 1, dim_num=1, name="test_bn")
+        l.setup()
+        X_in = np.random.randn(10, 10)
+        self.assertNdarrayNotAlmostEquals(X_in.mean(0), 0)
+        self.assertNdarrayNotAlmostEquals(X_in.std(0), 1)
+        X_in = A.Tensor(X_in)
+        X_out = l(X_in)
+        A.init()
+        X_out_eval = A.eval(X_out)
+        gamma = A.eval(l.var_list[1])
+        self.assertNdarrayAlmostEquals(X_out_eval.mean(0), 0)
+        # The normalization only holds roughly, so do not do a strong assertion
+        # on the equality.
+        self.assertNdarrayAlmostEquals(X_out_eval.std(0), gamma, places=4)
 
-        brain.attach(cnn_block(ksize=None,
-                               initial_bias_value=0.1,
-                               init_para={"name": "truncated_normal",
-                                          "stddev": 0.1},
-                               wd={"type": "l2", "scale": 5e-4},
-                               in_channel_num=1152,
-                               out_channel_num=512,
-                               activation={"type": "relu"},
-                               bn={"channel_num": 512, "gamma_init": 1., "share_gamma": True}))
+    def test_bn_4d(self):
+        l = BatchNormalizationLayer(10, 0, 1, dim_num=2, name="test_bn")
+        l.setup()
+        X_in = np.random.randn(10, 10, 10, 10)
+        if A.DATA_FORMAT == "CHW":
+            reduce_indices = (0, 2, 3)
+        elif A.DATA_FORMAT == "HWC":
+            reduce_indices = (0, 1, 2)
+        else:
+            raise ValueError("Data Format {} is not supported".format(A.DATA_FORMAT))
+        self.assertNdarrayNotAlmostEquals(X_in.mean(reduce_indices), 0)
+        self.assertNdarrayNotAlmostEquals(X_in.std(reduce_indices), 1)
+        X_in = A.Tensor(X_in)
+        X_out = l(X_in)
+        A.init()
+        X_out_eval = A.eval(X_out)
+        gamma = A.eval(l.var_list[1])
+        self.assertNdarrayAlmostEquals(X_out_eval.mean(reduce_indices), 0)
+        # The normalization only holds roughly, so do not do a strong assertion
+        # on the equality.
+        self.assertNdarrayAlmostEquals(X_out_eval.std(reduce_indices), gamma, places=4)
 
-        brain.attach(cnn_block(ksize=None,
-                               initial_bias_value=0.1,
-                               init_para={"name": "truncated_normal",
-                                          "stddev": 0.1},
-                               wd={"type": "l2", "scale": 5e-4},
-                               in_channel_num=512,
-                               out_channel_num=10,
-                               activation=None,
-                               bn={"channel_num":10, "gamma_init": 1., "share_gamma": True}))
-
-        brain.attach(SoftmaxWithLossLayer(
-            class_num=10,
-            inputs=[{"name": "ip3", "idxs": [0]},
-                    {"name": "system_in", "idxs": [1]}],
-            name="loss"))
-
-        source = TestFactory.get_test_feed_source()
-        kid = TestFactory.get_test_kid(source, brain)
-        kid.setup()
-
-        loss = kid.practice()
-        assert loss < 4
-
+    @skipUnless(A.backend() == A.TF)
     def test_reduce_out(self):
         from akid.layers import CollapseOutLayer
 
@@ -187,6 +183,7 @@ class TestActivationLayers(AKidTestCase):
             assert np.sum(abs(output - out_ref)) <= 1e-4,\
                 "output: {}, out_ref {}.".format(output, out_ref)
 
+    @skipUnless(A.backend() == A.TF)
     def test_relu_backward(self):
         X_forward_in = A.Tensor(np.array([1, -1], dtype=np.float32))
         X_backward_in = A.Tensor(np.array([2, 3], dtype=np.float32))
@@ -203,6 +200,7 @@ class TestActivationLayers(AKidTestCase):
         assert (X_backward_out_eval == X_backward_out_ref).all(),\
             "output: {}, out_ref: {}.".format(X_backward_out_eval, X_backward_out_ref)
 
+    @skipUnless(A.backend() == A.TF)
     def test_max_pooling(self):
         X_in = np.array([[[1., 2],
                           [3, 4]],
@@ -282,6 +280,7 @@ class TestActivationLayers(AKidTestCase):
             assert (I == I_ref).all(),\
                 "I_out_eval: {}; I_out_ref: {}".format(I, I_ref)
 
+    @skipUnless(A.backend() == A.TF)
     def test_colorization_relu(self):
         F = np.array([
             [

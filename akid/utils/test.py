@@ -9,6 +9,7 @@ import traceback
 
 import unittest
 from unittest import TestCase
+from unittest import skip
 
 from akid import AKID_DATA_PATH
 from akid import (
@@ -39,6 +40,20 @@ class AKidTestCase(TestCase):
             msg = self._formatMessage(None, '\n{}\n == \n{}\n'.format(a, b))
             raise self.failureException(msg)
 
+    def assertNdarrayAlmostEquals(self, a, b, places=7):
+        diff = a - b
+        diff = abs(diff)
+        if not (diff < 10 ** -places).all():
+            msg = self._formatMessage(None, '\ndiff:\n{}\n'.format(diff))
+            raise self.failureException(msg)
+
+    def assertNdarrayNotAlmostEquals(self, a, b):
+        diff = a - b
+        diff = abs(diff)
+        if (diff < 10e-7).all():
+            msg = self._formatMessage(None, '\ndiff:\n{}\n'.format(diff))
+            raise self.failureException(msg)
+
     def assertTensorEquals(self, a, b):
         a = A.eval(a)
         b = A.eval(b)
@@ -51,6 +66,14 @@ class AKidTestCase(TestCase):
         diff = A.eval(diff)
         diff = abs(diff)
         if not (diff < 10e-7).all():
+            msg = self._formatMessage(None, '\ndiff:\n{}\n'.format(diff))
+            raise self.failureException(msg)
+
+    def assertTensorNotAlmostEquals(self, a, b):
+        diff = a - b
+        diff = A.eval(diff)
+        diff = abs(diff)
+        if (diff < 10e-7).all():
             msg = self._formatMessage(None, '\ndiff:\n{}\n'.format(diff))
             raise self.failureException(msg)
 
@@ -98,10 +121,10 @@ class TestFactory(object):
                               name='data')
         elif A.backend() == A.TORCH:
             return TorchSensor(
-                MNISTTorchSource(work_dir=AKID_DATA_PATH + '/mnist',
-                                 num_train=60000,
-                                 num_val=10000,
-                                 name='mnist'),
+                source_in=MNISTTorchSource(work_dir=AKID_DATA_PATH + '/mnist',
+                                           num_train=60000,
+                                           num_val=10000,
+                                           name='mnist'),
                 # Do not shuffle training set for reproducible test
                 shuffle_train=False,
                 name='mnist')
@@ -133,17 +156,13 @@ class TestSuite():
     def suite(self): #Function stores all the modules to be tested
         modules_to_test = []
         test_dir = os.listdir('.')
-        modules_to_test.append('test_systems')
-        modules_to_test.append('test_loss_layers')
-        modules_to_test.append('test_brain')
-        modules_to_test.append('test_synapse_layers')
-        modules_to_test.append('test_kongfus')
-        modules_to_test.append('test_kids')
-        modules_to_test.append('test_initializer')
-        modules_to_test.append('test_engines')
-        # for test in test_dir:
-        #     if test.startswith('test') and test.endswith('.py'):
-        #         modules_to_test.append(test.rstrip('.py'))
+        for test in test_dir:
+            if test.startswith('test') and test.endswith('.py'):
+                modules_to_test.append(test.rstrip('.py'))
+        modules_to_test.remove('test_engines')
+        modules_to_test.remove('test_logging')
+        modules_to_test.remove('test_sources')
+        modules_to_test.remove('test_observer')
 
         all_tests = unittest.TestSuite()
         for module in map(__import__, modules_to_test):

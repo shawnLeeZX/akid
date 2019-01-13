@@ -1,4 +1,5 @@
 import os
+import numpy as np
 
 from akid import (
     Kid,
@@ -8,6 +9,7 @@ from akid import (
 
 from akid.utils.test import AKidTestCase, TestFactory, main, debug_on
 from akid import backend as A
+from akid.core import initializers
 
 
 class TestKid(AKidTestCase):
@@ -78,19 +80,18 @@ class TestKid(AKidTestCase):
         # The extra 1 is caused by the breaking of the loop
         self.assertEquals(A.get_step(), 901)
 
-    # def test_log_to_file_flag(self):
-    #     brain = TestFactory.get_test_brain()
-    #     source = TestFactory.get_test_feed_source()
-    #     kid = Kid(
-    #         FeedSensor(source_in=source, name='data'),
-    #         brain,
-    #         MomentumKongFu(),
-    #         log_dir="log_test_kid",
-    #         log_to_file=False,
-    #         max_steps=900)
-    #     kid.setup()
+    def test_log_to_file_flag(self):
+        brain = TestFactory.get_test_brain()
+        kid = Kid(
+            TestFactory.get_test_sensor(),
+            brain,
+            MomentumKongFu(),
+            log_dir="log_test_kid",
+            log_to_file=False,
+            max_steps=900)
+        kid.setup()
 
-    #     assert not os.path.exists(kid.log_dir + "/training.log)")
+        assert not os.path.exists(kid.log_dir + "/training.log)")
 
 
 if __name__ == "__main__":

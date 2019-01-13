@@ -4,7 +4,9 @@ from akid import (
     MomentumKongFu,
 )
 
-from akid.utils.test import AKidTestCase, TestFactory, main
+from akid.utils.test import AKidTestCase, TestFactory, main, skipUnless
+
+from akid import backend as A
 
 
 class TestLog(AKidTestCase):
@@ -15,14 +17,15 @@ class TestLog(AKidTestCase):
     in the official logging python library. Now I just manually check the
     results ...
     """
+    @skipUnless(A.backend() == A.TORCH)
     def test_logging(self):
         brain = TestFactory.get_test_brain()
-        source = TestFactory.get_test_feed_source()
+        sensor = TestFactory.get_test_sensor()
         kid = Kid(
-            FeedSensor(source_in=source, name='data'),
+            sensor,
             brain,
             MomentumKongFu(name="opt"),
-            engine="data_parallel",
+            engine={"name": "data_parallel"},
             max_steps=1000)
         kid.setup()
 

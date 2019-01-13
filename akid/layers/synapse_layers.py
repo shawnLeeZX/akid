@@ -14,6 +14,8 @@ from .. import backend as A
 from .activation_layers import BatchNormalizationLayer
 from .. import nn
 
+from torch.nn import BatchNorm2d
+
 
 class SynapseLayer(ProcessingLayer):
     """
@@ -102,12 +104,15 @@ class SynapseLayer(ProcessingLayer):
     def _setup(self):
         self._para_init()
 
-        self.log("Weight shape {}".format(A.get_shape(self.weights)))
+        if self.weights is not None:
+            self.log("Weight shape {}".format(A.get_shape(self.weights)))
 
         if self.initial_bias_value is None:
             self.log("Bias is disabled.")
         else:
-            self.log("Bias shape {}".format(A.get_shape(self.biases)))
+            # It is possible some layers does not use bias.
+            if self.biases is not None:
+                self.log("Bias shape {}".format(A.get_shape(self.biases)))
 
 
     def _post_setup(self):
@@ -128,12 +133,6 @@ class SynapseLayer(ProcessingLayer):
 
     def _pre_forward(self, *args, **kwargs):
         super(SynapseLayer, self)._pre_forward(*args, **kwargs)
-
-    def _on_update(self, K_prev):
-        # Save the metric for this RKHS
-        self.metric = K_prev
-        # Compute the metric for the next layer
-        self.K = A.nn.nn_riemannic_metric(K_prev, self.weights, self.biases)
 
     def on_para_update(self):
         if self.max_norm:
@@ -160,12 +159,19 @@ class SynapseLayer(ProcessingLayer):
 
 
 class ConvolutionLayer(SynapseLayer):
-    def __init__(self, ksize, strides=1, padding="SAME", depthwise=False, **kwargs):
+    def __init__(self,
+                 ksize,
+                 strides=1,
+                 padding="SAME",
+                 depthwise=False,
+                 bn=False,
+                 **kwargs):
         super(ConvolutionLayer, self).__init__(**kwargs)
         self.ksize = ksize
         self.strides = strides
         self.padding = padding
         self.depthwise = depthwise
+        self.bn = bn
 
     def get_weigth_shape(self):
         if A.backend() == A.TORCH:
@@ -192,6 +198,10 @@ class ConvolutionLayer(SynapseLayer):
         else:
             self.biases = None
 
+        if self.bn:
+            self.bn = BatchNorm2d(self.out_channel_num, affine=False)
+            self.bn = self.bn.cuda() if A.use_cuda() else self.bn
+
         self.log("Padding method {}.".format(self.padding), debug=True)
 
     def _pre_forward(self, input, *args, **kwargs):
@@ -199,23 +209,43 @@ class ConvolutionLayer(SynapseLayer):
         self.input_shape = A.get_shape(input)
 
     def _forward(self, input):
+        name = 'fmap' if self.summarize_output else None
         if self.depthwise:
             conv = A.nn.depthwise_conv2d(input,
                                          self.weights,
                                          self.biases,
                                          self.strides,
-                                         self.padding)
+                                         self.padding,
+                                         name=name)
         else:
             conv = A.nn.conv2d(input, self.weights,
                                self.biases, self.strides,
-                               self.padding)
+                               self.padding, name=name)
 
         if self.wd and self.wd["scale"] is not 0:
-            self._loss = nn.regularizers.compute(self.wd["type"], var=self.weights, scale=self.wd["scale"])
+            self._loss = nn.regularizers.compute(
+                self.wd["type"],
+                var=self.weights,
+                scale=self.wd["scale"],
+                name='weight_loss' if self.summarize_output else None)
 
         self._data = conv
 
+        if self.bn:
+            self._data = self.bn(self._data)
+
         return self._data
+
+    def _on_update(self, K_prev):
+        # Save the metric for this RKHS
+        self.metric = K_prev
+        # Compute the metric for the next layer
+
+        if self.bn:
+            W = A.nn.normalize_weight(self.weights)
+        else:
+            W = self.weights
+        self.K = A.nn.nn_riemannic_metric(K_prev, W, self.biases if not self.bn else None)
 
     def backward(self, X_in):
         """
@@ -340,8 +370,9 @@ class EquivariantProjectionLayer(SynapseLayer):
         self.strides = strides
 
     def _para_init(self):
-        self.W, self._loss = self._variable_with_weight_decay(
+        self.weights, self._loss = self._variable_with_weight_decay(
             "projection_weights", [self.g_size, 1, 1, self.in_channel_num, self.out_channel_num], self.init_para)
+        self.biases = None
 
     def _forward(self, X_in):
         shape = X_in.get_shape().as_list()
@@ -351,8 +382,8 @@ class EquivariantProjectionLayer(SynapseLayer):
         X_out_g = []
         for i in xrange(self.g_size):
             X_out_g.append(
-                A.nn.conv_2d(X_g[i],
-                             self.W[i, ...],
+                A.nn.conv2d(X_g[i],
+                             self.weights[i, ...],
                              strides=self.strides,
                              padding="SAME"))
 

@@ -101,6 +101,8 @@ class CropJoker(Joker):
             self._data = tf.random_crop(data_in,
                                         [self.height, self.width, shape[-1]])
 
+        return self._data
+
 
 class FlipJoker(Joker):
     def __init__(self, flip_left_right=True, **kwargs):
@@ -122,6 +124,8 @@ class FlipJoker(Joker):
         else:
             self.log("Randomly flip image up down.")
             self._data = tf.image.random_flip_up_down(data_in)
+
+        return self._data
 
 
 class LightJoker(Joker):
@@ -151,6 +155,8 @@ class LightJoker(Joker):
 
         self._data = data
 
+        return self._data
+
 
 class WhitenJoker(Joker):
     """
@@ -158,6 +164,7 @@ class WhitenJoker(Joker):
     """
     def _forward(self, data_in):
         self._data = tf.image.per_image_standardization(data_in)
+        return self._data
 
 
 class RescaleJoker(Joker):
@@ -166,6 +173,7 @@ class RescaleJoker(Joker):
     """
     def _forward(self, data_in):
         self._data = akid.image.rescale_image(data_in)
+        return self._data
 
 
 class ResizeJoker(Joker):
@@ -201,6 +209,8 @@ class ResizeJoker(Joker):
                                                method=self.resize_method)
         resized_image = tf.squeeze(resized_image)
         self._data = resized_image
+
+        return self._data
 
 
 __all__ = [name for name, x in locals().items() if

@@ -86,6 +86,7 @@ class System(GenerativeBlock, UpdateBlock):
 
     def attach(self, block_in):
         block_in.do_summary = self.do_summary
+        block_in.summarize_output = self.summarize_output
         self.blocks.append(block_in)
 
     def set_do_summary_flag(self, v):
@@ -149,11 +150,11 @@ class SequentialSystem(System):
     def _on_update(self):
         l = self.blocks[0]
         # The Riemannian metric is None for the first layer
-        l.on_update(None)
+        l._on_update(None)
 
         l_prev = l
         for l in self.blocks[1:]:
-            l.on_update(l_prev.K)
+            l._on_update(l_prev.K)
             l_prev = l
 
 

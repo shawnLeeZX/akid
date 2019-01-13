@@ -1,6 +1,7 @@
 import tensorflow as tf
 import computational_graph as cg
 from akid.core.common import SEED
+from akid.utils import glog as log
 
 
 def depthwise_conv2d(input, filter, bias=None, strides=1, padding='VALID', name=None):
@@ -17,6 +18,12 @@ def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
     ksize = expand_kernel(ksize)
     strides = expand_kernel(strides)
     return tf.nn.max_pool(value, ksize, strides, padding, data_format, name)
+
+
+def avg_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
+    ksize = expand_kernel(ksize)
+    strides = expand_kernel(strides)
+    return tf.nn.avg_pool(value, ksize, strides, padding, data_format, name)
 
 
 def max_pool_with_argmax(input, ksize, strides, padding, Targmax=None, name=None):
@@ -195,7 +202,7 @@ def dropout(v, keep_prob, val=False, in_place=False, name=None):
     if val:
         return tf.identity(v, name=name)
     else:
-        return tf.nn.dropout(input, keep_prob, seed=SEED, name=name)
+        return tf.nn.dropout(v, keep_prob, seed=SEED, name=name)
 
 
 def expand_kernel(ksize):
@@ -207,3 +214,55 @@ def expand_kernel(ksize):
         ksize = ksize
 
     return ksize
+
+
+def bn(x, out_channel_num, gamma, beta,
+       is_val=False, step=None, fix_gamma=False, share_gamma=False,
+       name=None):
+    def _bn(input, mean, variance, beta, gamma, epsilon):
+        shape = input.get_shape().as_list()
+        if len(shape) is 2 or share_gamma:
+            normalized_input = (input - mean) / tf.sqrt(variance + epsilon)
+            normalized_input *= gamma
+            out = tf.add(normalized_input,
+                         beta,
+                         name=name)
+        else:
+            out = tf.nn.batch_norm_with_global_normalization(
+                input, mean, variance, beta,
+                gamma, epsilon, fix_gamma, name=name)
+
+        return out
+
+    input_shape = cg.get_shape(x)
+    reduction_axes = list(range(len(input_shape)))
+    del reduction_axes[-1]
+    mean, variance = tf.nn.moments(x, reduction_axes)
+
+    # Bookkeeping a moving average for inference.
+
+    # Since the initial mean and average are not accurate, we should use a
+    # lower lower momentum. This is particularly important for ResNet since
+    # the initial activation could be very large due to the exponential
+    # accumulation effect of merge layers, though it does not work not well
+    # to remove the effect for ResNet. To achieve this, we use the
+    # mechanism provided by tensorflow, by passing current step in.
+    ema = tf.train.ExponentialMovingAverage(0.9, step)
+    with tf.variable_scope(tf.get_variable_scope(), reuse=False):
+        # NOTE: Prior to tf 0.12, I did not need the variable scope above
+        # this line to get things working. The problem is that moving
+        # average cannot be put in a variable scope that plans to reuse its
+        # variables (due to a debias mechanism introduced in tf 0.12). This
+        # is a temporary fix, waiting for solutions in issues:
+        # https://github.com/tensorflow/tensorflow/issues/6270 and
+        # https://github.com/tensorflow/tensorflow/issues/5827
+        ema_apply_op = ema.apply([mean, variance])
+    ema_mean, ema_var = ema.average(mean), ema.average(variance)
+    with tf.control_dependencies(
+            [ema_apply_op]):
+        if is_val:
+            out = _bn(x, ema_mean, ema_var, beta, gamma, 1e-5)
+        else:
+            out = _bn(x, mean, variance, beta, gamma, 1e-5)
+
+    return out

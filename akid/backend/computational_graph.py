@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 # Data format
 # #########################################################################
@@ -88,3 +89,42 @@ def use_cuda(v=None):
         _use_cuda = v
     else:
         return _use_cuda
+
+# Naming
+# #######################################################################
+def is_name_the_same(name_1, name_2):
+    """
+    Return if the name refer to the same named tensor. It seems a trivial
+    string match. However, it can check whether two tensors on different devices
+    refer to the same tensor, which has different suffixes.
+    """
+    name_1 = name_1.split(":")[0]
+    name_2 = name_2.split(":")[0]
+    return name_1 == name_2
+
+# Data type
+# #########################################################################
+# TODO: data type is not enforced for now. It is possible even the data type is
+# set to float32, the actual data being processed is not single precision number.
+class DTYPE(object):
+    FLOAT32 = 1
+    FLOAT64 = 2
+
+dtype = DTYPE.FLOAT32
+
+def set_dtype(d):
+    """
+    Set data type by passing `DTYPE.FLOAT32`. See class `DTYPE` for supported
+    data types.
+    """
+    global dtype
+    dtype = d
+
+
+def get_np_dtype():
+    if dtype == DTYPE.FLOAT32:
+        return np.float32
+    elif dtype == DTYPE.FLOAT64:
+        return np.float64
+    else:
+        raise ValueError("Date type not supported.")

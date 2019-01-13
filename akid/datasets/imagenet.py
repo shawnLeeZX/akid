@@ -10,8 +10,15 @@ from abc import abstractmethod
 import os
 
 import tensorflow as tf
+from torchvision import datasets, transforms
 
-from akid import ClassificationTFSource
+from akid import (
+    SupervisedSource,
+    ClassificationTFSource,
+    StaticSource
+)
+
+from akid import backend as A
 
 
 """Small library that points to a data set.
@@ -349,3 +356,40 @@ class ImagenetTFSource(ClassificationTFSource):
         image = tf.slice(image, bbox_begin, bbox_size)
 
         return image
+
+
+class ImagenetTorchSource(StaticSource, SupervisedSource):
+    def __init__(self, random_sized_crop=True, **kwargs):
+        super(ImagenetTorchSource, self).__init__(**kwargs)
+        self.random_sized_crop = random_sized_crop
+
+    def _setup(self):
+        mean=[0.485, 0.456, 0.406]
+        std=[0.229, 0.224, 0.225]
+        normalize = transforms.Normalize(mean=mean, std=std)
+        A.summary.set_normalization(mean, std)
+
+        t_list = []
+        if self.random_sized_crop:
+            t_list.append(transforms.RandomSizedCrop(224))
+        else:
+            t_list.append(transforms.Scale(256))
+            t_list.append(transforms.RandomCrop(224))
+
+        t_list.append(transforms.RandomHorizontalFlip())
+        t_list.append(transforms.ToTensor())
+        t_list.append(normalize)
+
+        self.dataset = datasets.ImageFolder(
+            self.work_dir + "/train",
+            transforms.Compose(t_list))
+        self.val_dataset = datasets.ImageFolder(
+            self.work_dir + "/val",
+            transforms.Compose([
+                transforms.Scale(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                normalize,
+            ]))
+    def _forward(self):
+        pass

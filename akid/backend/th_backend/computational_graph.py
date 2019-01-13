@@ -10,6 +10,7 @@ from torch.autograd import Variable
 from .. import computational_graph as cg
 from akid.utils import glog as log
 
+DATA_FORMAT = "CHW"
 
 # Maintain two hash table for looking up variables.
 tensor_by_name = {}
@@ -19,12 +20,21 @@ _max_checkpoint_count = 5
 _checkpoint_count = 0
 _checkpoint_name_queue = []
 
+# PyTorch version
+torch_version = float(th.__version__[0:3])
+assert type(torch_version) is float, "Torch version number extraction failed. Version str: {}. Extracted value: {}".format(th.__version__, float(th.__version__[0:3]))
+
+# Device to use. Only useful for torch newer than or equal to 0.4.
+device = "cuda:0" if cg.use_cuda() else "cpu"
+
 
 def get_variable(name=None, shape=None,
                  initializer=None, trainable=True,
                  shared=True):
     """
-    Create or reuse variables.
+    Create or reuse variables. Compared with directly get a tensor from
+    `Tensor`, it cached a name for the variable returned. It makes the variable
+    available to be retrieved by name.
 
     `shared`, and `trainable` are not used yet. They are legacy code from
     tensorflow, which may be useful when torch is used for distributed
@@ -45,19 +55,30 @@ def get_variable(name=None, shape=None,
     # Allocate the variable.
     if not callable(initializer):
         shape = None
-        t = th.Tensor(initializer)
+        if type(initializer) is th.Tensor:
+            t = initializer
+            t.requires_grad = True
+        else:
+            t = Tensor(initializer, requires_grad=trainable)
     else:
-        t = th.Tensor(initializer(shape))
-
-    if cg.use_cuda():
-        t = t.cuda()
-
-    t = Variable(t, requires_grad=trainable)
+        t = Tensor(initializer(shape), requires_grad=trainable)
 
     if name:
         cache_tensor(t, name)
 
+    t._is_variable = True
+
     return t
+
+
+def get_all_variables():
+    all_variables = {}
+    for t in tensor_by_name:
+        n = tensor_by_name[t]
+        if type(n) is th.Tensor and n.is_leaf:
+            all_variables[t] = n
+
+    return all_variables
 
 
 def retrieve_tensor(name):
@@ -69,10 +90,18 @@ def retrieve_tensor(name):
 
 def cache_tensor(tensor, name):
     tensor_by_name[name] = tensor
+
     # The reverse direction (get tensor by name) only works when it is a
     # variable. We occasionally cache numeric values as well, e.g. learning rate.
-    if isinstance(tensor, Variable):
-        tensor.name = name
+
+    # The instance below is to ensure we are dealing with an object, so
+    # attributes could be added.
+    if torch_version < 0.4:
+        if isinstance(tensor, Variable):
+            tensor.name_ = name
+    else:
+        if isinstance(tensor, th.Tensor):
+            tensor.name_ = name
 
 
 def cache_tensor_auto_scope(tensor, name):
@@ -93,6 +122,8 @@ def save(path):
     continued training slightly different from the original one, but the guess
     is it does not matter much.
     """
+    if not os.path.isdir(path):
+        os.mkdir(path)
     tensor_by_name['step'] = cg.get_step()
     name = path + "/checkpoint-{}".format(cg.get_step())
     th.save(tensor_by_name, name)
@@ -123,10 +154,28 @@ def restore(path):
     cg.set_step(tensor_by_name.pop('step'))
     # Put the name back. Seems torch's save does not save additional names
     for k in tensor_by_name:
-        if type(tensor_by_name[k]) is Variable:
-            tensor_by_name[k].name = k
+        # Remove GPU device id if using CPU
+        if not cg.use_cuda():
+            if is_variable(tensor_by_name[k]):
+                v = tensor_by_name.pop(k)
+                k = remove_gpu_device_id(k)
+                if torch_version < 0.4:
+                    v = Variable(v.data.cpu(), requires_grad=True) if v.is_cuda else v
+                else:
+                    v = v.to("cpu") if v.is_cuda else v
+                tensor_by_name[k] = v
+        if is_variable(tensor_by_name[k]):
+            tensor_by_name[k].name_ = k
+
 
     cg.get_variable_scope().reuse_variables()
+
+
+def remove_gpu_device_id(name):
+    if ':' in name:
+        name = name.split(':')[0]
+
+    return name
 
 
 def _get_name_with_scope(name):
@@ -154,9 +203,13 @@ def append_suffix(name, suffix):
     """
     Append suffix to the name of a tensor, above the level of devices.
     """
-    name, device = name.split(':')
-    name += '/' + suffix
-    name += ':' + device
+    if ':' in name:
+        name, device = name.split(':')
+        name += '/' + suffix
+        name += ':' + device
+    else:
+        # The name is a name of a tensor on CPU, add suffix directly.
+        name += '/' + suffix
     return name
 
 
@@ -181,7 +234,7 @@ def _append_num(name):
     TODO: no validation for bad naming now.
     """
     # The number needs to be added before device id.
-    if name[-2] == ':':
+    if cg.use_cuda():
         name, device_id = name.split(':')
 
     if name[-2] != '_':
@@ -197,8 +250,9 @@ def _append_num(name):
         for p in parts:
             name += p
 
-    # Add back the device id.
-    name += ":" + device_id
+    if cg.use_cuda():
+        # Add back the device id.
+        name += ":" + device_id
 
     return name
 
@@ -210,11 +264,11 @@ def get_name(v, with_device_id=True):
     The purpose of the function is to give a unique identifier that can be used
     to identify a Tensor.
     """
-    if hasattr(v, "name"):
+    if hasattr(v, "name_"):
         if with_device_id:
-            return v.name
+            return v.name_
         else:
-            return v.name.split(':')[0]
+            return v.name_.split(':')[0]
     else:
         return None
 
@@ -277,29 +331,70 @@ def eval(t):
     # Convert to CPU anyway. May be redundant.
     t = t.cpu()
 
-    if type(t) is Variable:
-        v = t.data.numpy()
+    if torch_version < 0.4:
+        if type(t) is Variable:
+            v = t.data.numpy()
+        else:
+            v = t.numpy()
     else:
-        v = t.numpy()
+        v = t.detach().numpy()
 
-    if len(v) == 1:
-        # Return the value directly if it is not an array.
-        v = v[0]
+    if torch_version < 0.4:
+        if len(v) == 1:
+            # Return the value directly if it is not an array.
+            v = v[0]
 
     return v
 
 
 @cache_name_if_exist
 def Tensor(t, requires_grad=False, name=None):
-    t = th.Tensor(t)
+    """
+    Refer to `Tensor` in Tensorflow backend for its semantics.
+
+    We always copy data when creating new tensors given data `t`.
+    """
+    type_t = type(t)
+    if type_t is np.ndarray:
+        t = th.from_numpy(t.astype(np.float32))
+    elif np.isscalar(t):
+        t = th.tensor(float(t))
+    elif type_t is list:
+        t = th.tensor(t, dtype=th.float32)
+    else:
+        raise TypeError("Unknown type {} to create tensor.".format(type(t)))
+
+    if cg.use_cuda():
+        t = t.cuda()
+
     if requires_grad:
-        t =  Variable(t)
+        if torch_version < 0.4:
+            t =  Variable(t)
+        else:
+            t.requires_grad_(requires_grad)
+
+
     return t
 
 
 @cache_name_if_exist
 def is_tensor(T):
     return type(T) is th.Tensor or type(T) is Variable
+
+
+def is_variable(T):
+    if torch_version < 0.4:
+        return type(T) is Variable
+    else:
+        if type(T) is not th.Tensor:
+            return False
+        elif hasattr(T, "_is_variable"):
+            return T._is_variable
+        # When the variable is loaded from file by torch.load, it does not have
+        # the `_is_variable` attribute. In such a case, we check if the
+        # variable is a leaf node.
+        else:
+            return T.is_leaf
 
 
 @cache_name_if_exist
@@ -313,8 +408,11 @@ def mean(v, name=None):
 
 
 def get_shape(t):
-    if type(t) is Variable:
-        return list(t.data.shape)
+    if torch_version < 0.4:
+        if type(t) is Variable:
+            return list(t.data.shape)
+        else:
+            return list(t.shape)
     else:
         return list(t.shape)
 
@@ -331,7 +429,7 @@ def convert_to_tensor(v):
     if t is Variable or t is th.Tensor:
         return v
 
-    return th.Tensor(v)
+    return th.tensor(v)
 
 
 @cache_name_if_exist
@@ -360,9 +458,15 @@ def div(v, denominator, name=None):
 
 
 def scatter(data, devices):
-    return th.nn.parallel._functions.Scatter(devices, dim=0)(data)
+    if torch_version < 0.4:
+        return th.nn.parallel._functions.Scatter(devices, dim=0)(data)
+    else:
+        return th.nn.parallel._functions.Scatter.apply(devices, None, 0, data)
 
 
 @cache_name_if_exist
 def gather(data, output_device, name=None):
-    return th.nn.parallel._functions.Gather(output_device, dim=0)(*data)
+    if torch_version < 0.4:
+        return th.nn.parallel._functions.Gather(output_device, dim=0)(*data)
+    else:
+        return th.nn.parallel._functions.Gather.apply(output_device, 0, *data)

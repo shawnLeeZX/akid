@@ -3,14 +3,34 @@ from __future__ import division
 
 import torch as th
 from torch.nn import functional as F
+from torch import nn as tnn
 
 from .computational_graph import cache_name_if_exist
 from . import computational_graph as cg
+from akid.utils import glog as log
 
 
 @cache_name_if_exist
 def l2_loss(var, name=None):
     return th.div(th.sum(var * var), 2)
+
+
+@cache_name_if_exist
+def l2_norm(var, name=None):
+    """
+    Args:
+         var: tensor
+             tensor of rank 1 or 2. If the rank is 1, it is taken as a vector,
+             and norm computed. If 2, it is taken as an array of vectors, where
+             var[0] is a vector. The norm of each individually is computed.
+    """
+    shape = cg.get_shape(var)
+    if len(shape) == 1:
+        return th.sqrt(th.sum(var * var))
+    elif len(shape) == 2:
+        return th.sqrt(th.sum(var * var, dim=1))
+    else:
+        raise ValueError("Shape should or either 1 or 2. Got {}".format(len(shape)))
 
 
 @cache_name_if_exist
@@ -24,8 +44,10 @@ def conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
     H, W = shape[-2], shape[-1]
     shape = cg.get_shape(input)
     H_in, W_in = shape[-2], shape[-1]
-    padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
-    return F.conv2d(input, filter, bias, stride=tuple(strides), padding=padding)
+    if type(padding) is str:
+        padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
+    strides = _normalize_stride(strides)
+    return F.conv2d(input, filter, bias, stride=strides, padding=padding)
 
 
 @cache_name_if_exist
@@ -42,9 +64,21 @@ def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
     shape = cg.get_shape(value)
     H_in, W_in = shape[-2], shape[-1]
     padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
+    strides = _normalize_stride(strides)
+    return F.max_pool2d(value, ksize, strides, padding)
+
+
+def _normalize_stride(strides):
     # The format of ksize in torch is a tuple of size 2 instead of 4 in
     # tensorflow.
-    return F.max_pool2d(value, ksize, tuple(strides), padding)
+    if len(strides) == 4:
+        log.warning("Torch backend does not support stride in all four dimensions."
+                    " Use the last two as height and width.")
+        strides=(strides[-2], strides[-1])
+    elif type(strides) is not tuple:
+        strides = tuple(strides)
+
+    return strides
 
 
 @cache_name_if_exist
@@ -53,9 +87,8 @@ def avg_pool(value, ksize, strides, padding, name=None):
     shape = cg.get_shape(value)
     H_in, W_in = shape[-2], shape[-1]
     padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
-    # The format of ksize in torch is a tuple of size 2 instead of 4 in
-    # tensorflow.
-    return F.avg_pool2d(value, ksize, tuple(strides), padding)
+    strides = _normalize_stride(strides)
+    return F.avg_pool2d(value, ksize, strides, padding)
 
 
 @cache_name_if_exist
@@ -93,7 +126,26 @@ def class_acccuracy(predictions, labels, name=None):
 
 
 @cache_name_if_exist
-def nn_riemannic_metric(K, W, b):
+def normalize_weight(W):
+    """
+    Normalize the norm of each weight that corresponds to an output channel to 1.
+    """
+    shape = cg.get_shape(W)
+    if len(shape) == 4:
+        c_out, c_in, h, w = shape
+        W = W.view(c_out, c_in*h*w)
+
+    norm = l2_norm(W)
+    W_normalized = W / norm[:, None]
+
+    if len(shape) == 4:
+        W_normalized = W_normalized.view(shape)
+
+    return W_normalized
+
+
+@cache_name_if_exist
+def nn_riemannic_metric(K, W, b, need_to_normalize_weights=False):
     """
     Given Riemannian metric of the previous layer, compute that of this layer.
 

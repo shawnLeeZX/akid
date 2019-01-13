@@ -1,7 +1,11 @@
-from akid.utils.test import AKidTestCase, main, TestFactory
+from akid.utils.test import AKidTestCase, main, TestFactory, skipUnless
+
+from akid import backend as A
 
 
 class TestModel(AKidTestCase):
+
+    @skipUnless(A.backend() == A.TF)
     def test_resnet(self):
         from akid.models import CifarResNet
         # Test ResNet with MNIST.
@@ -10,8 +14,8 @@ class TestModel(AKidTestCase):
                             width=1,
                             pool_size=7,
                             name="resnet")
-        source = TestFactory.get_test_feed_source()
-        kid = TestFactory.get_test_kid(source, brain)
+        sensor = TestFactory.get_test_sensor()
+        kid = TestFactory.get_test_kid(sensor, brain)
         kid.setup()
         loss = kid.practice()
         assert loss < 1.5

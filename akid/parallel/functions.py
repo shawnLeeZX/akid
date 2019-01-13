@@ -49,7 +49,10 @@ def broadcast(data, devices):
     Broadcast variables in `data` to `devices`. The results are kept in the
     'globally', which can be retried using `get_variable`.
     """
-    out = th.nn.parallel._functions.Broadcast(devices)(*data)
+    if A.torch_version < 0.4:
+        out = th.nn.parallel._functions.Broadcast(devices)(*data)
+    else:
+        out = th.nn.parallel._functions.Broadcast.apply(devices, *data)
     # Deflatten the data.
     if len(data) > 0:
         out = [out[i:i + len(data)] for i in range(0, len(out), len(data))]
@@ -58,7 +61,7 @@ def broadcast(data, devices):
     for i in xrange(1, device_num):
         with device("/gpu:{}".format(i)):
             for j, t in enumerate(out[i]):
-                name = "{}:{}".format(data[j].name.split(':')[0], i)
+                name = "{}:{}".format(A.get_name(data[j]).split(':')[0], i)
                 A.cache_tensor(t, name)
 
     return out

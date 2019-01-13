@@ -4,6 +4,7 @@ from akid import Observer
 from akid.utils.test import AKidTestCase, TestFactory, main
 from akid.models.brains import OneLayerBrain
 from akid import FeedSensor, MomentumKongFu, Kid
+from akid import backend as A
 
 
 class TestObserver(AKidTestCase):
@@ -31,6 +32,9 @@ class TestObserver(AKidTestCase):
         # Since it is the methods that we want to test and the `__init__` of
         # `Observer` is trivial, we set it up here.
         self.observer = Observer(kid)
+
+    def tearDown(self):
+        A.reset()
 
     def test_visualize_classifying(self):
         self.observer.visualize_classifying(name="ip1")

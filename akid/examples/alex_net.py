@@ -15,7 +15,7 @@ def setup():
 
     # Set up brain
     # #########################################################################
-    brain = AlexNet(in_channel_num=2304, name='alex_net')
+    brain = AlexNet(in_channel_num=2304, dataset="cifar10", name='alex_net')
 
     # Set up a sensor.
     # #########################################################################

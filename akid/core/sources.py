@@ -44,7 +44,7 @@ import tarfile
 import numpy as np
 import tensorflow as tf
 
-from .blocks import ShadowableBlock
+from .blocks import FlowBlock
 
 
 # Basic model parameters as external flags.
@@ -54,7 +54,7 @@ flags.DEFINE_boolean('fake_data', False, 'If true, uses fake data '
                      'for unit testing.')
 
 
-class Source(ShadowableBlock):
+class Source(FlowBlock):
     """
     An abstract class to model data source from the world.
 

@@ -38,13 +38,13 @@ def msra_initializer(factor=1.0, uniform=False, seed=None):
         for i in shape[:-2]:
             input_size *= i
         input_size *= shape[-1]
-        variance = math.sqrt(2 / input_size) * factor
+        std = math.sqrt(2 / input_size) * factor
         if uniform:
-            max_val = variance
+            max_val = std
             return random_ops.random_uniform(shape, -max_val, max_val,
                                              dtype, seed=seed)
         else:
-            return random_ops.truncated_normal(shape, stddev=variance,
+            return random_ops.truncated_normal(shape, stddev=std,
                                                dtype=dtype, seed=seed)
     return _initializer
 

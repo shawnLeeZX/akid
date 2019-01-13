@@ -1,5 +1,6 @@
+import torch as th
 from torch.autograd import Variable
-from tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 
 from akid.utils import glog as log
 
@@ -17,6 +18,49 @@ from akid.utils.tools import currentframe
 
 _collections = None
 summary_writer = None
+_denormalize = None
+
+
+class Denormalize(object):
+    """De-normalize an tensor image with mean and standard deviation.
+
+    Given mean: (R, G, B) and std: (R, G, B),
+    will normalize each channel of the torch.*Tensor, i.e.
+    channel = channel * std + mean
+
+    Args:
+        mean (sequence): Sequence of means for R, G, B channels respecitvely.
+        std (sequence): Sequence of standard deviations for R, G, B channels
+            respectively.
+    """
+
+    def __init__(self, mean, std):
+        # TODO: handle the manual type cast here. Wont' work at least when in
+        # cpu tensor.
+        self.mean = Variable(th.Tensor(mean).cuda())
+        self.std = Variable(th.Tensor(std).cuda())
+
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be de-normalized.
+
+        Returns:
+            Tensor: Normalized image.
+        """
+        tensor = th.mul(tensor, self.std[None, None, :])
+        tensor = th.add(tensor, self.mean[None, None, :])
+        return tensor
+
+
+def set_normalization(mean, std):
+    """
+    Set the normalization values for image summary, which is used to
+    de-normalize the image for better view, given that the normalized images are
+    hard to recognize.
+    """
+    global _denormalize
+    _denormalize = Denormalize(mean, std)
 
 
 def reset_collections():
@@ -81,8 +125,16 @@ class ImageSummaryOp(SummaryOp):
         t = cg.tensor_by_name[self.name]
         if len(t.size()) == 4:
             t = t[0]
-            t = t.permute(1, 2, 0)
-        v = cg.eval(t)  if type(t) is Variable else t
+            # Since TensorboardX 1.5, it handles the torch format (CHW) by
+            # default. Permuted shape without specifying data format would lead
+            # to errors.
+            # t = t.permute(1, 2, 0)
+        if _denormalize is not None:
+            t = _denormalize(t)
+        if cg.torch_version < 0.4:
+            v = cg.eval(t)  if type(t) is Variable else t
+        else:
+            v = cg.eval(t)  if type(t) is th.Tensor else t
         summary_writer.add_image(
             self.name + ' image', v, global_step=step)
 

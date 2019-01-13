@@ -4,14 +4,17 @@ import numpy as np
 import tensorflow as tf
 
 from akid import AKID_DATA_PATH
-from akid.utils.test import AKidTestCase, main
+from akid.utils.test import AKidTestCase, main, skipUnless
 from akid.datasets import Cifar10FeedSource, Cifar10TFSource
 from akid.datasets import Cifar100TFSource
 from akid.datasets import MNISTFeedSource, RotatedMNISTFeedSource
 from akid import LearningRateScheme
 
+from akid import backend as A
+
 
 class TestSource(AKidTestCase):
+    @skipUnless(A.backend() == A.TF)
     def test_mnist_feed_source(self):
         source = MNISTFeedSource(
             name="MNIST_feed",
@@ -33,6 +36,7 @@ class TestSource(AKidTestCase):
         print("The class label is {}.".format(labels[0]))
         plt.show()
 
+    @skipUnless(A.backend() == A.TF)
     def test_rotated_mnist_feed_source(self):
         source = RotatedMNISTFeedSource(
             name="Rotated_MNIST_feed",
@@ -55,6 +59,7 @@ class TestSource(AKidTestCase):
         print("The class label is {}.".format(labels[0]))
         plt.show()
 
+    @skipUnless(A.backend() == A.TF)
     def test_cifar10_feed_source(self):
         # Just read a batch and plot channels of images to see.
         source = Cifar10FeedSource(
@@ -75,6 +80,7 @@ class TestSource(AKidTestCase):
         print("The class label is {}.".format(labels[0]))
         plt.show()
 
+    @skipUnless(A.backend() == A.TF)
     def test_cifar10_zca_feed_source(self):
         # Just read a batch and plot channels of images to see.
         source = Cifar10FeedSource(
@@ -97,6 +103,7 @@ class TestSource(AKidTestCase):
             print("The class label is {}.".format(labels[0]))
             plt.show()
 
+    @skipUnless(A.backend() == A.TF)
     def test_cifar10_zca_tf_source(self):
         from akid.models.brains import VGGNet
         from akid import IntegratedSensor, Kid, GradientDescentKongFu
@@ -124,13 +131,14 @@ class TestSource(AKidTestCase):
                     "decay_rate": 0.1,
                     "num_batches_per_epoch": 391,
                     "decay_epoch_num": 350}),
-            summary_on_val=True,
+            do_summary_on_val=True,
             max_steps=1000)
         kid.setup()
 
         loss = kid.practice()
         assert loss < 1.6
 
+    @skipUnless(A.backend() == A.TF)
     def test_cifar100_zca_tf_source(self):
         from akid.models.brains import VGGNet
         from akid import IntegratedSensor, Kid, GradientDescentKongFu
@@ -157,13 +165,14 @@ class TestSource(AKidTestCase):
                     "decay_rate": 0.1,
                     "num_batches_per_epoch": 391,
                     "decay_epoch_num": 350}),
-            summary_on_val=True,
+            do_summary_on_val=True,
             max_steps=1000)
         kid.setup()
 
         loss = kid.practice()
         assert loss < 3.7
 
+    @skipUnless(A.backend() == A.TF)
     def test_hcifar100_source(self):
         from akid import HCifar100TFSource
         from akid.models.brains import VGGNet
@@ -211,13 +220,14 @@ class TestSource(AKidTestCase):
                     "decay_rate": 0.1,
                     "num_batches_per_epoch": 391,
                     "decay_epoch_num": 350}),
-            summary_on_val=True,
+            do_summary_on_val=True,
             max_steps=2000)
         kid.setup()
 
         loss = kid.practice()
         assert loss < 7.3
 
+    @skipUnless(A.backend() == A.TF)
     def test_imagenet_source(self):
         # Ideally, this source is supposed to test against the read image and
         # labels, however, for time's sake ... just check compilation and

@@ -570,4 +570,5 @@ EngineRegistry('single',
                "Single GPU engine")
 EngineRegistry('data_parallel',
                DataParallelEngine,
-               "Data Parallel Engine")
+               "Data Parallel Engine. Specify the number of GPU with field `gpu_num` (2 GPU is used by default).",
+               default_paras={"gpu_num": 2})

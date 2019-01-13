@@ -30,7 +30,11 @@ def get(name, **kwargs):
     try:
         init = inits[name]
     except KeyError as e:
-        raise KeyError("`{}`. {} initialization method is not supported".format(e.message, name))
+        if A.backend() == A.TORCH and name == "truncated_normal":
+            init = inits["normal"]
+            log.warn("Used normal initializer instead of truncated_normal. Truncated normal in not support in torch backend yet.")
+        else:
+            raise KeyError("`{}`. {} initialization method is not supported".format(e.message, name))
 
     # Make sure required fields exist.
     for p in init.required_fields:
@@ -48,7 +52,7 @@ def get(name, **kwargs):
         range = kwargs.pop("range")
         kwargs["minval"] = -range
         kwargs["maxval"] = range
-    elif name == "uniform_unit_scaling" or name == "msra":
+    elif name == "uniform_unit_scaling" or name == "msra" and A.backend() == A.TF:
         if "factor" not in kwargs:
             log.info("Key factor is not found in `init_para`. Use 1")
             kwargs["factor"] = 1
@@ -145,7 +149,6 @@ class TheOldInitializer(Initializer):
         n = self.compute_fan_in(shape)
         stdv = 1. / math.sqrt(n)
         value = np.random.uniform(-stdv, stdv, shape)
-        value = A.Tensor(value)
 
         return value
 
@@ -157,7 +160,6 @@ class FixedStdInitializer(Initializer):
 
     def __call__(self, shape):
         value = np.random.normal(loc=0, scale=self.std, size=shape)
-        value = A.Tensor(value)
 
         return value
 
@@ -173,26 +175,47 @@ class ConstantInitializer(Initializer):
         return v
 
 
-class XavierInitializer(Initializer):
+class AutoInitializer(Initializer):
+    def __init__(self, normal_dist=False, **kwargs):
+        """
+        The super class for all initializers that do not need parameters.
+
+        Args:
+            normal_dist: bool
+                Use normal distribution or not.
+        """
+        super(AutoInitializer, self).__init__(**kwargs)
+        self.normal_dist = normal_dist
+
+
+class XavierInitializer(AutoInitializer):
     """
     The initialization method from [Understanding the difficulty of training deep feedforward neural networks](http://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf).
     """
     def __call__(self, shape):
-        if A.backend() == A.TORCH:
-            # Weight shape format oihw
-            n_out = shape[0]
-            n_in = 1
-            for i in shape[1:]:
-                n_in *= i
-        elif A.backend() == A.TF:
-            n_out = shape[-1]
-            n_in = 1
-            for i in shape[:-1]:
-                n_in *= i
-        std = np.sqrt(2/(n_in + n_out))
-        v = np.random.normal(loc=0, scale=std, size=shape)
-        v = A.Tensor(v)
+        n_in = self.compute_fan_in(shape)
+        n_out = self.compute_fan_out(shape)
 
+        if self.normal_dist:
+            std = np.sqrt(2./(n_in + n_out))
+            v = np.random.normal(loc=0, scale=std, size=shape)
+            v = v.astype(A.get_np_dtype())
+        else:
+            range = np.sqrt(6./(n_in + n_out))
+            v = np.random.uniform(-range, range, size=shape)
+            v = v.astype(A.get_np_dtype())
+
+        return v
+
+
+class MSRAInitializer(AutoInitializer):
+    """
+    Refer to `akid.ops.random_ops.msra_initializer`.
+    """
+    def __call__(self, shape):
+        n_in = self.compute_fan_in(shape)
+        std = np.sqrt(2 / n_in)
+        v = np.random.normal(loc=0, scale=std, size=shape)
         return v
 
 
@@ -250,3 +273,10 @@ elif A.backend() == A.TORCH:
                         FixedStdInitializer,
                         FixedStdInitializer.__doc__,
                         ("stddev",))
+    InitializerRegistry("truncated_normal",
+                        FixedStdInitializer,
+                        FixedStdInitializer.__doc__,
+                        ("stddev",))
+    InitializerRegistry("msra",
+                        MSRAInitializer,
+                        MSRAInitializer.__doc__)

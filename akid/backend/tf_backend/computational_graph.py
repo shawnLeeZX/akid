@@ -16,6 +16,7 @@ from .. import computational_graph as cg
 from akid.utils import glog as log
 
 
+DATA_FORMAT = "HWC"
 # Build a global session to use
 # TODO: think how to offer a way to close the session.
 # A bug in tensorflow: Exception AttributeError: "'NoneType' object has no attribute 'TF_DeleteStatus'" in <bound method Session.__del__ of <tensorflow.python.client.session.Session object at 0x7f43105e9dd0>> ignored
@@ -33,7 +34,8 @@ def init(continue_from_chk_point=False, model_dir=None):
     global initialized
 
     if not initialized:
-        saver = tf.train.Saver(tf.global_variables())
+        if len(tf.global_variables()) != 0:
+            saver = tf.train.Saver(tf.global_variables())
 
         config = tf.ConfigProto(allow_soft_placement=True)
         config.gpu_options.allow_growth = True
@@ -63,6 +65,9 @@ def close():
 def get_variable(name=None, shape=None,
                  initializer=None, trainable=True,
                  shared=True):
+    """
+    Refer to the same function in PyTorch backend for semantics.
+    """
     # Generate a random name if the name is not given
     if not name:
         name = get_random_name()
@@ -82,6 +87,10 @@ def get_variable(name=None, shape=None,
                                initializer=init, trainable=trainable)
     else:
         raise NotImplementedError("Normal Variable creation has not been implemented yet.")
+
+
+def get_all_variables():
+    return tf.global_variables()
 
 
 def save(path):
@@ -105,13 +114,10 @@ def restore(path):
 
 def get_name(v):
     """
-    Only return the last part in the name hierarchy. For the reason, see the
-    same function of PyTorch backend.
+    Refer to the same function of PyTorch backend for docs.
     """
     if v is not None:
-        parts = v.op.name.split('/')
-        name = parts[-1]
-        return name
+        return v.op.name.split(':')[0]
     else:
         return None
 

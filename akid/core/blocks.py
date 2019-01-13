@@ -137,13 +137,50 @@ class Block(object):
         return copy.copy(self)
 
 
-class ProcessingBlock(Block):
+class FlowBlock(Block):
+    """
+    Abstract class for naive data flow. It implements naive data flow
+    interfaces without any other functionalities.
+    """
+    def forward(self, *args, **kwargs):
+        """
+        Args:
+            All arguments will be passed to the actual `_forward` function.
+        """
+        if not self.is_setup:
+            self.setup()
+
+        with A.variable_scope(self.name):
+            out = self._forward(*args, **kwargs)
+
+        return out
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+    @abc.abstractmethod
+    def data(self):
+        """
+        An abstract method to enforce all sub-classes to provide their
+        processed data through this interface.
+
+        Note that the data is the data obtained through `forward`.
+        """
+        raise NotImplementedError("Each concrete block needs to implement this"
+                                  " method to provide an interface to offer"
+                                  " data!")
+
+
+class ProcessingBlock(FlowBlock):
     """
     Abstract class for an arbitrary block that generates output. `Source`,
     `Sensor`, `ProcessingLayer`, `LossLayer` and `ProcessingSystem` etc are all
     sub-classes of this class.
 
-    `ProcessingBlock` builds computational graph that processes data.
+    `ProcessingBlock` builds computational graph that processes data. Since
+    normally we have the two types of data, a.k.a, validation data and training
+    data, `ProcessingBlock` has a `is_val` flag to indicate which state it is
+    in. It decides the type of data being processed.
 
     A `ProcessingBlock` should try to implement most of its functionality only
     with what it owns, and ask for communication (which in implementation is to
@@ -165,7 +202,12 @@ class ProcessingBlock(Block):
     hooks.
     """
 
-    def __init__(self, do_summary=True, bag=None, summarize_output=False, **kwargs):
+    def __init__(self,
+                 do_summary=True,
+                 bag=None,
+                 summarize_output=False,
+                 do_summary_on_val=False,
+                 **kwargs):
         """
         Create a layer and name it.
 
@@ -186,6 +228,8 @@ class ProcessingBlock(Block):
                 tag will be given to the outputs, consequently, summarizing
                 events will be created for tensorboard. This semantics is
                 enforced by each individual layer, by implementing properly.
+            do_summary_on_val: bool
+                Whether to do summary on validation copy.
         """
         super(ProcessingBlock, self).__init__(**kwargs)
 
@@ -201,23 +245,16 @@ class ProcessingBlock(Block):
         # Some operations only run at the first forward pass, so set a flag.
         self.done_first_pass = False
 
-    @abc.abstractmethod
-    def data(self):
-        """
-        An abstract method to enforce all sub-classes to provide their
-        processed data through this interface.
-
-        Note that the data is the data obtained through `forward`.
-        """
-        raise NotImplementedError("Each concrete block needs to implement this"
-                                  " method to provide an interface to offer"
-                                  " data!")
+        # A Boolean flag to indicate whether this block is in validation mode.
+        self.is_val = False
+        self.done_first_pass_val = False
+        self.do_summary_on_val = do_summary_on_val
 
     def set_do_summary_flag(self, v):
         self.do_summary = v
 
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
+    def set_do_summary_on_val_flag(self, v):
+        self.do_summary_on_val = v
 
     def forward(self, *args, **kwargs):
         """
@@ -231,8 +268,12 @@ class ProcessingBlock(Block):
             self._pre_forward(*args, **kwargs)
             out = self._forward(*args, **kwargs)
             self._post_forward(*args, **kwargs)
+            # FIXME: The flag is kept set each forward propagation in torch backend.
             if not self.done_first_pass:
                 self.done_first_pass = True
+
+            if not self.done_first_pass_val and self.is_val:
+                self.done_first_pass_val = True
 
         return out
 
@@ -244,6 +285,28 @@ class ProcessingBlock(Block):
         for f in self.post_forward_hook:
             f(*args, **kwargs)
 
+        # If has done forward for building computational graphs that exist in
+        # form of ops, return. But it is possible we still need to build ops
+        # for validation block.
+        if self.done_first_pass and not self.is_val:
+            return
+
+        if not self.do_summary:
+            return
+
+        if not self.is_val\
+           or (self.is_val\
+               and self.do_summary_on_val\
+               and not self.done_first_pass_val):
+            if self.data is not None:
+                self._data_summary(self.data, sparsity_summary=True)
+
+    def _pre_setup(self):
+        super(ProcessingBlock, self)._pre_setup()
+
+        if self.is_val:
+            A.get_variable_scope().reuse_variables()
+
     @abc.abstractmethod
     def _forward(self):
         """
@@ -251,6 +314,65 @@ class ProcessingBlock(Block):
         """
         raise NotImplementedError('Each sub-layer needs to implement this'
                                   'method to process data!')
+
+    def get_val_copy(self):
+        """
+        Get a copy for validation.
+
+        Since a processing layer is learned, it has to be taken out for
+        evaluation from time to time.
+        """
+        if A.backend() == A.TF:
+            val_copy = self.get_copy()
+            val_copy.name = self.name + '_val'
+        elif A.backend() == A.TORCH:
+            # Since torch is dynamic graph, no need to create a copy for
+            # validation.
+            val_copy = self
+        else:
+            raise ValueError("Not supported backend.")
+
+        val_copy.set_val()
+        return val_copy
+
+    def set_val(self, val):
+        self.is_val = val
+
+    def _data_summary(self, data, sparsity_summary=False):
+        """
+        Helper function to do statistical summary on the bundle of data.
+        """
+        collection = VALID_SUMMARY_COLLECTION if self.is_val \
+            else TRAIN_SUMMARY_COLLECTION
+
+        if type(data) is not list and type(data) is not tuple:
+            data = [data]
+
+        for d in data:
+            name = A.get_name(d)
+            if name:
+                self.log("Do tensorboard summary on outputs {} of {}".format(
+                    name, self.name))
+
+                shape = len(A.get_shape(d))
+                if shape == 0 or shape == 1:
+                    A.summary.scalar(name, d, collections=[collection])
+                else:
+                    A.summary.histogram(name,
+                                    d,
+                                    collections=[collection])
+                    if sparsity_summary:
+                        A.summary.scalar(
+                            A.append_suffix(name, SPARSITY_SUMMARY_SUFFIX),
+                            A.nn.zero_fraction(d,
+                                               # The scope removing does
+                                               # nothing for tensorflow
+                                               # backend, since the name gotten
+                                               # is already scope removed.
+                                               name=A.remove_scope_from_name(name) \
+                                               + '/' \
+                                               + SPARSITY_SUMMARY_SUFFIX),
+                            collections=[collection])
 
 
 class ShadowableBlock(ProcessingBlock):
@@ -353,7 +475,6 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
                  inputs=None,
                  # wd={"type": "l2", "scale": 5e-4},  # Save for future reference.
                  wd=None,
-                 do_summary_on_val=False,
                  **kwargs):
         """
         Args:
@@ -369,8 +490,6 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
                 An dictionary that contains the `type` of regularization to use
                 and its scale, which is to say the multiplier of the
                 regularization loss term. If None, weight decay is not added.
-            do_summary_on_val: bool
-                Whether to do summary on validation copy.
         """
         super(ProcessingLayer, self).__init__(**kwargs)
 
@@ -382,52 +501,13 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
 
         self.inputs = inputs
         self.wd = wd
-        self.do_summary_on_val = do_summary_on_val
 
         # Bookkeeping all variables.
         self.var_list = []
 
-        # A Boolean flag to indicate whether this block is in validation mode.
-        self.is_val = False
-        self.done_first_pass_val = False
-
-    def forward(self, *args, **kwargs):
-        out = super(ProcessingLayer, self).forward(*args, **kwargs)
-
-        if not self.done_first_pass_val and self.is_val:
-            self.done_first_pass_val = True
-
-        return out
-
     def set_shadow(self):
         super(ProcessingLayer, self).set_shadow()
         self.var_list = []
-
-    def set_do_summary_on_val_flag(self, v):
-        self.do_summary_on_val = v
-
-    def get_val_copy(self):
-        """
-        Get a copy for validation.
-
-        Since a processing layer is learned, it has to be taken out for
-        evaluation from time to time.
-        """
-        if A.backend() == A.TF:
-            val_copy = self.get_copy()
-            val_copy.name = self.name + '_val'
-        elif A.backend() == A.TORCH:
-            # Since torch is dynamic graph, no need to create a copy for
-            # validation.
-            val_copy = self
-        else:
-            raise ValueError("Not supported backend.")
-
-        val_copy.set_val()
-        return val_copy
-
-    def set_val(self):
-        self.is_val = True
 
     @deprecated(details="This method only works for tensorflow backends.")
     def _variable_with_weight_decay(self, name, shape, init_para=None):
@@ -492,9 +572,6 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
     def _pre_setup(self):
         super(ProcessingLayer, self)._pre_setup()
 
-        if self.is_val:
-            A.get_variable_scope().reuse_variables()
-
         if self.moving_average_decay:
             # We pass current training step to moving average to speed up
             # updates moving average of variables at the beginning of the
@@ -502,33 +579,6 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
             step = A.get_step()
             self.moving_averages = tf.train.ExponentialMovingAverage(
                 self.moving_average_decay, step)
-
-    def _post_forward(self, *args, **kwargs):
-        super(ProcessingLayer, self)._post_forward(*args, **kwargs)
-
-        # Do not do summary for shadow copies.
-        if self.is_shadow and not self.debug:
-            return
-
-        # If has done forward for building computational graphs that exist in
-        # form of ops, return. But it is possible we still need to build ops
-        # for validation block.
-        if self.done_first_pass and not self.is_val:
-            return
-
-        if not self.do_summary:
-            return
-
-        if not self.is_val\
-           or (self.is_val\
-               and self.do_summary_on_val\
-               and not self.done_first_pass_val):
-            if self.data is not None:
-                self._data_summary(self.data, sparsity_summary=True)
-            if self.loss is not None:
-                self._data_summary(self.loss)
-            if self.eval is not None:
-                self._data_summary(self.eval)
 
     @property
     def outputs(self):
@@ -547,42 +597,6 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
                 outputs.extend(self.loss) if type(self.loss) is list else outputs.append(self.loss)
 
         return outputs
-
-    def _data_summary(self, data, sparsity_summary=False):
-        """
-        Helper function to do statistical summary on the bundle of data.
-        """
-        collection = VALID_SUMMARY_COLLECTION if self.is_val \
-            else TRAIN_SUMMARY_COLLECTION
-
-        if type(data) is not list and type(data) is not tuple:
-            data = [data]
-
-        for d in data:
-            name = A.get_name(d)
-            if name:
-                self.log("Do tensorboard summary on outputs {} of {}".format(
-                    name, self.name))
-
-                shape = len(A.get_shape(d))
-                if shape == 0 or shape == 1:
-                    A.summary.scalar(name, d, collections=[collection])
-                else:
-                    A.summary.histogram(name,
-                                    d,
-                                    collections=[collection])
-                    if sparsity_summary:
-                        A.summary.scalar(
-                            A.append_suffix(name, SPARSITY_SUMMARY_SUFFIX),
-                            A.nn.zero_fraction(d,
-                                               # The scope removing does
-                                               # nothing for tensorflow
-                                               # backend, since the name gotten
-                                               # is already scope removed.
-                                               name=A.remove_scope_from_name(name) \
-                                               + '/' \
-                                               + SPARSITY_SUMMARY_SUFFIX),
-                            collections=[collection])
 
     def _post_setup(self):
         super(ProcessingLayer, self)._post_setup()
@@ -607,6 +621,31 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
                 para_num *= dim
             total_para_num += para_num
         self.log("This layer has {} parameters.".format(total_para_num))
+
+    def _post_forward(self, *args, **kwargs):
+        # If has done forward for building computational graphs that exist in
+        # form of ops, return. But it is possible we still need to build ops
+        # for validation block.
+
+        # Do not do summary for shadow copies.
+        if self.is_shadow and not self.debug:
+            return
+
+        if self.done_first_pass and not self.is_val:
+            return
+
+        if not self.do_summary:
+            return
+
+        if not self.is_val\
+           or (self.is_val\
+               and self.do_summary_on_val\
+               and not self.done_first_pass_val):
+            if self.loss is not None:
+                self._data_summary(self.loss)
+            if self.eval is not None:
+                self._data_summary(self.eval)
+
 
     def _on_update(self, K_prev):
         # Keep propagating the Riemannian metric.

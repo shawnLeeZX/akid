@@ -383,128 +383,95 @@ class BatchNormalizationLayer(ProcessingLayer):
                  gamma_init=1,
                  fix_gamma=False,
                  share_gamma=False,
-                 use_reference_bn=False,
+                 dim_num=None,
                  **kwargs):
+        """
+        `beta_init`, `gamma_init`, `share_gamma` are only useful in tensorflow
+        backend. For torch backend, this layer call the underlying torch nn
+        module. Thus, `dim_num` is required for torch backend. `dim_num` is the
+        number of dimension of the data. For example, for image data, `dim_num`
+        is 2.
+        """
         super(BatchNormalizationLayer, self).__init__(**kwargs)
         self.channel_num = channel_num
-        self.beta_init = float(beta_init)
-        self.gamma_init = float(gamma_init)
         self.fix_gamma = fix_gamma
-        self.share_gamma = share_gamma
-        self.use_reference_bn = use_reference_bn
+
+        if A.backend() == A.TF:
+            self.beta_init = float(beta_init)
+            self.gamma_init = float(gamma_init)
+            self.share_gamma = share_gamma
+
+        if A.backend() == A.TORCH:
+            if dim_num is None:
+                raise ValueError("Dimension number is needed in torch backend.")
+            self.dim_num = dim_num
 
     def _setup(self):
-        if self.use_reference_bn:
-            self.log("Using reference BN. `beta_init` is fixed to 0;"
-                     " `gamma_init` to 1.")
-            self._data = self._ref_batch_norm(input)
-            return
-
-        # Logging.
-        if self.gamma_init:
-            self.log("Gamma initial value is {}.".format(self.gamma_init))
-            if self.fix_gamma:
-                self.log("Gamma is fixed to during training.")
+        if A.backend() == A.TORCH:
+            if self.dim_num == 1:
+                self.bn = A.nn.tnn.BatchNorm1d(self.channel_num, affine=not self.fix_gamma).to(A.device)
+            elif self.dim_num == 2:
+                self.bn = A.nn.tnn.BatchNorm2d(self.channel_num, affine=not self.fix_gamma).to(A.device)
             else:
-                self.log("Gamma is trainable.")
-        else:
-            self.log("Gamma is not used during training.")
+                raise ValueError("Input of dimension {} has not been supported.".format(self.dim_num))
 
-        self.beta, loss = self._variable_with_weight_decay(
-            'beta',
-            shape=[self.channel_num],
-            init_para={"name": "constant", "value": self.beta_init})
+            var_dict = self.bn.state_dict()
+            self.var_list.extend([var_dict["bias"], var_dict["weight"]])
+            A.cache_tensor_auto_scope(var_dict["weight"], "weight")
+            A.cache_tensor_auto_scope(var_dict["weight"], "bias")
 
-        if loss is not None:
-            self._loss = loss
+            return
+        elif A.backend() == A.TF:
+            # Logging.
+            if self.gamma_init:
+                self.log("Gamma initial value is {}.".format(self.gamma_init))
+                if self.fix_gamma:
+                    self.log("Gamma is fixed to during training.")
+                else:
+                    self.log("Gamma is trainable.")
+            else:
+                self.log("Gamma is not used during training.")
 
-        if self.fix_gamma:
-            self.gamma = tf.constant(
-                self.gamma_init,
-                shape=[] if self.share_gamma else [self.channel_num],
-                name="gamma")
-        else:
-            self.gamma, loss = self._variable_with_weight_decay(
-                'gamma',
-                shape=[] if self.share_gamma else [self.channel_num],
-                init_para={"name": "constant", "value": self.gamma_init})
+            self.beta, loss = self._variable_with_weight_decay(
+                'beta',
+                shape=[self.channel_num],
+                init_para={"name": "constant", "value": self.beta_init})
 
             if loss is not None:
-                self._loss += loss
+                self._loss = loss
 
-        # Bookkeeping a moving average for inference.
+            if self.fix_gamma:
+                self.gamma = tf.constant(
+                    self.gamma_init,
+                    shape=[] if self.share_gamma else [self.channel_num],
+                    name="gamma")
+            else:
+                self.gamma, loss = self._variable_with_weight_decay(
+                    'gamma',
+                    shape=[] if self.share_gamma else [self.channel_num],
+                    init_para={"name": "constant", "value": self.gamma_init})
 
-        # Since the initial mean and average are not accurate, we should use a
-        # lower lower momentum. This is particularly important for ResNet since
-        # the initial activation could be very large due to the exponential
-        # accumulation effect of merge layers, though it does not work not well
-        # to remove the effect for ResNet. To achieve this, we use the
-        # mechanism provided by tensorflow, by passing current step in.
-        step = A.get_step()
-        self.ema = tf.train.ExponentialMovingAverage(0.9, step)
+                if loss is not None:
+                    self._loss += loss
+        else:
+            raise ValueError("Backend {} is not supported".format(A.backend()))
 
 
     def _forward(self, input):
-        input_shape = input.get_shape().as_list()
-        reduction_axes = list(range(len(input_shape)))
-        del reduction_axes[-1]
-        mean, variance = tf.nn.moments(input, reduction_axes)
+        if A.backend() == A.TF:
+            self._data = A.nn.bn(input,
+                                self.channel_num,
+                                self.gamma,
+                                self.beta,
+                                self.is_val,
+                                A.get_step(),
+                                fix_gamma=self.fix_gamma,
+                                share_gamma=self.share_gamma,
+                                name="bn" if self.summarize_output else None)
+        elif A.backend() == A.TORCH:
+            self._data = self.bn(input)
 
-        with A.variable_scope(tf.get_variable_scope(), reuse=False):
-            # NOTE: Prior to tf 0.12, I did not need the variable scope above
-            # this line to get things working. The problem is that moving
-            # average cannot be put in a variable scope that plans to reuse its
-            # variables (due to a debias mechanism introduced in tf 0.12). This
-            # is a temporary fix, waiting for solutions in issues:
-            # https://github.com/tensorflow/tensorflow/issues/6270 and
-            # https://github.com/tensorflow/tensorflow/issues/5827
-            ema_apply_op = self.ema.apply([mean, variance])
-        ema_mean, ema_var = self.ema.average(mean), self.ema.average(variance)
-        # Add the moving average to var list, for purposes such as
-        # visualization.
-        self.var_list.extend([ema_mean, ema_var])
-        with tf.control_dependencies(
-                [ema_apply_op]):
-            if self.is_val:
-                bn_input = self._bn(
-                    input,
-                    ema_mean,
-                    ema_var,
-                    self.beta,
-                    self.gamma,
-                    1e-5)
-            else:
-                bn_input = self._bn(
-                    input,
-                    mean,
-                    variance,
-                    self.beta,
-                    self.gamma,
-                    1e-5)
-
-        self._data = bn_input
-
-    def _bn(self, input, mean, variance, beta, gamma, epsilon):
-        shape = input.get_shape().as_list()
-        if len(shape) is 2 or self.share_gamma:
-            normalized_input = (input - mean) / tf.sqrt(variance + epsilon)
-            if self.gamma_init:
-                normalized_input *= gamma
-            bn_input = tf.add(normalized_input,
-                              beta,
-                              name=BatchNormalizationLayer.NAME)
-        else:
-            bn_input = tf.nn.batch_norm_with_global_normalization(
-                input,
-                mean,
-                variance,
-                beta,
-                gamma,
-                epsilon,
-                True if self.gamma_init else False,
-                name=BatchNormalizationLayer.NAME)
-
-        return bn_input
+        return self._data
 
     def backward(self, X_in):
         """
@@ -513,60 +480,6 @@ class BatchNormalizationLayer(ProcessingLayer):
         self._data = X_in
 
         return self._data
-
-    def _ref_batch_norm(self, x):
-        """
-        Batch normalization from
-        https://github.com/tensorflow/models/tree/master/resnet.
-
-        It is introduced here for debugging purpose --- to see whether my
-        implementation is wrong or not.
-        """
-        params_shape = [x.get_shape()[-1]]
-
-        beta = self._get_variable(
-            'beta',
-            params_shape,
-            initializer=tf.constant_initializer(0.0, tf.float32))
-        gamma = tf.get_variable(
-            'gamma',
-            params_shape,
-            initializer=tf.constant_initializer(1.0, tf.float32))
-
-        if not self.is_val:
-            mean, variance = tf.nn.moments(x, [0, 1, 2], name='moments')
-
-            moving_mean = self._get_variable(
-                'moving_mean', params_shape,
-                initializer=tf.constant_initializer(0.0, tf.float32),
-                trainable=False)
-            moving_variance = tf.get_variable(
-                'moving_variance', params_shape, tf.float32,
-                initializer=tf.constant_initializer(1.0, tf.float32),
-                trainable=False)
-
-            self._train_op = []
-            self._train_op.append(moving_averages.assign_moving_average(
-                moving_mean, mean, 0.9))
-            self._train_op.append(moving_averages.assign_moving_average(
-                moving_variance, variance, 0.9))
-        else:
-            mean = self._get_variable(
-                'moving_mean',
-                params_shape,
-                initializer=tf.constant_initializer(0.0, tf.float32),
-                trainable=False)
-            variance = tf.get_variable(
-                'moving_variance',
-                params_shape,
-                initializer=tf.constant_initializer(1.0, tf.float32),
-                trainable=False)
-
-        # elipson used to be 1e-5. Maybe 0.001 solves NaN problem in deeper
-        # net.
-        y = tf.nn.batch_normalization(x, mean, variance, beta, gamma, 0.001)
-        y.set_shape(x.get_shape())
-        return y
 
 
 class DropoutLayer(ProcessingLayer):
