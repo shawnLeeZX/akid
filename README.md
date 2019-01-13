@@ -14,5 +14,6 @@ features thanks to open source (and libre software), but to mention the
 possibilities that they can be combined.).
 
 See http://akid.readthedocs.io/en/latest/index.html for documentation. The
-document is dated, and has not been updated after I finished the PyTorch
-backend. But the backbone design is the same, and main features are there.
+document is dated, and has not been updated to include new changes e.g., the
+PyTorch backend. But the backbone design is the same, and main features are
+there.
