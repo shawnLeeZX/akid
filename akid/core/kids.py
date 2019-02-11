@@ -219,10 +219,15 @@ class Kid(Block):
 
         self.log('Validation Data Eval:')
 
+        if not self.sensor.mode == "val":
+            self.sensor.set_mode("val")
+            self.sensor.setup()
+
         # Run one epoch of eval.
+        self.log("A epoch of validation set contains {} batches".format(self.sensor.num_batches_per_epoch))
         eval_metric_values = [0] * len(self.engine.eval(get_val=True))
         loss_sum = 0
-        steps_per_epoch = self.sensor.num_batches_per_epoch_val
+        steps_per_epoch = self.sensor.num_batches_per_epoch
 
         step = 1
         while step <= steps_per_epoch:
@@ -253,8 +258,7 @@ class Kid(Block):
             self.restore()
 
         self.sensor.set_do_summary_flag(self.do_summary)
-        # TODO: sensor may should belong to ProcessingLayer instead of ProcessingBlock.
-        # self.sensor.set_do_summary_on_val_flag(self.do_summary_on_val)
+        self.sensor.set_do_summary_on_val_flag(self.do_summary_on_val)
         self.brain.set_do_summary_flag(self.do_summary)
         self.brain.set_do_summary_on_val_flag(self.do_summary_on_val)
 
@@ -287,10 +291,10 @@ class Kid(Block):
                 Final validation loss and optional evaluation metric.
         """
         self.log("Begin training brain: " + self.brain.name)
-        # Note the epoch estimation is not accurate if the batch size
-        # cannot divide total number of training samples.
-        self.epoch = A.get_step() \
-            // self.sensor.num_batches_per_epoch_train
+        self.sensor.set_mode("train")
+        self.sensor.setup()
+        self.log("A epoch of training set contains {} batches".format(self.sensor.num_batches_per_epoch))
+        self.epoch = A.get_step() // self.sensor.num_batches_per_epoch
 
         if A.backend() == A.TF:
             # The checkpoint recovery has to be here, given that it needs to be
@@ -324,7 +328,7 @@ class Kid(Block):
 
             A.step()
 
-            if A.get_step() % self.sensor.num_batches_per_epoch_train is 0:
+            if A.get_step() % self.sensor.num_batches_per_epoch is 0:
                 self.epoch += 1
                 self.on_epoch_end()
                 if self.log_by_epoch:
@@ -369,14 +373,10 @@ class Kid(Block):
         """
         Computational graph wise, how the tensor should be run in a step.
         """
-        self.sensor.set_val(val)
-        self.sensor.forward()
-        data = self.sensor.data
-        label = self.sensor.labels
-        system_in = [data]
-        system_in.extend(label) if type(label) is list \
-            else system_in.append(label)
-
+        if not self.sensor.mode == ("val" if val else "train"):
+            self.sensor.set_mode("val" if val else "train")
+            self.sensor.setup()
+        system_in = self.sensor.forward()
         self.engine.forward(system_in, val)
         if update:
             self.engine.update()
@@ -472,7 +472,7 @@ class Kid(Block):
         if self.max_epoch:
             # Convert the max epoch number to max steps.
             self.max_steps \
-                = self.sensor.num_batches_per_epoch_train * self.max_epoch
+                = self.sensor.num_batches_per_epoch * self.max_epoch
 
         for func in self.hooks.on_batch_begin:
             func(self)

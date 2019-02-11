@@ -4,7 +4,7 @@ from akid import (
     MomentumKongFu
 )
 
-from akid.utils.test import AKidTestCase, TestFactory, main, skipUnless
+from akid.utils.test import AKidTestCase, TestFactory, main, skipUnless, skip
 from akid import backend as A
 
 
@@ -61,7 +61,7 @@ class TestKongFu(AKidTestCase):
         kid.practice()
         assert kid.kongfu.lr_value == 0.0001
 
-    @skiip("Currently broken.")
+    @skip("Currently broken.")
     # @skipUnless(A.backend() == A.TF)
     def test_exp_decay_lr_scheme(self):
         from akid import LearningRateScheme

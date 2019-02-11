@@ -118,9 +118,9 @@ class Brain(System, ProcessingLayer):
         Change the state of the brain to validation.
         """
         assert type(val) is bool
-        self.is_val = val
+        self.mode = A.Mode.VAL if val else A.Mode.TRAIN
         for b in self.blocks:
-            b.is_val = val
+            b.set_val(val)
 
     def set_shadow(self):
         """

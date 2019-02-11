@@ -88,7 +88,7 @@ def setup():
                                  "name": LearningRateScheme.exp_decay,
                                  "base_lr": {{ opt_paras["lr"] }},
                                  "decay_rate": 0.95,
-                                 "num_batches_per_epoch": sensor.num_batches_per_epoch_train,
+                                 "num_batches_per_epoch": sensor.num_batches_per_epoch,
                                  "decay_epoch_num": 1}),
               engine={{ opt_paras["engine"] }},
               max_steps=1000)

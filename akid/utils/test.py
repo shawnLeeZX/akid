@@ -15,11 +15,11 @@ from akid import AKID_DATA_PATH
 from akid import (
     MNISTFeedSource,
     Cifar10TFSource,
-    MNISTTorchSource,
-    Source,
+    MNISTSource,
+    OldSource,
     Kid,
     FeedSensor,
-    TorchSensor,
+    SimpleSensor,
     MomentumKongFu
 )
 from akid.models.brains import OneLayerBrain
@@ -120,13 +120,12 @@ class TestFactory(object):
                               val_batch_size=100,
                               name='data')
         elif A.backend() == A.TORCH:
-            return TorchSensor(
-                source_in=MNISTTorchSource(work_dir=AKID_DATA_PATH + '/mnist',
-                                           num_train=60000,
-                                           num_val=10000,
-                                           name='mnist'),
+            s = MNISTSource(work_dir=AKID_DATA_PATH + '/mnist', name='mnist')
+            s.setup()
+            return SimpleSensor(
+                source_in=s,
                 # Do not shuffle training set for reproducible test
-                shuffle_train=False,
+                sampler="sequence",
                 name='mnist')
 
 
@@ -135,7 +134,7 @@ class TestFactory(object):
         """
         Return a default kid given a source and a brain.
         """
-        if issubclass(type(data_in), Source):
+        if issubclass(type(data_in), OldSource):
             return Kid(
                 FeedSensor(source_in=data_in, name='data'),
                 brain,

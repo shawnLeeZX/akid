@@ -2,8 +2,13 @@ from akid.utils.test import AKidTestCase, main
 import tensorflow as tf
 from akid.layers import PaddingLayer
 
+from akid import backend as A
+
 
 class TestCommonLayers(AKidTestCase):
+    def setUp(self):
+        A.reset()
+
     def test_padding(self):
         input = tf.constant(1, shape=[1, 2, 2, 1])
         layer = PaddingLayer(padding=[1, 1])

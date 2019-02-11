@@ -4,19 +4,11 @@ Tensor can be taken as the media/formalism signal propagates in digital world,
 while Block is the data processing entity that processes inputs and emits
 outputs.
 
-It coincides with a branch of "philosophy" called dataism that takes everything
-in this world is a data processing entity. An interesting one that may come
-from *A Brief History of Tomorrow* by Yuval Noah Harari.
-
 Best designs mimic nature. `akid` tries to reproduce how signals in nature
 propagates. Information flow can be abstracted as data propagating through
 inter-connected blocks, each of which processes inputs and emits outputs. For
 example, a vision classification system is a block that takes image inputs and
 gives classification results. Everything is a `Block` in `akid`.
-
-Two types of blocks exist: the blocks build computational graph, and does not
-care about execution; and the blocks that deal with execution (TODO). The later
-part has not been sorted through yet.
 
 The type one block could be as simple as a convonlutional neural network layer
 that merely does convolution on the input data and outputs the results; it also
@@ -59,6 +51,10 @@ class Block(object):
     A `Block` holds computational graph. Sub-class should implement `_setup` to
     build the graph. It does not enforce how the computational graph should be
     used, which should be the responsibility of sub classes.
+
+    Any outputs of a block is of type Tensor. Note no builtin tensor type
+    exists. Depending on the backend, the Tensor is the type Tensor from the
+    backend. Such a requirement is to normalize data type in outputs.
 
     `Block` supports add arbitrary code after setup by offering
     `post_setup_hook`. All functions added in the hook will be called after
@@ -137,7 +133,23 @@ class Block(object):
         return copy.copy(self)
 
 
-class FlowBlock(Block):
+class DataBlock(Block):
+    """
+    A block that has a property `data` to supply data. Data does not
+    necessarily flow in, or are operated in batches in this block.
+    """
+    @abc.abstractmethod
+    def data(self):
+        """
+        An abstract method to enforce all sub-classes to provide their
+        processed data through this interface.
+        """
+        raise NotImplementedError("Each concrete block needs to implement this"
+                                  " method to provide an interface to offer"
+                                  " data!")
+
+
+class FlowBlock(DataBlock):
     """
     Abstract class for naive data flow. It implements naive data flow
     interfaces without any other functionalities.
@@ -157,18 +169,6 @@ class FlowBlock(Block):
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
-
-    @abc.abstractmethod
-    def data(self):
-        """
-        An abstract method to enforce all sub-classes to provide their
-        processed data through this interface.
-
-        Note that the data is the data obtained through `forward`.
-        """
-        raise NotImplementedError("Each concrete block needs to implement this"
-                                  " method to provide an interface to offer"
-                                  " data!")
 
 
 class ProcessingBlock(FlowBlock):
@@ -246,9 +246,13 @@ class ProcessingBlock(FlowBlock):
         self.done_first_pass = False
 
         # A Boolean flag to indicate whether this block is in validation mode.
-        self.is_val = False
+        self.mode = "train"
         self.done_first_pass_val = False
         self.do_summary_on_val = do_summary_on_val
+
+    @property
+    def is_val(self):
+        return self.mode == A.Mode.VAL
 
     def set_do_summary_flag(self, v):
         self.do_summary = v
@@ -336,7 +340,7 @@ class ProcessingBlock(FlowBlock):
         return val_copy
 
     def set_val(self, val):
-        self.is_val = val
+        self.mode = A.Mode.VAL if val else A.Mode.TRAIN
 
     def _data_summary(self, data, sparsity_summary=False):
         """
@@ -355,7 +359,7 @@ class ProcessingBlock(FlowBlock):
                     name, self.name))
 
                 shape = len(A.get_shape(d))
-                if shape == 0 or shape == 1:
+                if shape == 0:
                     A.summary.scalar(name, d, collections=[collection])
                 else:
                     A.summary.histogram(name,

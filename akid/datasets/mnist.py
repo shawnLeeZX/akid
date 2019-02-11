@@ -7,8 +7,9 @@ import numpy as np
 
 from torchvision import datasets, transforms
 
-from ..core.sources import InMemoryFeedSource, SupervisedSource, StaticSource
+from ..core.sources import Source, InMemoryFeedSource, SupervisedSource, StaticSource
 from .datasets import DataSet, DataSets
+from .. import backend as A
 
 
 class MNISTFeedSource(InMemoryFeedSource, SupervisedSource):
@@ -205,3 +206,34 @@ class MNISTTorchSource(StaticSource, SupervisedSource):
                                           transforms.Normalize((0.1307,), (0.3081,))]))
     def _forward(self):
         pass
+
+
+class MNISTSource(Source):
+    def _setup(self):
+        self._data = datasets.MNIST(self.work_dir, train=True, download=True,
+                                    transform=transforms.Compose([
+                                        transforms.ToTensor(),
+                                        transforms.Normalize((0.1307,), (0.3081,))]))
+
+    def set_mode(self, mode):
+        super(MNISTSource, self).set_mode(mode)
+        if mode == A.Mode.TRAIN:
+            self._data = datasets.MNIST(self.work_dir, train=True, download=True,
+                                        transform=transforms.Compose([
+                                            transforms.ToTensor(),
+                                            transforms.Normalize((0.1307,), (0.3081,))]))
+        elif mode == A.Mode.VAL:
+            self._data = datasets.MNIST(self.work_dir, train=False,
+                                        transform=transforms.Compose([
+                                            transforms.ToTensor(),
+                                            transforms.Normalize((0.1307,), (0.3081,))]))
+        else:
+            raise ValueError("Mode {} not supported yet.".format(mode))
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def size(self):
+        return len(self._data)

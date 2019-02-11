@@ -12,6 +12,7 @@ from akid import backend as A
 class TestLossLayers(AKidTestCase):
     def setUp(self):
         super(TestLossLayers, self).setUp()
+        A.reset()
         sugar.init()
         self.use_cuda_save = A.use_cuda()
         A.use_cuda(False)

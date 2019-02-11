@@ -7,6 +7,12 @@ SUPPORT_PARA_FORMAT = ['oihw', 'hwio']
 SUPPORT_DATA_FORMAT = ['nchw', 'nhwc']
 
 
+# Parallel
+# #######################################################################
+TIMEOUT = 5
+
+
+
 # Backends
 # #########################################################################
 TF = 'tensorflow'
@@ -128,3 +134,18 @@ def get_np_dtype():
         return np.float64
     else:
         raise ValueError("Date type not supported.")
+
+# Block modes.
+# #########################################################################
+# Enum types to provide mode a block could be in.
+class Mode:
+    TRAIN = "train"
+    VAL = "val"
+    TEST = "TEST"
+
+
+def check_mode(mode):
+    if mode != Mode.TRAIN \
+        and mode != Mode.VAL \
+        and mode != Mode.TEST:
+        raise ValueError("Mode {} is not support.".format(mode))

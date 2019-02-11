@@ -70,7 +70,7 @@ def on_val_log_step(kid):
     eval_value_to_print = ["%0.04f" % v for v in kid.evals]
     eval_to_print = dict(zip(name_to_print, eval_value_to_print))
     log.info('  Num examples: {}  Evals : {}'.format(
-        kid.sensor.source.num_val, eval_to_print))
+        kid.sensor.source.size, eval_to_print))
 
     # Log current best validation.
     name_to_print = [A.get_name(g) + '_best'

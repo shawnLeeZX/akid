@@ -361,6 +361,10 @@ def Tensor(t, requires_grad=False, name=None):
         t = th.tensor(float(t))
     elif type_t is list:
         t = th.tensor(t, dtype=th.float32)
+    elif type_t is tuple:
+        t = th.tensor(t, dtype=th.float32)
+    elif type_t is th.Tensor:
+        pass
     else:
         raise TypeError("Unknown type {} to create tensor.".format(type(t)))
 

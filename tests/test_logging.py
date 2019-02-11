@@ -17,6 +17,9 @@ class TestLog(AKidTestCase):
     in the official logging python library. Now I just manually check the
     results ...
     """
+    def setUp(self):
+        A.reset()
+
     @skipUnless(A.backend() == A.TORCH)
     def test_logging(self):
         brain = TestFactory.get_test_brain()

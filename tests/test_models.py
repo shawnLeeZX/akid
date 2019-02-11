@@ -4,6 +4,8 @@ from akid import backend as A
 
 
 class TestModel(AKidTestCase):
+    def setUp(self):
+        A.reset()
 
     @skipUnless(A.backend() == A.TF)
     def test_resnet(self):

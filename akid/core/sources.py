@@ -1,28 +1,34 @@
 """
-Signals propagated in nature are all abstracted as a source. For instance, an
-light source (which could be an image source or video source), an audio source,
-etc.
+Signals propagated in nature are all abstracted as a source.  Source is an
+abstraction of measurements collections, e.g., a dataset.
 
 As an example, saying in supervised setting, a source is a block that takes no
 inputs (since it is a source), and outputs data. A concrete example could be
 the source for the MNIST dataset::
 
-    source = MNISTFeedSource(name="MNIST",
-                            url='http://yann.lecun.com/exdb/mnist/',
-                            work_dir=AKID_DATA_PATH + '/mnist',
-                            center=True,
-                            scale=True,
-                            num_train=50000,
-                            num_val=10000)
+    source = MNISTSource(name="MNIST",
+                         work_dir=AKID_DATA_PATH + '/mnist')
 
-The above code creates a source for MNIST. It is supposed to provide data for
-placeholders of tensorflow through method `get_batch`. Say::
+The above code creates a source for MNIST. It provides data by indices through
+`get` method. For example::
 
-    source.get_batch(100, get_val=False)
+    source.get([0, 1, 2])
 
-would return a tuple of numpy array of `(images, labels)`.
+would return a list of Tensor `[images, labels]`, where the first is a Tensor
+of which the first dimension is 3 --- each stores an image; and the second is a
+Tensor that stores three labels.
 
 It could be used standalone, or passed to a `Sensor`.
+
+A source has multiple modes, i.e., "train", "val", or "test". Different models
+provide different data. For example, "train" model provides training data. To
+change the model, call::
+
+    source.set_mode("val")
+    source.setup()
+
+`setup` should be called after mode change. It sets up things like data
+prefetching threads.
 
 Developer Note
 ================
@@ -30,9 +36,7 @@ Developer Note
 A top level abstract class `Source` implements basic semantics of a natural
 source. Other abstract classes keep implementing more concrete
 sources. Abstract `Source` s need to be inherited and abstract methods
-implemented before it could be used. To create a concrete `Source`, you could
-use multiple inheritance to compose the `Source` you needs. Available sources
-are kept under module `sources`.
+implemented before it could be used.
 """
 import abc
 import sys
@@ -43,8 +47,10 @@ import tarfile
 
 import numpy as np
 import tensorflow as tf
+from torch.utils.data.dataloader import default_collate
 
-from .blocks import FlowBlock
+from .blocks import DataBlock, FlowBlock
+from .. import backend as A
 
 
 # Basic model parameters as external flags.
@@ -54,7 +60,54 @@ flags.DEFINE_boolean('fake_data', False, 'If true, uses fake data '
                      'for unit testing.')
 
 
-class Source(FlowBlock):
+class Source(DataBlock):
+    """
+    A source that holds datasets, which include training, validation, and test
+    datasets.
+    """
+    def __init__(self, work_dir="data", *args, **kwargs):
+        """
+        By default, the source is in `train` mode.
+        Args:
+            work_dir: str
+                The directory to store data.
+        """
+        super(Source, self).__init__(*args, **kwargs)
+        self.mode = A.Mode.TRAIN
+        self.work_dir = work_dir
+
+    @abc.abstractproperty
+    def data(self):
+        """
+        The method should return a reference that points to the whole dataset
+        in its current mode.
+
+        It could be an iterator when the dataset is large, or an array when the
+        dataset is small.
+        """
+        raise NotImplementedError("Each source needs to implement this"
+                                  " method to provide an interface to offer"
+                                  " data!")
+
+    @abc.abstractproperty
+    def size(self):
+        """
+        The method should return the size of the data source.
+        """
+        pass
+
+    def set_mode(self, mode):
+        A.check_mode(mode)
+        self.mode = mode
+
+    def get(self, indices):
+        imgs, labels = zip(*[self.data[i] for i in indices])
+        imgs = default_collate(imgs)
+        labels = default_collate(labels)
+        return [A.Tensor(imgs), A.Tensor(labels)]
+
+
+class OldSource(FlowBlock):
     """
     An abstract class to model data source from the world.
 
@@ -78,14 +131,14 @@ class Source(FlowBlock):
                 Uniform Resource Locator. It could point to a file or web
                 address, where this source should fetch data from.
             work_dir: str
-                Working directory of the `Source`. It may puts temporal files,
+                Working directory of the `OldSource`. It may puts temporal files,
                 such as downloaded dataset and so on. By default, use a folder
                 named data under root directory.
         validation_rate: a percentage
             The proportion of training data to be used as validation set. If
             None, all training data will be used for training.
         """
-        super(Source, self).__init__(**kwargs)
+        super(OldSource, self).__init__(**kwargs)
         self.url = url
         self.work_dir = work_dir
 
@@ -166,14 +219,14 @@ class Source(FlowBlock):
     def shape(self):
         """
         An optional property to provide shape of particular training data
-        source. It is not made an abstract method since if some `Source` class
+        source. It is not made an abstract method since if some `OldSource` class
         returns data tensor directly, it already contains shape information.
         """
         raise NotImplementedError("The property `shape` is not implemented!")
         sys.exit()
 
 
-class SupervisedSource(Source):
+class SupervisedSource(OldSource):
     """
     An abstract class to model supervised data source.
     """
@@ -182,7 +235,7 @@ class SupervisedSource(Source):
         """
         An optional property to provide shape of particular label of training
         data source. It is not made an abstract method for the same reason with
-        `shape` of `Source`.
+        `shape` of `OldSource`.
         """
         raise NotImplementedError("The property `label_shape` is not"
                                   " implemented!")
@@ -217,7 +270,7 @@ class SupervisedSource(Source):
         sys.exit()
 
 
-class StaticSource(Source):
+class StaticSource(OldSource):
     """
     An abstract class to model static dataset partitioned into training data
     and test data.
@@ -228,7 +281,7 @@ class StaticSource(Source):
         self.num_val = num_val
 
     @property
-    # TODO(Shuai): This property should be used to deal with the case batch
+    # Legacy_TODO(Shuai): This property should be used to deal with the case batch
     # cannot divide the number of test data. It should be updated
     # accordingly. For instance, for InMemoryFeedSource, the information comes
     # from `_epochs_completed` of `DataSet`.
@@ -236,7 +289,7 @@ class StaticSource(Source):
         return self._epochs_completed
 
 
-class FeedSource(Source):
+class FeedSource(OldSource):
     """
     An abstract class that supplies data in form of numpy.array.
 
@@ -330,7 +383,7 @@ class TFSource(StaticSource):
     provided by this class of source has necessary information associated with
     the tensor variable, and could be used directly in the further pipeline.
 
-    Note the optional properties of `Source`, is made abstract, consequently
+    Note the optional properties of `OldSource`, is made abstract, consequently
     mandatory.
     """
     @abc.abstractmethod

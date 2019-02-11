@@ -9,7 +9,7 @@ from __future__ import division
 import numpy as np
 import math
 
-from ..ops import msra_initializer
+from ..ops.random_ops import msra_initializer
 from .common import SEED
 from ..utils import glog as log
 from .. import backend as A
@@ -61,11 +61,6 @@ def get(name, **kwargs):
 
 
 class InitializerRegistry(object):
-    """
-    Top level class for initializers.
-
-    Call help to see documentation for each initializer.
-    """
     def __init__(self,
                  name,
                  obj,
@@ -108,6 +103,9 @@ class InitializerRegistry(object):
 
 
 class Initializer(object):
+    """
+    Top level class for initializers.
+    """
     def __init__(self, seed=SEED):
         np.random.seed(seed)
 

@@ -14,6 +14,9 @@ from akid import backend as A
 
 
 class TestSource(AKidTestCase):
+    def setUp(self):
+        A.reset()
+
     @skipUnless(A.backend() == A.TF)
     def test_mnist_feed_source(self):
         source = MNISTFeedSource(

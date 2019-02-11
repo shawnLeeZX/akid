@@ -1,1 +1,2 @@
-from .random_ops import *
+from . import random_ops
+from . import image_ops

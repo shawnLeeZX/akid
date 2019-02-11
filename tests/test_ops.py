@@ -3,8 +3,9 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 
-from akid.utils.test import AKidTestCase, main
-from akid.ops import msra_initializer
+from akid.utils.test import AKidTestCase, main, skipUnless
+from akid.ops.random_ops import msra_initializer
+from akid import backend as A
 
 
 class TestOps(AKidTestCase):
@@ -12,6 +13,7 @@ class TestOps(AKidTestCase):
         super(TestOps, self).setUp()
         self.graph = tf.Graph()
 
+    @skipUnless(A.backend() == A.TF)
     def test_msra_init_op_conv(self):
         with self.graph.as_default():
             var = tf.get_variable("init_test_variable",
@@ -30,6 +32,7 @@ class TestOps(AKidTestCase):
                   ".".format(variance_scaling))
             assert variance_scaling > 1 and variance_scaling < 2
 
+    @skipUnless(A.backend() == A.TF)
     def test_msra_init_op_ip(self):
         with self.graph.as_default():
             var = tf.get_variable("init_test_variable", [100, 1000],
