@@ -98,6 +98,27 @@ def use_cuda(v=None):
 
 # Naming
 # #######################################################################
+# A dict to count the number of blocks instantiated. It is used for automatic
+# naming.
+_block_count = {}
+
+
+def inc_block_count(block_class):
+    try:
+        _block_count[block_class] += 1
+    except KeyError:
+        _block_count[block_class] = 1
+
+
+def get_block_count(block_class):
+    return _block_count[block_class]
+
+
+def reset_block_count():
+    global _block_count
+    _block_count = {}
+
+
 def is_name_the_same(name_1, name_2):
     """
     Return if the name refer to the same named tensor. It seems a trivial
@@ -141,11 +162,82 @@ def get_np_dtype():
 class Mode:
     TRAIN = "train"
     VAL = "val"
-    TEST = "TEST"
+    TEST = "test"
 
 
 def check_mode(mode):
     if mode != Mode.TRAIN \
         and mode != Mode.VAL \
         and mode != Mode.TEST:
-        raise ValueError("Mode {} is not support.".format(mode))
+        raise ValueError("Mode `{}` is not support.".format(mode))
+
+# Eval blocks for evaluations.
+# #######################################################################
+tensor_name_to_eval_block_map = {}
+
+
+def register_eval_block(tensor_name, eval_block):
+    """
+    For different evaluation metrics, it may take different ways to combine
+    the evaluation obtained in batches. This function registers an
+    `EvalBlock` to handle the combination for evaluation results obtained
+    in the tensor named `tensor_name`.
+
+    If for an evaluation metric tensor that is not registered, `BatchEvalBlock`
+    be its eval block by default.
+    """
+    tensor_name_to_eval_block_map[tensor_name] = eval_block
+
+
+def get_eval_block(tensor_name):
+    try:
+        return tensor_name_to_eval_block_map[tensor_name]
+    except KeyError:
+        return None
+
+
+def reset_eval_block_map():
+    global tensor_name_to_eval_block_map
+    tensor_name_to_eval_block_map = {}
+
+
+class NamedValue(object):
+    pass
+
+
+class NamedTensorTuple(tuple, NamedValue):
+    """
+    Object to pass a tuple of tensors around. It enables the tuple to be named,
+    thus, be identifiable by name.
+
+    To create a `NamedTensorTuple`::
+
+        t1, t2 = ... # Two tensors
+        NamedTensorTuple("any_name", t1, t2)
+
+    Arbitrary number of tuple members are supported.
+    """
+    def __init__(self, name=None, *args, **kwargs):
+        super(NamedTensorTuple, self).__init__(*args, **kwargs)
+        self.name = name
+
+    def __new__(cls, name, *args, **kwargs):
+        return super(NamedTensorTuple, cls).__new__(cls, *args, **kwargs)
+
+
+class NamedScalar(np.float, NamedValue):
+    """
+    Object to pass a scalar. It enables the scalar to be named, thus, be
+    identifiable by name.
+
+    To create a `NamedScalar`::
+
+        s = ... # A scalar
+        NamedScalar("any_name", s)
+    """
+    def __init__(self, name=None, *args, **kwargs):
+        self.name = name
+        super(NamedScalar, self).__init__(*args, **kwargs)
+
+    def __new__(cls, name, *args, **kwargs):
+        return super(NamedScalar, cls).__new__(cls, *args, **kwargs)

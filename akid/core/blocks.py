@@ -67,15 +67,13 @@ class Block(object):
     def __init__(self, name=None, debug=False, **kwargs):
         super(Block, self).__init__(**kwargs)
 
-        self.name = name
-        self.debug = debug
+        A.inc_block_count(self.__class__)
 
-        # TODO: create a mechanism to get default name
-        if not name:
-            raise Exception(
-                "{}'s `name` argument cannot be None! It serves as an"
-                " identifier, also is used in visualization and"
-                " summary etc.".format(type(self)))
+        if name is None:
+            self.name = self.get_default_name()
+        else:
+            self.name = name
+        self.debug = debug
 
         # Hooks that are called after setup.
         self.post_setup_hook = []
@@ -86,6 +84,10 @@ class Block(object):
         # Enable logging to stderr for each individual, so logging is available
         # when not using the Kid.
         log.init(akid_logger=True)
+
+    def get_default_name(self):
+        count = A.get_block_count(self.__class__)
+        return "{}_{}".format(self.__class__.NAME, count)
 
     def setup(self):
         with A.variable_scope(self.name):
@@ -203,10 +205,10 @@ class ProcessingBlock(FlowBlock):
     """
 
     def __init__(self,
-                 do_summary=True,
+                 do_summary=None,
                  bag=None,
                  summarize_output=False,
-                 do_summary_on_val=False,
+                 do_summary_on_val=None,
                  **kwargs):
         """
         Create a layer and name it.
@@ -283,11 +285,11 @@ class ProcessingBlock(FlowBlock):
 
     def _pre_forward(self, *args, **kwargs):
         for f in self.pre_forward_hook:
-            f(*args, **kwargs)
+            f(self, *args, **kwargs)
 
     def _post_forward(self, *args, **kwargs):
         for f in self.post_forward_hook:
-            f(*args, **kwargs)
+            f(self, *args, **kwargs)
 
         # If has done forward for building computational graphs that exist in
         # form of ops, return. But it is possible we still need to build ops
@@ -477,8 +479,6 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
     def __init__(self,
                  moving_average_decay=None,
                  inputs=None,
-                 # wd={"type": "l2", "scale": 5e-4},  # Save for future reference.
-                 wd=None,
                  **kwargs):
         """
         Args:
@@ -490,10 +490,6 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
             inputs: list
                 A list to list inputs of this layer. Refer to
                 `system.GraphSystem` for more explanation.
-            wd: dict
-                An dictionary that contains the `type` of regularization to use
-                and its scale, which is to say the multiplier of the
-                regularization loss term. If None, weight decay is not added.
         """
         super(ProcessingLayer, self).__init__(**kwargs)
 
@@ -504,7 +500,6 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
         self.moving_average_decay = moving_average_decay
 
         self.inputs = inputs
-        self.wd = wd
 
         # Bookkeeping all variables.
         self.var_list = []
@@ -513,7 +508,7 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
         super(ProcessingLayer, self).set_shadow()
         self.var_list = []
 
-    @deprecated(details="This method only works for tensorflow backends.")
+    @deprecated(details="This method only worked for tensorflow backends, and is broken now.")
     def _variable_with_weight_decay(self, name, shape, init_para=None):
         """Helper to create an initialized Variable with weight decay.
 
@@ -627,6 +622,11 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
         self.log("This layer has {} parameters.".format(total_para_num))
 
     def _post_forward(self, *args, **kwargs):
+        # NOTE: this method does not call that of its super class. It has code
+        # redundancy, and may be improved.
+        for f in self.post_forward_hook:
+            f(self, *args, **kwargs)
+
         # If has done forward for building computational graphs that exist in
         # form of ops, return. But it is possible we still need to build ops
         # for validation block.
@@ -645,6 +645,8 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
            or (self.is_val\
                and self.do_summary_on_val\
                and not self.done_first_pass_val):
+            if self.data is not None:
+                self._data_summary(self.data)
             if self.loss is not None:
                 self._data_summary(self.loss)
             if self.eval is not None:
@@ -719,6 +721,17 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
             return None
 
     @property
+    def verbose_eval(self):
+        """
+        More verbosely evaluation results. Put the results under
+        `_verbose_eval`.
+        """
+        if hasattr(self, "_verbose_eval"):
+            return self._verbose_eval
+        else:
+            return None
+
+    @property
     def train_op(self):
         """
         Ops that need called along with the top level train op. Sub-class
@@ -731,12 +744,13 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
 
     def _get_variable(self, name, shape, initializer, trainable=True):
         """
-        Allocate or retrieve tensorflow variables. If the variable has already
-        existed, depending on `moving_average_decay`'s value, moving average of
-        it(when `moving_average_decay` has a value) or the original
-        variable(when `moving_average_decay` is None) would be returned. Refer
-        to `tf.get_variable()` to the details of a shared variable in
-        tensorflow.
+        Allocate or retrieve a trainable variable.
+
+        The following moving average only works in tensorflow backend.  If the
+        variable has already existed, depending on `moving_average_decay`'s
+        value, moving average of it(when `moving_average_decay` has a value) or
+        the original variable(when `moving_average_decay` is None) would be
+        returned.
         """
         var = A.get_variable(name,
                              shape,

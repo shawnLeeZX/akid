@@ -90,10 +90,13 @@ class Sensor(ProcessingBlock):
     By the default, a sensor is in the "train" mode. To use it in other modes,
     one needs to change the mode first, then set the batch size in that mode.
     """
+    NAME = "Sensor"
+
     def __init__(self,
                  source_in=None,
                  batch_size=100,
                  val_batch_size=100,
+                 test_batch_size=None,
                  queue_size=5,
                  sampler="shuffle",
                  **kwargs):
@@ -110,9 +113,11 @@ class Sensor(ProcessingBlock):
             name: str
                 Name of this sensor.
         """
-        super(Sensor, self).__init__(self, **kwargs)
+        super(Sensor, self).__init__(**kwargs)
         self.source = source_in
-        self.batch_size_dict = { A.Mode.TRAIN: batch_size, A.Mode.VAL: val_batch_size }
+        self.batch_size_dict = { A.Mode.TRAIN: batch_size,
+                                 A.Mode.VAL: val_batch_size,
+                                 A.Mode.TEST: val_batch_size if test_batch_size is None else test_batch_size}
         self.queue_size = queue_size
         self.sampler_name = sampler
         self.sampler = samplers.get(sampler, len(self.source.data))
@@ -135,11 +140,17 @@ class Sensor(ProcessingBlock):
 
     def set_mode(self, mode):
         A.check_mode(mode)
+
+        # We need to tear down pre-fetching threads before changing the mode,
+        # otherwise, source would change mode queue shutdown, thus leading to
+        # the result that some new data are fetched to the old data queue, and
+        # not used.
+        if self.is_setup:
+            self._teardown_data_queue()
+
         self.mode = mode
         self.source.set_mode(mode)
         self.sampler = samplers.get(self.sampler_name, len(self.source.data))
-        if self.is_setup:
-            self._teardown_data_queue()
 
     def _setup(self):
         """
@@ -210,6 +221,7 @@ class SimpleSensor(Sensor):
 
     def _teardown_data_queue(self):
         self.done_event.set()
+        self.worker_thread.join()
 
     @property
     def data_queue(self):

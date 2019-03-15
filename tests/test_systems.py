@@ -18,6 +18,7 @@ class TestSystem(AKidTestCase):
     def tearDown(self):
         A.use_cuda(self.use_cuda_save)
 
+    @debug_on(Exception)
     def test_sequential_system(self):
         from akid import SequentialSystem
         s = SequentialSystem(name="test_sequential_system")

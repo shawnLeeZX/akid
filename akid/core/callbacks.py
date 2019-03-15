@@ -64,23 +64,36 @@ def on_val_log_step(kid):
                 name=A.append_suffix(A.get_name(kid.engine.eval(get_val=True)[i]), "val"),
                 value=v,
                 step=A.get_step())
+        if kid.verbose_evals is not None:
+            for i, v in enumerate(kid.verbose_evals):
+                A.summary.add_scalar(
+                    name=A.append_suffix(A.get_name(kid.engine.verbose_eval(get_val=True)[i]), "vval"),
+                    value=v,
+                    step=A.get_step())
 
     # Log current validation.
     name_to_print = [A.get_name(g) for g in kid.engine.eval(get_val=True)]
     eval_value_to_print = ["%0.04f" % v for v in kid.evals]
     eval_to_print = dict(zip(name_to_print, eval_value_to_print))
-    log.info('  Num examples: {}  Evals : {}'.format(
-        kid.sensor.source.size, eval_to_print))
+    if kid.verbose_evals is not None:
+        name_to_print = [A.get_name(g) for g in kid.engine.verbose_eval(get_val=True)]
+        veval_value_to_print = ["%0.04f" % v for v in kid.verbose_evals]
+        veval_to_print = dict(zip(name_to_print, veval_value_to_print))
+    else:
+        veval_to_print = None
+    log.info('  Num examples: {}  Evals : {}  VEvals: {}'.format(
+        kid.sensor.source.size, eval_to_print, veval_to_print))
 
     # Log current best validation.
     name_to_print = [A.get_name(g) + '_best'
                      for g in kid.engine.eval(get_val=True)]
+    # TODO: handle best evals
     eval_value_to_print = ["%0.04f" % v for v in kid.best_val_evals]
     eval_to_print = dict(zip(name_to_print, eval_value_to_print))
     log.info('Current best evals : {}'.format(eval_to_print))
 
     # Loss.
-    log.info('  Step %d: Validation loss = %.2f' % (A.get_step(), kid.loss))
+    log.info('  Step %d: Validation loss = %.6f' % (A.get_step(), kid.loss))
 
 
 def on_train_begin(kid):
@@ -112,6 +125,8 @@ def on_train_begin(kid):
     # Initial validation
     kid.loss, kid.evals = kid.validate()
     kid.on_val_log_step()
+    kid.sensor.set_mode("train")
+    kid.sensor.setup()
 
 
 def on_batch_begin(kid):

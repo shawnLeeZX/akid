@@ -68,6 +68,8 @@ def get_variable(name=None, shape=None,
 
     t._is_variable = True
 
+    log.debug("Created new variable {}".format(name))
+
     return t
 
 
@@ -259,18 +261,23 @@ def _append_num(name):
 
 def get_name(v, with_device_id=True):
     """
-    Given a tensor, return its name if available.
+    Given an object, return its name if available.
 
     The purpose of the function is to give a unique identifier that can be used
-    to identify a Tensor.
+    to identify a computed result.
     """
-    if hasattr(v, "name_"):
-        if with_device_id:
-            return v.name_
-        else:
-            return v.name_.split(':')[0]
-    else:
+    if type(v) is th.Tensor:
+        if hasattr(v, "name_"):
+            if with_device_id:
+                return v.name_
+            else:
+                return v.name_.split(':')[0]
         return None
+
+    if isinstance(v, cg.NamedValue):
+        return v.name
+
+    raise TypeError("Type {} not supported".format(type(v)))
 
 
 def standardize_data_format(data, old_format):
@@ -327,6 +334,15 @@ def eval(t):
     """
     if type(t) is list or type(t) is tuple:
         return [eval(i) for i in t]
+
+    if type(t) is np.ndarray:
+        return t
+
+    if type(t) is cg.NamedTensorTuple:
+        return cg.NamedTensorTuple(t.name, [eval(v) for v in t])
+
+    if isinstance(t, cg.NamedScalar):
+        return t
 
     # Convert to CPU anyway. May be redundant.
     t = t.cpu()
@@ -412,6 +428,12 @@ def mean(v, name=None):
 
 
 def get_shape(t):
+    if isinstance(t, cg.NamedScalar):
+        return 0
+
+    if isinstance(t, cg.NamedTensorTuple):
+        return [get_shape(v) for v in t]
+
     if torch_version < 0.4:
         if type(t) is Variable:
             return list(t.data.shape)

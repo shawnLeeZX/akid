@@ -11,13 +11,28 @@ from akid.utils.test import AKidTestCase, TestFactory, main, debug_on
 from akid import backend as A
 from akid.core import initializers
 
-
 class TestKid(AKidTestCase):
     def setUp(self):
         A.reset()
 
     def test_core(self):
         brain = TestFactory.get_test_brain()
+        sensor = TestFactory.get_test_sensor()
+        kid = TestFactory.get_test_kid(sensor, brain)
+        kid.do_summary = False
+        kid.setup()
+
+        loss = kid.practice()
+        assert loss < 0.2, \
+                "Loss: {}".format(loss)
+
+    def test_verbose_eval_blocks(self):
+        A.use_cuda(False)
+        brain = TestFactory.get_test_brain()
+        l = brain.get_layer_by_name("loss")
+        def f(self, *args, **kwargs):
+            self._verbose_eval = self.eval
+        l.post_forward_hook.append(f)
         sensor = TestFactory.get_test_sensor()
         kid = TestFactory.get_test_kid(sensor, brain)
         kid.do_summary = False
@@ -38,6 +53,7 @@ class TestKid(AKidTestCase):
         assert loss < 0.2, \
                 "Loss: {}".format(loss)
 
+    @debug_on(Exception)
     def test_summary_on_val(self):
         brain = TestFactory.get_test_brain()
         sensor = TestFactory.get_test_sensor()
@@ -78,7 +94,7 @@ class TestKid(AKidTestCase):
         # be further investigated when using tensorflow.
         self.assertLess(abs(loss - loss_recovered), 10e-3)
         # The extra 1 is caused by the breaking of the loop
-        self.assertEquals(A.get_step(), 901)
+        self.assertEquals(A.get_step(), 900)
 
     def test_log_to_file_flag(self):
         brain = TestFactory.get_test_brain()

@@ -153,6 +153,9 @@ def eval(V):
     """
     Convert variable to numpy array.
     """
+    if type(V) is np.ndarray:
+        return V
+
     return sess.run(V)
 
 

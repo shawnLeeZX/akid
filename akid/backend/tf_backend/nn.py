@@ -219,6 +219,7 @@ def expand_kernel(ksize):
 def bn(x, out_channel_num, gamma, beta,
        is_val=False, step=None, fix_gamma=False, share_gamma=False,
        name=None):
+    # TODO: moving average track is not optional as in the torch backend.
     def _bn(input, mean, variance, beta, gamma, epsilon):
         shape = input.get_shape().as_list()
         if len(shape) is 2 or share_gamma:

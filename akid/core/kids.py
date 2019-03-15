@@ -7,17 +7,20 @@ import os
 import time
 import sys
 import inspect
+from tqdm import tqdm
 
 from ..utils import glog as log
 from . import sensors
 from . import engines
 from .blocks import Block
 from .. import backend as A
+from .events import EarlyStoppingEvent
 from .common import (
     TRAIN_SUMMARY_COLLECTION,
     VALID_SUMMARY_COLLECTION,
     TRAINING_DYNAMICS_COLLECTION
 )
+from .eval_blocks import BatchEvalBlock
 
 
 class Kid(Block):
@@ -175,8 +178,8 @@ class Kid(Block):
         # Set up hooks.
         class hooks(object):
             def __init__(self):
-                self.on_training_log = []
-                self.on_val_log = []
+                self.on_training_log_step = []
+                self.on_val_log_step = []
                 self.on_train_begin = []
                 self.on_batch_begin = []
                 self.on_epoch_end = []
@@ -184,10 +187,10 @@ class Kid(Block):
 
             def add_default_hooks(self):
                 from .callbacks import on_train_log_step
-                self.on_training_log.append(on_train_log_step)
+                self.on_training_log_step.append(on_train_log_step)
 
                 from .callbacks import on_val_log_step
-                self.on_val_log.append(on_val_log_step)
+                self.on_val_log_step.append(on_val_log_step)
 
                 from .callbacks import on_train_begin
                 self.on_train_begin.append(on_train_begin)
@@ -205,8 +208,13 @@ class Kid(Block):
         self.evals = None
         self.best_val_evals = None
 
-    def validate(self):
+    def validate(self, mode="val"):
         """Evaluating on validation set.
+
+        Args:
+            mode: str
+                If "val", validate on validation set; if "test", validate on
+                test set.
 
         Return:
             loss: float
@@ -214,38 +222,61 @@ class Kid(Block):
                 `Kid`'s reference to evaluation metrics and loss are both
                 updated.
         """
-        if A.backend() == A.TF and not self.initialized:
-            A.init(self.continue_from_chk_point, self.model_dir)
+        self.init()
 
-        self.log('Validation Data Eval:')
+        A.check_mode(mode)
 
-        if not self.sensor.mode == "val":
-            self.sensor.set_mode("val")
+        if mode == A.Mode.VAL:
+            self.log('Validation Data Eval:')
+        elif mode == A.Mode.TEST:
+            self.log('Test Data Eval:')
+        else:
+            assert False, "Program should not reach here."
+
+        if not self.sensor.mode == mode:
+            self.sensor.set_mode(mode)
             self.sensor.setup()
 
         # Run one epoch of eval.
-        self.log("A epoch of validation set contains {} batches".format(self.sensor.num_batches_per_epoch))
-        eval_metric_values = [0] * len(self.engine.eval(get_val=True))
-        loss_sum = 0
+        self.log("A epoch of {} set contains {} batches".format(mode, self.sensor.num_batches_per_epoch))
+        eval_blocks = [BatchEvalBlock()
+                       if A.get_eval_block(v) is None else A.get_eval_block(v)
+                       for v in self.engine.eval(get_val=True)]
+        if self.engine.verbose_eval(get_val=True) is not None:
+            verbose_eval_blocks = [BatchEvalBlock()
+                                   if A.get_eval_block(v.name) is None else A.get_eval_block(v.name)()
+                                   for v in self.engine.verbose_eval(get_val=True)]
+        else:
+            verbose_eval_blocks = None
+        loss_block = BatchEvalBlock()
         steps_per_epoch = self.sensor.num_batches_per_epoch
 
-        step = 1
-        while step <= steps_per_epoch:
-            loss, evals = self.run_step(update=False, val=True)
+        for step in tqdm(range(1, steps_per_epoch+1)):
+            if verbose_eval_blocks is None:
+                loss, evals = self.run_step(update=False, val=True)
+            else:
+                loss, evals, verbose_evals = self.run_step(update=False, val=True)
 
-            loss_sum += loss
+            loss_block.add(loss)
             for i, v in enumerate(evals):
-                eval_metric_values[i] += v
-            step += 1
+                eval_blocks[i].add(v)
+            if verbose_eval_blocks is not None:
+                for i, v in enumerate(verbose_evals):
+                    verbose_eval_blocks[i].add(v)
 
-        loss_avg = loss_sum / steps_per_epoch
-        for i, v in enumerate(eval_metric_values):
-            eval_metric_values[i] = v / steps_per_epoch
+        # Note that the EvalBlocks become numeric data now.
+        loss_avg = loss_block.data
+        for i, v in enumerate(eval_blocks):
+            eval_blocks[i] = v.data
+        if verbose_eval_blocks is not None:
+            for i, v in enumerate(verbose_eval_blocks):
+                verbose_eval_blocks[i] = v.data
 
         self.loss = loss_avg
-        self.evals = eval_metric_values
+        self.evals = eval_blocks
+        self.verbose_evals = verbose_eval_blocks
 
-        return loss_avg, eval_metric_values
+        return loss_avg, eval_blocks
 
     def setup(self):
         """
@@ -257,10 +288,14 @@ class Kid(Block):
             log.info("Recovering net from checkpoint %s." % self.model_dir)
             self.restore()
 
-        self.sensor.set_do_summary_flag(self.do_summary)
-        self.sensor.set_do_summary_on_val_flag(self.do_summary_on_val)
-        self.brain.set_do_summary_flag(self.do_summary)
-        self.brain.set_do_summary_on_val_flag(self.do_summary_on_val)
+        if self.sensor.do_summary is None:
+            self.sensor.set_do_summary_flag(self.do_summary)
+        if self.sensor.do_summary_on_val is None:
+            self.sensor.set_do_summary_on_val_flag(self.do_summary_on_val)
+        if self.brain.do_summary is None:
+            self.brain.set_do_summary_flag(self.do_summary)
+        if self.brain.do_summary_on_val is None:
+            self.brain.set_do_summary_on_val_flag(self.do_summary_on_val)
 
         self.sensor.setup()
         self.engine = engines.get(brain=self.brain, kongfu=self.kongfu, **self.engine_para)
@@ -268,9 +303,11 @@ class Kid(Block):
 
         # Do forward once to build ops.
         self.step(update=False if self.inference_mode else True)
-        if A.backend() == A.TORCH:
+        if A.backend() == A.TORCH and not self.inference_mode:
             A.step()  # For PyTorch, the step matters
         # Build validation ops
+        self.sensor.set_mode("val")
+        self.sensor.setup()
         self.step(update=False, val=True)
 
     def restore(self):
@@ -296,66 +333,93 @@ class Kid(Block):
         self.log("A epoch of training set contains {} batches".format(self.sensor.num_batches_per_epoch))
         self.epoch = A.get_step() // self.sensor.num_batches_per_epoch
 
-        if A.backend() == A.TF:
-            # The checkpoint recovery has to be here, given that it needs to be
-            # after the computational graph being set up.
-            A.init(self.continue_from_chk_point, self.model_dir)
-            self.initialized = True
-        elif A.backend() == A.TORCH:
-            A.init() # This actually does nothing.
-            self.initialized = True
-        else:
-            raise ValueError("Backend {} not supported".format(A.backend()))
-
+        self.init()
         self.on_train_begin()
 
         while A.get_step() < self.max_steps + 1:
-            if self.log_by_step and \
-               (A.get_step() % self.val_log_step == 0 or\
-                A.get_step() == self.max_steps):
-                if self.save_chk_point:
-                    self.save_to_ckpt()
-                self.loss, self.evals = self.validate()
-                val_loss, val_evals = self.loss, self.evals
-                self.on_val_log_step()
-
-            start_time = time.time()
-
-            self.on_batch_begin()
-            self.loss, self.evals = self.run_step()
-
-            self.step_time = time.time() - start_time
-
-            A.step()
-
-            if A.get_step() % self.sensor.num_batches_per_epoch is 0:
-                self.epoch += 1
-                self.on_epoch_end()
-                if self.log_by_epoch:
-                    if self.save_chk_point:
-                        self.save_to_ckpt()
-                    self.loss, self.evals = self.validate()
-                    self.on_val_log_step()
-                    val_loss, val_evals = self.loss, self.evals
-
-            if A.get_step() % self.train_log_step == 0:
-                self.on_train_log_step()
+            try:
+                val_loss, val_evals = self.step_with_logistics()
+            except EarlyStoppingEvent as e:
+                val_loss, val_evals = e.val_loss, e.val_evals
+                break
 
         if return_eval:
             return val_loss, val_evals
         else:
             return val_loss
 
+    def predict(self, data):
+        """
+        Given a datum, do inference with a NN. Note that we do not have format
+        requirement on `data`, since it should be taken care when building the
+        NN. If input validation is needed, it should be done in the layer that
+        calls this API.
+        """
+        self.init()
+        self.engine.forward(data, val=True)
+
+        evals = [e for e in self.engine.eval(get_val=True)]
+        if self.engine.verbose_eval(get_val=True) is not None:
+            verbose_evals = [e for e in self.engine.verbose_eval(get_val=True)]
+        else:
+            verbose_evals = None
+
+        return evals, verbose_evals
+
+    def step_with_logistics(self):
+        val_loss = None
+        val_evals = None
+
+        if self.log_by_step and \
+            (A.get_step() % self.val_log_step == 0 or\
+            A.get_step() == self.max_steps):
+            if self.save_chk_point:
+                self.save_to_ckpt()
+            self.loss, self.evals = self.validate()
+            val_loss, val_evals = self.loss, self.evals
+            self.on_val_log_step()
+            self.sensor.set_mode("train")
+            self.sensor.setup()
+
+        start_time = time.time()
+
+        self.on_batch_begin()
+        self.loss, self.evals = self.run_step()
+
+        self.step_time = time.time() - start_time
+
+        A.step()
+
+        if A.get_step() % self.sensor.num_batches_per_epoch is 0:
+            self.epoch += 1
+            self.on_epoch_end()
+            if self.log_by_epoch:
+                if self.save_chk_point:
+                    self.save_to_ckpt()
+                self.loss, self.evals = self.validate()
+                self.on_val_log_step()
+                val_loss, val_evals = self.loss, self.evals
+                self.sensor.set_mode("train")
+                self.sensor.setup()
+
+        if A.get_step() % self.train_log_step == 0:
+            self.on_train_log_step()
+
+        return val_loss, val_evals
+
     def tf_step(self, update=True, val=False):
         self.sensor.set_val(val)
         self.feed_dict = self.get_feed_dict(val)
-        fetch = [self.engine.loss(val)]
-        fetch.extend(self.engine.eval(val))
+        fetch = {"loss": self.engine.loss(val)}
+        fetch["eval"] = self.engine.eval(val)
+        if val:
+            # TODO: may be broken. could dict element be list?
+            fetch["verbose_eval"] = self.engine.verbose_eval(val)
         if update:
-            fetch.append(self.engine.train_op)
+            fetch["train_op"] = self.engine.train_op
         result = A.run(fetch, feed_dict=self.feed_dict)
 
-        return result[0], result[1:-1] if update else result[1:]
+        return result["loss"], result["eval"], result["verbose_eval"] if val else None
 
     def run_step(self, update=True, val=False):
         """
@@ -364,18 +428,19 @@ class Kid(Block):
         if A.backend() == A.TF:
             return self.tf_step(update, val)
         elif A.backend() == A.TORCH:
-            loss, evals = self.step(update, val)
+            loss, evals, verbose_evals = self.step(update, val)
             loss = A.eval(loss)
             evals = A.eval(evals)
-            return loss, evals
+            if verbose_evals is not None and val:
+                verbose_evals = A.eval(verbose_evals)
+                return loss, evals, verbose_evals
+            else:
+                return loss, evals
 
     def step(self, update=True, val=False):
         """
         Computational graph wise, how the tensor should be run in a step.
         """
-        if not self.sensor.mode == ("val" if val else "train"):
-            self.sensor.set_mode("val" if val else "train")
-            self.sensor.setup()
         system_in = self.sensor.forward()
         self.engine.forward(system_in, val)
         if update:
@@ -383,8 +448,12 @@ class Kid(Block):
 
         loss = self.engine.loss(val)
         evals = [e for e in self.engine.eval(val)]
+        if val and self.engine.verbose_eval(val) is not None:
+            verbose_evals = [e for e in self.engine.verbose_eval(val)]
+        else:
+            verbose_evals = None
 
-        return loss, evals
+        return loss, evals, verbose_evals
 
     def _setup_log(self):
         if not os.path.exists(self.log_dir):
@@ -399,6 +468,22 @@ class Kid(Block):
         else:
             log.setLevel(log.INFO)
         self.log("Logs will be save to: {}".format(self.log_dir))
+
+    def init(self):
+        """
+        Initialize the backend if having not.
+        """
+        if not self.initialized:
+            if A.backend() == A.TF:
+                # The checkpoint recovery has to be here, given that it needs to be
+                # after the computational graph being set up.
+                A.init(self.continue_from_chk_point, self.model_dir)
+                self.initialized = True
+            elif A.backend() == A.TORCH:
+                A.init() # This actually does nothing.
+                self.initialized = True
+            else:
+                raise ValueError("Backend {} not supported".format(A.backend()))
 
     def setup_summary(self):
         if self.do_summary:
@@ -450,7 +535,7 @@ class Kid(Block):
         """
         Call hooks at the time when the kid should do logging for training.
         """
-        for func in self.hooks.on_training_log:
+        for func in self.hooks.on_training_log_step:
             func(self)
 
     def on_val_log_step(self):
@@ -465,7 +550,7 @@ class Kid(Block):
         else:
             self.best_val_evals = list(self.evals)
 
-        for func in self.hooks.on_val_log:
+        for func in self.hooks.on_val_log_step:
             func(self)
 
     def on_train_begin(self):

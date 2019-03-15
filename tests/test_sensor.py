@@ -83,7 +83,6 @@ class TestSimpleSensor(AKidTestCase):
 
     @skipUnless(A.backend() == A.TORCH, msg="Currently MNISTSource depends on torch")
     def test_do_summary_on_val_flag(self):
-        print(A.use_cuda())
         source = MNISTSource(work_dir="data", name="source")
         source.setup()
 
@@ -92,6 +91,7 @@ class TestSimpleSensor(AKidTestCase):
                               batch_size=b_size,
                               queue_size=2,
                               sampler="sequence",
+                              do_summary=True,
                               do_summary_on_val=False,
                               name="sensor")
         sensor.setup()
@@ -109,6 +109,7 @@ class TestSimpleSensor(AKidTestCase):
                               batch_size=b_size,
                               queue_size=2,
                               sampler="sequence",
+                              do_summary=True,
                               do_summary_on_val=True,
                               name="sensor")
         sensor.set_mode("val")

@@ -44,6 +44,9 @@ class SynapseLayer(ProcessingLayer):
                  init_para={"name": "default"},
                  max_norm=None,
                  do_stat_on_norm=False,
+                 # wd={"type": "l2", "scale": 5e-4},  # Save for future reference.
+                 wd=None,
+                 wd_on_bias=False,
                  **kwargs):
         """
         Args:
@@ -67,6 +70,12 @@ class SynapseLayer(ProcessingLayer):
                 `AUXILIARY_SUMMARY_COLLECTION`, which could be used further. It
                 is mainly used for quantitatively evaluate how many filters are
                 dead during training.
+            wd: dict
+                An dictionary that contains the `type` of regularization to use
+                and its scale, which is to say the multiplier of the
+                regularization loss term. If None, weight decay is not added.
+            wd_on_bias: boolean
+                Whether to apply weight decay on biases.
         """
         super(SynapseLayer, self).__init__(**kwargs)
         self.in_channel_num = in_channel_num
@@ -74,36 +83,15 @@ class SynapseLayer(ProcessingLayer):
         self.init_para = init_para
         self.max_norm = max_norm
         self.do_stat_on_norm = do_stat_on_norm
+        self.wd = wd
+        self.wd_on_bias = wd_on_bias
 
         # Only do float conversion if not None.
         self.initial_bias_value = float(initial_bias_value) \
             if initial_bias_value is not None else None
 
-    @abc.abstractmethod
-    def _para_init(self):
-        """
-        Allocate learnable parameters.
-
-        Every learnable layer should implement this method. It is made an
-        abstract method here just to regularize the internal implementation of
-        learning layers.
-
-        Args:
-            input: tensor
-                The to be processed input in proper shape (it may be processed
-                by the layer), will be passed to `_para_init` to do actual
-                initialization.
-
-        Return:
-            None
-        """
-        raise NotImplementedError("Each learnable layer needs to implement"
-                                  " this method to allocate and init"
-                                  " parameters!")
-
-    def _setup(self):
-        self._para_init()
-
+    def _post_setup(self):
+        super(SynapseLayer, self)._post_setup()
         if self.weights is not None:
             self.log("Weight shape {}".format(A.get_shape(self.weights)))
 
@@ -114,9 +102,15 @@ class SynapseLayer(ProcessingLayer):
             if self.biases is not None:
                 self.log("Bias shape {}".format(A.get_shape(self.biases)))
 
+        if self.wd is not None:
+            self.log("Using {} regularization with scale {}".format(
+                self.wd["type"], self.wd["scale"]))
 
-    def _post_setup(self):
-        super(SynapseLayer, self)._post_setup()
+            if self.wd_on_bias:
+                self.log("Apply regularizer {} with scale {} on bias.".format(
+                    self.wd["type"], self.wd["scale"]))
+
+
         if self.do_stat_on_norm:
             for v in self.var_list:
                 # Do not apply on biases.
@@ -133,6 +127,24 @@ class SynapseLayer(ProcessingLayer):
 
     def _pre_forward(self, *args, **kwargs):
         super(SynapseLayer, self)._pre_forward(*args, **kwargs)
+        if self.wd and self.wd["scale"] is not 0:
+            self._loss = nn.regularizers.compute(self.wd["type"],
+                                                 var=self.weights,
+                                                 scale=self.wd["scale"],
+                                                 name='weight_loss' if self.summarize_output else None)
+
+        if self.initial_bias_value is not None:
+            if self.wd_on_bias and self.wd["scale"] is not 0:
+                loss = nn.regularizers.compute(self.wd["type"],
+                                               var=self.biases,
+                                               scale=self.wd["scale"],
+                                               name='bias_loss' if self.summarize_output else None)
+
+                if self._loss is not None:
+                    self._loss += loss
+                else:
+                    self._loss = loss
+
 
     def on_para_update(self):
         if self.max_norm:
@@ -183,7 +195,7 @@ class ConvolutionLayer(SynapseLayer):
 
         return shape
 
-    def _para_init(self):
+    def _setup(self):
         self.shape = self.get_weigth_shape()
         self.weights = self._get_variable("weights",
                                           self.shape,
@@ -198,11 +210,12 @@ class ConvolutionLayer(SynapseLayer):
         else:
             self.biases = None
 
+        self.log("Padding method {}.".format(self.padding), debug=True)
+
+        # Emergency code. Should be cleansed in the future.
         if self.bn:
             self.bn = BatchNorm2d(self.out_channel_num, affine=False)
             self.bn = self.bn.cuda() if A.use_cuda() else self.bn
-
-        self.log("Padding method {}.".format(self.padding), debug=True)
 
     def _pre_forward(self, input, *args, **kwargs):
         super(ConvolutionLayer, self)._pre_forward(*args, **kwargs)
@@ -210,6 +223,7 @@ class ConvolutionLayer(SynapseLayer):
 
     def _forward(self, input):
         name = 'fmap' if self.summarize_output else None
+
         if self.depthwise:
             conv = A.nn.depthwise_conv2d(input,
                                          self.weights,
@@ -222,15 +236,9 @@ class ConvolutionLayer(SynapseLayer):
                                self.biases, self.strides,
                                self.padding, name=name)
 
-        if self.wd and self.wd["scale"] is not 0:
-            self._loss = nn.regularizers.compute(
-                self.wd["type"],
-                var=self.weights,
-                scale=self.wd["scale"],
-                name='weight_loss' if self.summarize_output else None)
-
         self._data = conv
 
+        # Emergency code. Should be cleansed in the future.
         if self.bn:
             self._data = self.bn(self._data)
 
@@ -265,6 +273,40 @@ class ConvolutionLayer(SynapseLayer):
         # TODO: Create reconstruction loss.
 
         return self.data_g
+
+
+class Convolution1DLayer(SynapseLayer):
+    NAME = "Conv1D"
+
+    def __init__(self, ksize, stride, padding, **kwargs):
+        super(Convolution1DLayer, self).__init__(**kwargs)
+        self.ksize = ksize
+        self.stride = stride
+        self.padding = padding
+
+    def _setup(self):
+        if A.DATA_FORMAT == "CHW":
+            self.shape = [self.out_channel_num, self.in_channel_num, self.ksize]
+        else:
+            raise ValueError("Data format {} is not supported yet.".format(A.DATA_FORMAT))
+        self.weights = self._get_variable("weights",
+                                          self.shape,
+                                          self._get_initializer(self.init_para))
+        if self.initial_bias_value is not None:
+            self.biases = self._get_variable(
+                'biases',
+                [self.out_channel_num],
+                 initializer=self._get_initializer(init_para={"name": "constant",
+                                                              "value": self.initial_bias_value}))
+        else:
+            self.biases = None
+
+    def _forward(self, x):
+        self._data = A.nn.conv1d(x, self.weights, self.biases, self.stride, self.padding,
+                                 name="fmap" if self.summarize_output else None)
+        return self._data
+
+Conv1D = Convolution1DLayer
 
 
 class ColorfulConvLayer(ConvolutionLayer):
@@ -307,8 +349,8 @@ class ColorfulConvLayer(ConvolutionLayer):
         super(ConvolutionLayer, self)._pre_forward(*args, **kwargs)
         self.input_shape = input[0].get_shape().as_list()
 
-    def _para_init(self):
-        super(ColorfulConvLayer, self)._para_init()
+    def _setup(self):
+        super(ColorfulConvLayer, self)._setup()
         if self.same_ksize:
             shape = [self.ksize[0], self.ksize[1], 3, self.out_channel_num]
         else:
@@ -369,7 +411,7 @@ class EquivariantProjectionLayer(SynapseLayer):
         self.g_size = g_size
         self.strides = strides
 
-    def _para_init(self):
+    def _setup(self):
         self.weights, self._loss = self._variable_with_weight_decay(
             "projection_weights", [self.g_size, 1, 1, self.in_channel_num, self.out_channel_num], self.init_para)
         self.biases = None
@@ -428,9 +470,7 @@ class SLUConvLayer(ConvolutionLayer):
 
 
 class InnerProductLayer(SynapseLayer):
-    def __init__(self, wd_on_bias=False, **kwargs):
-        super(InnerProductLayer, self).__init__(**kwargs)
-        self.wd_on_bias = wd_on_bias
+    NAME = "IP"
 
     def _forward(self, input):
         input = self._reshape(input)
@@ -439,24 +479,6 @@ class InnerProductLayer(SynapseLayer):
                                 bias=self.biases,
                                 name='fmap' if self.summarize_output else None)
         self._data = ip
-
-        if self.wd and self.wd["scale"] is not 0:
-            self._loss = nn.regularizers.compute(self.wd["type"],
-                                                 var=self.weights,
-                                                 scale=self.wd["scale"],
-                                                 name='weight_loss' if self.summarize_output else None)
-
-        if self.initial_bias_value is not None:
-            if self.wd_on_bias and self.wd["scale"] is not 0:
-                loss = nn.regularizers.compute(self.wd["type"],
-                                               var=self.biases,
-                                               scale=self.wd["scale"],
-                                               name='bias_loss' if self.summarize_output else None)
-
-                if self._loss is not None:
-                    self._loss += loss
-                else:
-                    self._loss = loss
 
         return self._data
 
@@ -488,7 +510,7 @@ class InnerProductLayer(SynapseLayer):
 
         return reshaped_input
 
-    def _para_init(self):
+    def _setup(self):
         self.shape = [self.in_channel_num, self.out_channel_num]
         self.weights = self._get_variable(
             'weights', self.shape, self._get_initializer(self.init_para))
@@ -546,7 +568,7 @@ class InvariantInnerProductLayer(SynapseLayer):
         object_vector = tf.reshape(object_vector, [batch_size, in_channel_num])
         return object_vector
 
-    def _para_init(self):
+    def _setup(self):
         self.shape = [self.in_channel_num, self.out_channel_num]
         self.weights, self._loss = self._variable_with_weight_decay(
             'weights', self.shape)

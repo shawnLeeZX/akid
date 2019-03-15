@@ -15,6 +15,8 @@ from akid.core.sensors import *
 from akid.core.jokers import *
 from akid.core.common import *
 from akid.core.brains import *
+from akid.core.eval_blocks import *
+from akid.core import events
 from akid.core import initializers
 from akid.core import common
 from akid.core import engines

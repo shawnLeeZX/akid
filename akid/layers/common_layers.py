@@ -13,11 +13,11 @@ class ReshapeLayer(ProcessingLayer):
     given. The dimension of batch size is not needed. If no shape is given, all
     dimensions beyond batch size dimension are flattened.
     """
+    NAME = "Reshape"
+
     def __init__(self, shape=None, **kwargs):
         # Do not do summary since we just reshape the data.
         kwargs["do_summary"] = False
-        if "name" not in kwargs:
-            kwargs["name"] = "reshape"
         super(ReshapeLayer, self).__init__(**kwargs)
         self.intrinsic_shape = shape
 
@@ -29,6 +29,7 @@ class ReshapeLayer(ProcessingLayer):
             shape = [-1]
         shape.insert(0, batch_size)
         self._data = A.reshape(input, shape)
+        return self._data
 
 
 class PaddingLayer(ProcessingLayer, Joker):

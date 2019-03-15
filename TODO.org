@@ -95,14 +95,21 @@
 *** DONE add shape of conv filter in
     CLOSED: [2017-09-26 Tue 14:12]
     - State "DONE"       from "TODO"       [2017-09-26 Tue 14:12]
+*** DONE make debug level switchable in kid
+    CLOSED: [2019-03-15 Fri 20:04]
+    - State "DONE"       from "TODO"       [2019-03-15 Fri 20:04]
+*** DONE summary on validation need extra works now for torch backend
+    CLOSED: [2019-03-15 Fri 20:21]
+    - State "DONE"       from "TODO"       [2019-03-15 Fri 20:21]
 *** TODO Things broken now after adding Torch backend
 **** TODO exponential decay in tf backend
 **** TODO Observer
 **** TODO test for tensorflow sources
-*** TODO running kidvalidate() in tensorflow backend does not have exactly the same result, check why
+*** TODO Tensorflow backend is broken
+**** TODO verbose_eval may not be properly handled.
+**** TODO the new NamedValue are not handled by get_variable
+*** TODO running kid.validate() in tensorflow backend does not have exactly the same result, check why
     See the WARNING of test_kids.py
-*** TODO summary on validation need extra works now for torch backend
-*** TODO make debug level switchable in kid
 *** TODO Think how to place PaddingLayer and Jokers into the right place
     Currently, PaddingLayer is Child of both ProcessingLayer and
     Joker. Essentially, it should be the child of certain general block.

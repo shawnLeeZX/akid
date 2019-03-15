@@ -278,7 +278,8 @@ class GraphSystem(SequentialSystem):
                     self.log("Inputs: {}. No outputs.".format(in_name))
 
             dtype = type(l.data)
-            data = l.data if dtype is tuple or dtype is list else [l.data]
+            if l.data is not None:
+                data = l.data if dtype is tuple or dtype is list else [l.data]
 
             previous_data_name = l.name
 

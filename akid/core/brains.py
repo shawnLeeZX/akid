@@ -88,6 +88,8 @@ class Brain(System, ProcessingLayer):
     Note if `do_summary` and `moving_average_decay` are specified, it would
     override that option of any layers attached to this brain.
     """
+    NAME = "Brain"
+
     def __init__(self, do_stat_on_norm=False, **kwargs):
         super(Brain, self).__init__(**kwargs)
         self.do_stat_on_norm = do_stat_on_norm
@@ -202,6 +204,20 @@ class Brain(System, ProcessingLayer):
 
         self._eval = eval_graph_list
 
+        if self.is_val:
+            verbose_eval_list = []
+            for b in self.blocks:
+                if b.verbose_eval is not None:
+                    if type(b.verbose_eval) is list:
+                        verbose_eval_list.extend(b.verbose_eval)
+                    else:
+                        verbose_eval_list.append(b.verbose_eval)
+
+            if len(verbose_eval_list) > 0:
+                self._verbose_eval = verbose_eval_list
+            else:
+                self._verbose_eval = None
+
     def _gather_train_ops(self):
         """
         Gather all train ops in all blocks in this brain.
@@ -227,22 +243,24 @@ class Brain(System, ProcessingLayer):
 
         return ops
 
-    def attach(self, block_in):
-        if type(block_in) is list:
-            for l in block_in:
-                l.do_summary_on_val = self.do_summary_on_val
-                self.attach(l)
-        else:
-            # A brain should only contain data processing layers.
-            assert issubclass(type(block_in), ProcessingLayer), \
-                "A `Brain` should only contain `ProcessingLayer`s."
-            block_in.do_summary_on_val = self.do_summary_on_val
-            super(Brain, self).attach(block_in)
-            # Pass options down.
-            if self.moving_average_decay:
-                # Only pass it down when it is not None.
-                block_in.moving_average_decay = self.moving_average_decay
-            block_in.do_stat_on_norm = self.do_stat_on_norm
+    def attach(self, *block_in):
+        for b in block_in:
+            t = type(b)
+            if t is list or t is tuple:
+                for l in b:
+                    l.do_summary_on_val = self.do_summary_on_val
+                    self.attach(l)
+            else:
+                # A brain should only contain data processing layers.
+                assert issubclass(t, ProcessingLayer), \
+                    "A `Brain` should only contain `ProcessingLayer`s."
+                b.do_summary_on_val = self.do_summary_on_val
+                super(Brain, self).attach(b)
+                # Pass options down.
+                if self.moving_average_decay:
+                    # Only pass it down when it is not None.
+                    b.moving_average_decay = self.moving_average_decay
+                b.do_stat_on_norm = self.do_stat_on_norm
 
 
 class SequentialBrain(Brain, SequentialSystem):

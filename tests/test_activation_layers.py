@@ -98,7 +98,7 @@ class TestActivationLayers(AKidTestCase):
             assert np.sum(abs(out - out_ref)) <= 10e-4
 
     def test_bn_2d(self):
-        l = BatchNormalizationLayer(10, 0, 1, dim_num=1, name="test_bn")
+        l = BatchNormalizationLayer(10, 0, 1, name="test_bn")
         l.setup()
         X_in = np.random.randn(10, 10)
         self.assertNdarrayNotAlmostEquals(X_in.mean(0), 0)
@@ -107,14 +107,14 @@ class TestActivationLayers(AKidTestCase):
         X_out = l(X_in)
         A.init()
         X_out_eval = A.eval(X_out)
-        gamma = A.eval(l.var_list[1])
+        gamma = A.eval(l.weights)
         self.assertNdarrayAlmostEquals(X_out_eval.mean(0), 0)
         # The normalization only holds roughly, so do not do a strong assertion
         # on the equality.
         self.assertNdarrayAlmostEquals(X_out_eval.std(0), gamma, places=4)
 
     def test_bn_4d(self):
-        l = BatchNormalizationLayer(10, 0, 1, dim_num=2, name="test_bn")
+        l = BatchNormalizationLayer(10, 0, 1, name="test_bn")
         l.setup()
         X_in = np.random.randn(10, 10, 10, 10)
         if A.DATA_FORMAT == "CHW":
@@ -129,7 +129,7 @@ class TestActivationLayers(AKidTestCase):
         X_out = l(X_in)
         A.init()
         X_out_eval = A.eval(X_out)
-        gamma = A.eval(l.var_list[1])
+        gamma = A.eval(l.weights)
         self.assertNdarrayAlmostEquals(X_out_eval.mean(reduce_indices), 0)
         # The normalization only holds roughly, so do not do a strong assertion
         # on the equality.

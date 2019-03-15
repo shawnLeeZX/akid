@@ -4,6 +4,8 @@ import inspect
 import tensorflow as tf
 from tensorflow.python.training import moving_averages
 
+from torch.nn import functional as F
+
 from ..core.blocks import ProcessingLayer
 from .. import backend as A
 
@@ -49,8 +51,17 @@ class PoolingLayer(ProcessingLayer):
         return self._data
 
 
-class MaxPoolingLayer(ProcessingLayer):
-    def __init__(self, ksize, strides, padding="VALID", get_argmax_idx=False, **kwargs):
+class _PoolingLayer(ProcessingLayer):
+    def __init__(self, ksize, strides, padding, **kwargs):
+        super(_PoolingLayer, self).__init__(**kwargs)
+
+        self.ksize = ksize
+        self.strides = strides
+        self.padding = padding
+
+
+class MaxPoolingLayer(_PoolingLayer):
+    def __init__(self, get_argmax_idx=False, **kwargs):
         """
         Args:
         get_argmax_idx: Bool
@@ -59,10 +70,6 @@ class MaxPoolingLayer(ProcessingLayer):
         """
         super(MaxPoolingLayer, self).__init__(**kwargs)
 
-        self.ksize = ksize
-        self.strides = strides
-
-        self.padding = padding
         self.get_argmax_idx = get_argmax_idx
 
     def _forward(self, X_in):
@@ -108,7 +115,17 @@ class MaxPoolingLayer(ProcessingLayer):
         return self._data_g
 
 
+class MaxPooling1DLayer(_PoolingLayer):
+    NAME = "MaxPooling1D"
+
+    def _forward(self, x):
+        self._data = A.nn.max_pool1d(x, self.ksize, self.strides, self.padding)
+        return self._data
+
+MaxPooling1D = MaxPooling1DLayer
+
 class ReLULayer(ProcessingLayer):
+    NAME = "ReLU"
     def _forward(self, input):
         self._data = A.nn.relu(
             input,
@@ -125,6 +142,8 @@ class ReLULayer(ProcessingLayer):
         self._data_g = X_in * sign
 
         return self._data_g
+
+ReLU = ReLULayer
 
 
 class ColorizationReLULayer(ProcessingLayer):
@@ -155,8 +174,13 @@ class ColorizationReLULayer(ProcessingLayer):
 
 
 class SigmoidLayer(ProcessingLayer):
-    def _forward(self, input):
-        self._data = tf.nn.sigmoid(input)
+    NAME = "Sigmoid"
+
+    def _forward(self, x):
+        self._data = A.nn.sigmoid(x)
+        return self._data
+
+Sigmoid = SigmoidLayer
 
 
 class LRNLayer(ProcessingLayer):
@@ -375,52 +399,61 @@ class CollapseOutLayer(GroupProcessingLayer):
 
 
 class BatchNormalizationLayer(ProcessingLayer):
-    NAME = "Batch_Normalization"
+    NAME = "BN"
 
     def __init__(self,
                  channel_num,
                  beta_init=0,
                  gamma_init=1,
+                 eps=1e-5,
+                 momentum=0.1,
+                 track_running_stats=True,
                  fix_gamma=False,
                  share_gamma=False,
                  dim_num=None,
                  **kwargs):
         """
         `beta_init`, `gamma_init`, `share_gamma` are only useful in tensorflow
-        backend. For torch backend, this layer call the underlying torch nn
-        module. Thus, `dim_num` is required for torch backend. `dim_num` is the
-        number of dimension of the data. For example, for image data, `dim_num`
-        is 2.
+        backend.
         """
         super(BatchNormalizationLayer, self).__init__(**kwargs)
         self.channel_num = channel_num
         self.fix_gamma = fix_gamma
+        self.eps = eps
+        self.momentum = momentum
+        self.track_running_stats = track_running_stats
 
+        # TODO: make the init setter work for torch as well.
         if A.backend() == A.TF:
             self.beta_init = float(beta_init)
             self.gamma_init = float(gamma_init)
             self.share_gamma = share_gamma
 
-        if A.backend() == A.TORCH:
-            if dim_num is None:
-                raise ValueError("Dimension number is needed in torch backend.")
-            self.dim_num = dim_num
-
     def _setup(self):
         if A.backend() == A.TORCH:
-            if self.dim_num == 1:
-                self.bn = A.nn.tnn.BatchNorm1d(self.channel_num, affine=not self.fix_gamma).to(A.device)
-            elif self.dim_num == 2:
-                self.bn = A.nn.tnn.BatchNorm2d(self.channel_num, affine=not self.fix_gamma).to(A.device)
-            else:
-                raise ValueError("Input of dimension {} has not been supported.".format(self.dim_num))
+            self.weights = self._get_variable("weights",
+                                            self.channel_num,
+                                            self._get_initializer({"name": "range_uniform", "low": 0, "high": 1}))
+            self.biases = self._get_variable("biases",
+                                           self.channel_num,
+                                           self._get_initializer({"name": "constant", "value": 0}))
 
-            var_dict = self.bn.state_dict()
-            self.var_list.extend([var_dict["bias"], var_dict["weight"]])
-            A.cache_tensor_auto_scope(var_dict["weight"], "weight")
-            A.cache_tensor_auto_scope(var_dict["weight"], "bias")
+            # Running mean and variance that require no grad.
+            self.running_mean = self._get_variable("running_mean",
+                                                   self.channel_num,
+                                                   self._get_initializer({"name": "constant", "value": 0}),
+                                                   trainable=False)
+            self.running_var = self._get_variable("running_var",
+                                                  self.channel_num,
+                                                  self._get_initializer({"name": "constant", "value": 1}),
+                                                  trainable=False)
+            self.num_batches_tracked = self._get_variable("num_batches_tracked",
+                                                        0,
+                                                        self._get_initializer({"name": "scalar", "value": 0}),
+                                                        trainable=False)
 
             return
+
         elif A.backend() == A.TF:
             # Logging.
             if self.gamma_init:
@@ -458,6 +491,8 @@ class BatchNormalizationLayer(ProcessingLayer):
 
 
     def _forward(self, input):
+        # TODO: the backend dependent code should be changed to a backend
+        # independent one.
         if A.backend() == A.TF:
             self._data = A.nn.bn(input,
                                 self.channel_num,
@@ -469,7 +504,22 @@ class BatchNormalizationLayer(ProcessingLayer):
                                 share_gamma=self.share_gamma,
                                 name="bn" if self.summarize_output else None)
         elif A.backend() == A.TORCH:
-            self._data = self.bn(input)
+            exponential_average_factor = 0.0
+
+            if not self.is_val and self.track_running_stats:
+                if self.num_batches_tracked is not None:
+                    self.num_batches_tracked += 1
+                    if self.momentum is None:  # use cumulative moving average
+                        exponential_average_factor = 1.0 / float(self.num_batches_tracked)
+                    else:  # use exponential moving average
+                        exponential_average_factor = self.momentum
+
+            self._data = A.nn.bn(input, self.channel_num,
+                                 self.weights, self.biases,
+                                 self.running_mean, self.running_var,
+                                 self.is_val, self.track_running_stats,
+                                 exponential_average_factor, self.eps,
+                                 name="bn" if self.summarize_output else None)
 
         return self._data
 
@@ -481,14 +531,20 @@ class BatchNormalizationLayer(ProcessingLayer):
 
         return self._data
 
+BN = BatchNormalizationLayer
+
 
 class DropoutLayer(ProcessingLayer):
+    NAME = "Dropout"
+
     def __init__(self, keep_prob=0.5, **kwargs):
         super(DropoutLayer, self).__init__(**kwargs)
         self.keep_prob = keep_prob
 
     def _forward(self, input):
         self._data = A.nn.dropout(input, self.keep_prob, self.is_val)
+
+Dropout = DropoutLayer
 
 
 __all__ = [name for name, x in locals().items() if not inspect.ismodule(x)]

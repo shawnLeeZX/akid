@@ -51,6 +51,11 @@ def conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
 
 
 @cache_name_if_exist
+def conv1d(x, W, b=None, stride=1, padding=0, name=None):
+    return F.conv1d(x, W, b, stride, padding)
+
+
+@cache_name_if_exist
 def inner_product(input, W, bias=None, name=None):
     if bias is not None:
         return th.addmm(bias, input, W)
@@ -66,6 +71,11 @@ def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
     padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
     strides = _normalize_stride(strides)
     return F.max_pool2d(value, ksize, strides, padding)
+
+
+@cache_name_if_exist
+def max_pool1d(x, ksize, stride, padding, name=None):
+    return F.max_pool1d(x, ksize, stride, padding)
 
 
 def _normalize_stride(strides):
@@ -97,6 +107,11 @@ def relu(v, name=None):
 
 
 @cache_name_if_exist
+def sigmoid(v, name=None):
+    return F.sigmoid(v)
+
+
+@cache_name_if_exist
 def dropout(v, keep_prob, val=False, in_place=False, name=None):
     return F.dropout(v, 1-keep_prob, training=not val, inplace=in_place)
 
@@ -114,6 +129,11 @@ def mse_loss(data, labels, size_average=True, name=None):
 @cache_name_if_exist
 def cross_entropy_loss(logits, labels, name=None):
     return F.cross_entropy(logits, labels)
+
+
+@cache_name_if_exist
+def binary_cross_entropy_loss_with_logits(logits, labels, name=None):
+    return F.binary_cross_entropy_with_logits(logits, labels)
 
 
 @cache_name_if_exist
@@ -222,3 +242,15 @@ def get_padding_SAME(input_size, stride, ksize):
     padding = padding_before
 
     return padding
+
+@cache_name_if_exist
+def bn(x, out_channel_num, # out_channel_num is unused.
+       gamma, beta,
+       running_mean=None, running_var=None,
+       is_val=False, track_running_stats=True,
+       exponential_average_factor=0.1, eps=1^-5,
+       name=None, **kwargs):
+    return F.batch_norm(
+        x, running_mean, running_var, gamma, beta,
+        not is_val or not track_running_stats,
+        exponential_average_factor, eps)

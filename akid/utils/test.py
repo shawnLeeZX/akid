@@ -22,6 +22,7 @@ from akid import (
     SimpleSensor,
     MomentumKongFu
 )
+from akid import sugar
 from akid.models.brains import OneLayerBrain
 from akid import backend as A
 
@@ -35,6 +36,10 @@ def main():
 
 
 class AKidTestCase(TestCase):
+    def setUp(self):
+        sugar.init()
+        A.reset()
+
     def assertNdarrayEquals(self, a, b):
         if not (a == b).all():
             msg = self._formatMessage(None, '\n{}\n == \n{}\n'.format(a, b))
@@ -183,3 +188,22 @@ def debug_on(*exceptions):
                 pdb.post_mortem(info[2])
         return wrapper
     return decorator
+
+
+class ForkablePdb(pdb.Pdb):
+
+    _original_stdin_fd = sys.stdin.fileno()
+    _original_stdin = None
+
+    def __init__(self):
+        pdb.Pdb.__init__(self)
+
+    def _cmdloop(self):
+        current_stdin = sys.stdin
+        try:
+            if not self._original_stdin:
+                self._original_stdin = os.fdopen(self._original_stdin_fd)
+            sys.stdin = self._original_stdin
+            self.cmdloop()
+        finally:
+            sys.stdin = current_stdin

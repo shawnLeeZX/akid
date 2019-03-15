@@ -22,7 +22,7 @@ class LossLayer(ProcessingLayer):
         self.log("Using multiplier {}".format(self.multiplier))
 
     def _post_forward(self, *args, **kwargs):
-        super(LossLayer, self)._post_forward(*args, **kwargs)
+        super(LossLayer, self)._post_forward(self, *args, **kwargs)
         self._loss = self._loss * self.multiplier
 
 
@@ -187,6 +187,8 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
 
 
 class MSELossLayer(LossLayer):
+    NAME = "MSELoss"
+
     def __init__(self, size_average=True, **kwargs):
         super(MSELossLayer, self).__init__(**kwargs)
 
@@ -196,6 +198,34 @@ class MSELossLayer(LossLayer):
         self._loss = A.nn.mse_loss(data[0], data[1], self.size_average)
         self._data = self._loss
         return self._loss
+
+
+class BCELossLayer(LossLayer):
+    NAME = "BCELoss"
+
+    def _forward(self, x):
+        self._loss = A.nn.binary_cross_entropy_loss_with_logits(x[0], x[1])
+        self._data = self._loss
+        return self._loss
+
+
+class WeightDecayLayer(LossLayer):
+    NAME = "WD"
+
+    def _forward(self, variable_list):
+        sum = 0
+        for v in variable_list:
+            v = A.reshape(v, -1)
+            v_square = v.dot(v)
+            sum += v_square
+
+        sum *= self.multiplier
+
+        self._loss = sum
+        self._data = sum
+
+        return sum
+
 
 
 __all__ = [name for name, x in locals().items() if

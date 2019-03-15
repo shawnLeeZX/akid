@@ -20,18 +20,41 @@ class LearningRateScheme(object):
 
 class KongFu(ShadowableBlock, UpdateBlock):
     """
-    An top level abstract class to compute gradients given a loss.
+    An top level abstract class to compute gradients given a loss.  Any
+    concrete `KongFu` should implement `_get_optimizer` to provide a concrete
+    optimizer.
 
-    All concrete sub-class should save the computed gradients to `_data`, which
-    is exposed by the property `data`. The data should be the return of
-    `tf.train.Optimizer.compute_gradients`, which is a list of (gradient,
-    variable) pairs. Further processing of the gradients could be done anyway
-    you want, such as doing gradient average for data parallelism, or gradient
-    clipping.
+    To change learning rate call `set_lr`. For example, to set a learning rate
+    scheduler during training::
 
-    Any concrete `KongFu` should implement `_get_optimizer` to provide a
-    concrete optimizer.
+        kid = Kid(...)
+        from akid import backend as A
+
+        def update_lr(kid):
+            if A.get_step() < 200:
+                kid.kongfu.set_lr(0.1)
+            elif A.get_step() < 400:
+                kid.kongfu.set_lr(0.01)
+            elif A.get_step() < 600:
+                kid.kongfu.set_lr(0.001)
+            else:
+                kid.kongfu.set_lr(0.0001)
+
+        kid.hooks.on_batch_begin.append(update_lr)
+
+    The data of this block depends on backends.
+
+    For PyTorch, since the gradients are saved along with variable
+    tensors. `data` property is None.
+
+    For Tensorflow: all concrete sub-class should save the computed gradients
+    to `_data`, which is exposed by the property `data`. The data should be the
+    return of `tf.train.Optimizer.compute_gradients`, which is a list of
+    (gradient, variable) pairs. Further processing of the gradients could be
+    done anyway you want, such as doing gradient average for data parallelism,
+    or gradient clipping.
     """
+    NAME = "Kongfu"
     __metaclass__ = classmaker()
 
     def __init__(self,
@@ -71,11 +94,6 @@ class KongFu(ShadowableBlock, UpdateBlock):
                        `KongFu._lr_tensor`.
                 See the default value for an example usage.
         """
-        # Since normally we do not care what the name of an optimizer is, just
-        # give it a default name.
-        if "name" not in kwargs:
-            kwargs["name"] = "opt"
-
         super(KongFu, self).__init__(**kwargs)
         self._lr_value = lr
         if var_list is None:

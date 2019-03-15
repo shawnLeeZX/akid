@@ -1,7 +1,16 @@
 """
 The module to holds variable initializers.
 
-To get an initializer, call `get`.
+To get an initializer, call `get`::
+
+    init_para={"stddev": 0.1},
+    init = initializers.get(name, **init_para)
+
+where the parameter needed by the initializer is passed in as a dict.
+
+Note that all initializer return tensors/ndarray at least of dimension 1. To
+get a tensor of dimension 0 --- that's to say to get a scalar ---, use
+`ScalarInitializer` explicitly.
 """
 from __future__ import division
 
@@ -48,7 +57,7 @@ def get(name, **kwargs):
         # Use default seed.
         kwargs["seed"] = SEED
 
-    if name == "range_uniform":
+    if name == "range_uniform" and A.backend() == A.TF:
         range = kwargs.pop("range")
         kwargs["minval"] = -range
         kwargs["maxval"] = range
@@ -162,6 +171,18 @@ class FixedStdInitializer(Initializer):
         return value
 
 
+class RangeUniformInitializer(Initializer):
+    def __init__(self, low=0, high=1, **kwargs):
+        super(RangeUniformInitializer, self).__init__(**kwargs)
+        self.low = low
+        self.high = high
+
+    def __call__(self, shape):
+        v = np.random.uniform(low=self.low, high=self.high, size=shape)
+        v = v.astype(A.get_np_dtype())
+        return v
+
+
 class ConstantInitializer(Initializer):
     def __init__(self, value=0):
         super(ConstantInitializer, self).__init__()
@@ -169,6 +190,24 @@ class ConstantInitializer(Initializer):
 
     def __call__(self, shape):
         v = np.ones(shape) * self.value
+        v = v.astype(A.get_np_dtype())
+
+        return v
+
+
+class ScalarInitializer(Initializer):
+    def __init__(self, value=0, **kwargs):
+        super(ScalarInitializer, self).__init__(**kwargs)
+        self.value = value
+
+    def __call__(self, shape):
+        # The shape parameter is unused. Just check to make sure it is not
+        # accidentally (or intentionally) set wrong.
+        if shape != 0:
+            raise ValueError("The shape of `ScalarInitializer` should be 0. Got {}".format(shape))
+
+        v = np.array(self.value)
+        v = v.astype(A.get_np_dtype())
 
         return v
 
@@ -227,6 +266,9 @@ InitializerRegistry("tensor",
 InitializerRegistry("xavier",
                     XavierInitializer,
                     XavierInitializer.__doc__)
+InitializerRegistry("scalar",
+                    ScalarInitializer,
+                    ScalarInitializer.__doc__)
 
 if A.backend() == A.TF:
     import tensorflow as tf
@@ -278,3 +320,6 @@ elif A.backend() == A.TORCH:
     InitializerRegistry("msra",
                         MSRAInitializer,
                         MSRAInitializer.__doc__)
+    InitializerRegistry("range_uniform",
+                        RangeUniformInitializer,
+                        RangeUniformInitializer.__doc__)

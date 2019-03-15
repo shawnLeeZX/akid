@@ -1,3 +1,6 @@
+import multiprocessing
+import Queue
+
 import torch as th
 from torch.autograd import Variable
 from tensorboardX import SummaryWriter
@@ -17,6 +20,9 @@ from akid.utils.tools import currentframe
 
 
 _collections = None
+_done_event = None
+_queue = None
+QUEUE_SIZE = 1000
 summary_writer = None
 _denormalize = None
 
@@ -74,6 +80,9 @@ def reset_collections():
 
 class SummaryOp(object):
     def __init__(self, name):
+        if name is None:
+            raise ValueError("Name of the summary cannot be None.")
+
         self.name = name
         # Save where the summary is initialized.
         f = currentframe()
@@ -87,9 +96,9 @@ class SummaryOp(object):
     def __repr__(self):
         return "<{} for {}> in {}".format(type(self).__name__, self.name, self.position)
 
-    def __call__(self, step):
+    def __call__(self, step, v):
         try:
-            self._call(step)
+            self._call(step, v)
         except Exception as e:
             print self.__str__()
             raise e
@@ -100,11 +109,11 @@ class HistogramSummaryOp(SummaryOp):
         super(HistogramSummaryOp, self).__init__(**kwargs)
         self.summary_on_grad = summary_on_grad
 
-    def _call(self, step):
+    def _call(self, step, tensor):
         summary_writer.add_histogram(
-            self.name, cg.eval(cg.tensor_by_name[self.name]), global_step=step, bins='auto')
+            self.name, cg.eval(tensor), global_step=step, bins='auto')
         if self.summary_on_grad:
-            grad = cg.tensor_by_name[self.name].grad
+            grad = tensor.grad
             if grad is not None:
                 summary_writer.add_histogram(
                     self.name + "_grad", cg.eval(grad), global_step=step, bins='auto')
@@ -113,16 +122,14 @@ class HistogramSummaryOp(SummaryOp):
 
 
 class ScalarSummaryOp(SummaryOp):
-    def _call(self, step):
-        t = cg.tensor_by_name[self.name]
+    def _call(self, step, t):
         v = cg.eval(t)  if type(t) is Variable else t
         summary_writer.add_scalar(
             self.name, v, global_step=step)
 
 
 class ImageSummaryOp(SummaryOp):
-    def _call(self, step):
-        t = cg.tensor_by_name[self.name]
+    def _call(self, step, t):
         if len(t.size()) == 4:
             t = t[0]
             # Since TensorboardX 1.5, it handles the torch format (CHW) by
@@ -139,16 +146,37 @@ class ImageSummaryOp(SummaryOp):
             self.name + ' image', v, global_step=step)
 
 
+def _summary_writer_worker(dir, queue, done_event):
+    global summary_writer
+    summary_writer = SummaryWriter(dir)
+    while True:
+        if done_event.is_set() and queue.empty():
+            return
+
+        try:
+            op, v, step = queue.get(timeout=cg_general.TIMEOUT)
+            op(step, v)
+        except Queue.Empty:
+            continue
+
+
 def init(dir=None):
     """
     Create the summary file writer.
+
+    It creates a process that polls a queue to see if are there anymore summary
+    to write.
 
     Args:
         dir: str
             The directory to save event files.
     """
-    global summary_writer
-    summary_writer = SummaryWriter(dir)
+    global _done_event
+    global _queue
+    _done_event = multiprocessing.Event()
+    _queue = multiprocessing.Queue(QUEUE_SIZE)
+    worker_process = multiprocessing.Process(target=_summary_writer_worker, args=(dir, _queue, _done_event))
+    worker_process.start()
 
 
 def histogram(name, values, summary_on_grad=False, collections=None):
@@ -172,7 +200,8 @@ def image(name, value, collections=None):
 
 
 def add_scalar(name, value, step):
-    summary_writer.add_scalar(name, value, global_step=step)
+    op = ScalarSummaryOp(name)
+    _queue.put((op, value, step))
 
 
 def add_graph():
@@ -198,17 +227,33 @@ def merge(l):
     return l
 
 
-def run_summary_op(op, feed_dict=None):
+# TODO: since queue is used, we do not need to wait to run such merged summary;
+# we can add the summary to be written to on-the-fly during training.
+def run_summary_op(ops, feed_dict=None):
     """
     Args:
         op: a list of SummaryOp.
         feed_dict: not used. Tensorflow compatibility.
     """
-    if type(op) is list:
-        for c in op:
-            c(cg_general.get_step())
+    if isinstance(ops, SummaryOp):
+        ops = [ops]
+    elif type(ops) is list:
+        pass
     else:
-        op(cg_general.get_step())
+        raise ValueError("ops should be a `SummaryOp` or a list; got {}".format(type(op)))
+
+    # NOTE: it may take some time to transfer from GPU to CPU, if this becomes
+    # a bottleneck, a thread should be used to transfer the data.
+    op_values = [cg.tensor_by_name[op.name].to("cpu") for op in ops]
+    op_value_tuples = zip(ops, op_values)
+    for t in op_value_tuples:
+        # TODO: resize queue if its size is not enough.
+        _queue.put((t[0], t[1], cg_general.get_step()))
+
+
+def close():
+    if _done_event is not None:
+        _done_event.set()
 
 
 reset_collections()

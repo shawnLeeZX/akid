@@ -145,6 +145,12 @@ class SingleGPUEngine(Engine):
         else:
             return self.val_brain.eval
 
+    def verbose_eval(self, get_val=False):
+        if not get_val:
+            return self.brain.verbose_eval
+        else:
+            return self.val_brain.verbose_eval
+
     def get_layer_data(self, name, get_val=False):
         """
         Given the `name` of the layer, return the tensor of the data of this

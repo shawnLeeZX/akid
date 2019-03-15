@@ -44,8 +44,11 @@ def backend():
 
 def reset():
     reset_step()
+    reset_block_count()
+    reset_eval_block_map()
     close()
     # We use scope management from tensorflow, so reset graph
     tf.reset_default_graph()
     if _BACKEND == TORCH:
         summary.reset_collections()
+        summary.close()

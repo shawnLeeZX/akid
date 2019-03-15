@@ -42,6 +42,17 @@ class TestLossLayers(AKidTestCase):
         X_out_eval = A.eval(X_out)
         self.assertEquals(X_out_eval, X_out_ref)
 
+    def test_weight_decay_layer(self):
+        from akid.layers import WeightDecayLayer
+
+        l = WeightDecayLayer(0.5)
+
+        W_list = [A.Tensor([[1, 1], [1, 1]]), A.Tensor([[1, 1], [1, 1]])]
+        loss_ref = 4
+
+        loss_out = l.forward(W_list)
+
+        self.assertEquals(loss_ref, A.eval(loss_out))
 
     @skip("Badly written test.")
     def test_multiplier(self):
