@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import tensorflow as tf
 import numpy as np
 
@@ -218,7 +219,6 @@ class NamedTensorTuple(tuple, NamedValue):
     Arbitrary number of tuple members are supported.
     """
     def __init__(self, name=None, *args, **kwargs):
-        super(NamedTensorTuple, self).__init__(*args, **kwargs)
         self.name = name
 
     def __new__(cls, name, *args, **kwargs):
@@ -237,7 +237,7 @@ class NamedScalar(np.float, NamedValue):
     """
     def __init__(self, name=None, *args, **kwargs):
         self.name = name
-        super(NamedScalar, self).__init__(*args, **kwargs)
+        # super(NamedScalar, self).__init__(*args, **kwargs)
 
     def __new__(cls, name, *args, **kwargs):
         return super(NamedScalar, cls).__new__(cls, *args, **kwargs)

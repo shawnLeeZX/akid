@@ -3,14 +3,17 @@ This module holds sources for CIFAR100 dataset. Only `TFSource` type source are
 implemented for now.
 """
 from __future__ import division
+from __future__ import absolute_import
+from __future__ import print_function
 import os
 
-import cPickle as pickle
+import six.moves.cPickle as pickle
 import numpy as np
 import tensorflow as tf
 
 from ..core.sources import ClassificationTFSource
 from .datasets import DataSet
+from six.moves import range
 
 
 SUPER_CLASS_NUM = 20
@@ -487,7 +490,7 @@ class HCifar100TFSource(ClassificationTFSource):
         depth = images.shape[3]
 
         filename = os.path.join(self.work_dir, name)
-        print('Writing', filename)
+        print(('Writing', filename))
         writer = tf.python_io.TFRecordWriter(filename)
         for index in range(num_examples):
             image_raw = np.reshape(images[index], -1).tolist()
@@ -522,7 +525,7 @@ class HCifar100TFSource(ClassificationTFSource):
         # Set default non-existence labels.
         fine_label_vectors[:, SUB_CLASS_NUM::(SUB_CLASS_NUM+1)] = 1
         # Set real labels.
-        batch_indices = range(0, num_examples)
+        batch_indices = list(range(0, num_examples))
         augmented_labels = labels // SUB_CLASS_NUM * (SUB_CLASS_NUM+1) \
             + labels % SUB_CLASS_NUM
         fine_label_vectors[batch_indices, augmented_labels] = 1

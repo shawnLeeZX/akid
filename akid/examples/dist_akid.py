@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import tensorflow as tf
 
 from akid import AKID_DATA_PATH
@@ -85,7 +87,7 @@ def main(_):
         # perform *synchronous* training.
         loss_value, _, step = sess.run([loss, train_op, global_step],
                            feed_dict=sensor.fill_feed_dict())
-        print loss_value
+        print(loss_value)
 
     # Ask for all the services to stop.
     sv.stop()

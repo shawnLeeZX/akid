@@ -3,6 +3,7 @@ This module provides systems of different topology to compose `Block`s to
 create more complex blocks. A system does not concern which type of block it
 holds, but only concerns the mathematical topology how they connect.
 """
+from __future__ import absolute_import
 import copy
 
 from .blocks import GenerativeBlock
@@ -211,7 +212,7 @@ class GraphSystem(SequentialSystem):
                     input_num = len(inputs)
 
                     # Pick the first output tensor, if not specifying idxs
-                    if not input.has_key("idxs"):
+                    if "idxs" not in input:
                         input["idxs"] = [0]
 
                     # First check whether the input is from the system input.

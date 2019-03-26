@@ -38,11 +38,13 @@ source. Other abstract classes keep implementing more concrete
 sources. Abstract `Source` s need to be inherited and abstract methods
 implemented before it could be used.
 """
+from __future__ import absolute_import
+from __future__ import print_function
 import abc
 import sys
 import inspect
 import os
-import urllib
+import six.moves.urllib.request, six.moves.urllib.parse, six.moves.urllib.error
 import tarfile
 
 import numpy as np
@@ -51,6 +53,8 @@ from torch.utils.data.dataloader import default_collate
 
 from .blocks import DataBlock, FlowBlock
 from .. import backend as A
+import six
+from six.moves import range
 
 
 # Basic model parameters as external flags.
@@ -110,7 +114,7 @@ class Source(DataBlock):
         return sample_batch
 
 
-class OldSource(FlowBlock):
+class OldSource(six.with_metaclass(abc.ABCMeta, FlowBlock)):
     """
     An abstract class to model data source from the world.
 
@@ -121,7 +125,6 @@ class OldSource(FlowBlock):
     According to how tensorflow supplies data, two ways existed to
     correspondingly, `FeedSource` and `TFSource`.
     """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self,
                  url=None,
@@ -177,12 +180,12 @@ class OldSource(FlowBlock):
                         float(count * block_size) /
                         float(total_size) * 100.0))
                 sys.stdout.flush()
-            filepath, _ = urllib.urlretrieve(
+            filepath, _ = six.moves.urllib.request.urlretrieve(
                 self.url, filepath, reporthook=_progress)
             print()
             statinfo = os.stat(filepath)
-            print('Succesfully downloaded',
-                  filename, statinfo.st_size, 'bytes.')
+            print(('Succesfully downloaded',
+                  filename, statinfo.st_size, 'bytes.'))
             # Extract if a tarball.
             suffixes = filename[filename.find('.')+1:]
             if suffixes == 'tar.gz':
@@ -493,7 +496,7 @@ class ClassificationTFSource(TFSource, SupervisedSource):
         depth = images.shape[3]
 
         filename = os.path.join(self.work_dir, name + '.tfrecords')
-        print('Writing', filename)
+        print(('Writing', filename))
         writer = tf.python_io.TFRecordWriter(filename)
         for index in range(num_examples):
             image_raw = np.reshape(images[index], -1).tolist()

@@ -1,6 +1,7 @@
 """
 This module holds common stuffs of all, such as global constants.
 """
+from __future__ import absolute_import
 import inspect
 
 # Graph collection names

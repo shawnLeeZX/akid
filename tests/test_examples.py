@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from akid.utils.test import AKidTestCase, main, debug_on, skipUnless
 
 from akid import backend as A

@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from __future__ import absolute_import
 from akid.utils.test import AKidTestCase, TestFactory, main, skipUnless, skip, debug_on
 from akid import (
     IntegratedSensor,
@@ -23,6 +24,8 @@ from akid import SimpleSensor, MNISTSource
 import akid
 
 import time
+from six.moves import range
+from six.moves import zip
 
 
 class TestSimpleSensor(AKidTestCase):
@@ -49,7 +52,7 @@ class TestSimpleSensor(AKidTestCase):
 
         time.sleep(2)
         d = sensor.forward()
-        d_ref = source.get(range(b_size))
+        d_ref = source.get(list(range(b_size)))
 
         for t in zip(A.eval(d), A.eval(d_ref)):
             self.assertNdarrayEquals(t[0], t[1])

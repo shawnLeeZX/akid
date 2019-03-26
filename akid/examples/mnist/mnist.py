@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from akid import AKID_DATA_PATH
 from akid import FeedSensor
 from akid import Kid

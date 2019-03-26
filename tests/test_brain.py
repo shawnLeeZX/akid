@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import tensorflow as tf
 
 from akid.utils.test import AKidTestCase, TestFactory, main, debug_on, skipUnless
@@ -12,6 +14,7 @@ from akid.layers import (
 from akid import backend as A
 
 from akid.utils import glog as log
+from six.moves import zip
 log.init()
 
 

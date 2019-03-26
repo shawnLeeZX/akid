@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import numpy as np
 
 from akid.utils.test import AKidTestCase, main, TestFactory, debug_on, skip, skipUnless
@@ -7,6 +8,7 @@ from akid import GraphBrain
 from akid.layers import SoftmaxWithLossLayer
 from akid.layers import ConvolutionLayer, SLUConvLayer
 from akid import backend as A
+from six.moves import range
 
 
 class TestSynapseLayers(AKidTestCase):
@@ -112,7 +114,7 @@ class TestSynapseLayers(AKidTestCase):
         A.init()
         A.summary.init()
 
-        for i in xrange(100):
+        for i in range(100):
             if A.backend() == A.TORCH:
                 l.forward(A.Tensor(X_in, requires_grad=True))
             else:
@@ -405,7 +407,7 @@ class TestSynapseLayers(AKidTestCase):
         ]],
                         dtype=np.float32)
         X_out_c_list = []
-        for i in xrange(3):
+        for i in range(3):
             X_out_c = X_out_ref + i+1
             X_out_c_list.append(X_out_c)
         X_out_ref = np.concatenate(X_out_c_list, axis=1)
@@ -453,7 +455,7 @@ class TestSynapseLayers(AKidTestCase):
                         dtype=np.float32)
         X_in = np.einsum('nchw->nhwc', X_in)
         f_list = []
-        for i in xrange(3):
+        for i in range(3):
             filter = np.array([
                 [
                     [[1]],

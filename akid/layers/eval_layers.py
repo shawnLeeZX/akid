@@ -1,9 +1,11 @@
+from __future__ import absolute_import
 from sklearn.metrics import roc_auc_score, average_precision_score
 import numpy as np
 
 from ..core.blocks import ProcessingLayer
 from ..backend import NamedTensorTuple, NamedScalar
 from .. import backend as A
+from six.moves import range
 
 
 class EvalLayer(ProcessingLayer):

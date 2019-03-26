@@ -10,6 +10,8 @@ import sys
 import inspect
 
 import matplotlib as mpl
+from six.moves import range
+from six.moves import zip
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.art3d as art3d
@@ -121,7 +123,7 @@ class Observer(object):
                 if idxs is None:
                     log.info("No indices of images are given. Will use the"
                              " all batch")
-                    idxs = range(0, batch_size)
+                    idxs = list(range(0, batch_size))
 
                 # Initialize canvas.
                 # Arrange image in a grid form as square as possible.
@@ -538,10 +540,10 @@ class Observer(object):
         log.info(
             "Final image's dimension is going to be {}.".format(out_img.shape))
 
-        for f_idx in xrange(0, filter_num):
+        for f_idx in range(0, filter_num):
             # Flatten channels into one image
             filter_img = self._get_a_canvas(_w_height, _w_width)
-            for c_idx in xrange(0, channel_num):
+            for c_idx in range(0, channel_num):
                 col_idx = c_idx*w_width_pad
                 filter_img[0:w_height, col_idx:col_idx+w_width] \
                     = w[..., c_idx, f_idx]
@@ -603,7 +605,7 @@ class Observer(object):
 
         # Tile the image
         # #################################################################
-        for filter_idx in xrange(0, filter_num*channel_num):
+        for filter_idx in range(0, filter_num*channel_num):
             # Gather stats.
             filter_No = np.floor(filter_idx / channel_num)
             filter_channel_No = filter_idx % channel_num
@@ -626,7 +628,7 @@ class Observer(object):
 
         # If it is traditional CNN, we append the bias term at the end of each
         # row of output image.,
-        for filter_No in xrange(0, filter_num):
+        for filter_No in range(0, filter_num):
             out_img[filter_No*_w_height, channel_num*_w_width] \
                 = b[filter_No]
 
@@ -667,9 +669,9 @@ class Observer(object):
             fig = plt.figure()
             ax = fig.add_subplot(1, 1, 1, projection='3d')
         # Draw.
-        for row in xrange(h):
+        for row in range(h):
             for x_, y_, z_ in zip(xv[row, :], yv[row, :], X[h-1-row, :]):
-                line = art3d.Line3D(*zip((x_, y_, 0), (x_, y_, z_)),
+                line = art3d.Line3D(*list(zip((x_, y_, 0), (x_, y_, z_))),
                                     marker='o')
                 ax.add_line(line)
         ax.set_xlim3d(0, w)
@@ -729,7 +731,7 @@ class Observer(object):
         out_img_w = pad_w * cols
         out_img = self._get_a_canvas(out_img_h, out_img_w)
         # Fill the feature map in the output image.
-        for map_idx in xrange(0, channel_num):
+        for map_idx in range(0, channel_num):
             row_idx = int(np.floor(map_idx / cols))
             col_idx = map_idx % cols
             x = row_idx * pad_h
@@ -858,7 +860,7 @@ class Observer(object):
             # Eval all parameters.
             # We use an explicit loop since we need both weights and biases
             # at the same time.
-            for i in xrange(0, len(filters), 2):
+            for i in range(0, len(filters), 2):
                 weights_tensor = filters[i]
                 biases_tensor = filters[i+1]
                 name = weights_tensor.name.split('/')[0]
@@ -916,7 +918,7 @@ class Observer(object):
             else:
                 activation_dict["data"] = feed_dict[data][idxs, ...]
             # Add actual activation.
-            for i in xrange(0, len(activations)):
+            for i in range(0, len(activations)):
                 # Shorten the name.
                 name = activations[i].name.split('/')[0]
                 if len(idxs) is 1:

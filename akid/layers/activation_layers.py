@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import sys
 import inspect
 
@@ -8,6 +9,8 @@ from torch.nn import functional as F
 
 from ..core.blocks import ProcessingLayer
 from .. import backend as A
+from six.moves import range
+from six.moves import zip
 
 
 class PoolingLayer(ProcessingLayer):
@@ -81,7 +84,7 @@ class MaxPoolingLayer(_PoolingLayer):
                 ret.append(self._max_pooling(X))
 
             if self.get_argmax_idx:
-                ret = zip(*ret)
+                ret = list(zip(*ret))
                 self._data, self.in_group_indices = ret[0], ret[1]
             else:
                 self._data = ret
@@ -160,7 +163,7 @@ class ColorizationReLULayer(ProcessingLayer):
         F, C = X_in[0], X_in[1]
         F = A.nn.relu(F)
         C_list = []
-        for i in xrange(3):
+        for i in range(3):
             C_list.append(F * A.expand_dims(C[..., i], -1))
         out = A.concat(
             concat_dim=3,
@@ -229,7 +232,7 @@ class SoftmaxNormalizationLayer(ProcessingLayer):
             self.name, num_split))
         data_split = tf.split(axis=1, num_or_size_splits=num_split, value=data)
         data_split = list(data_split)
-        for i in xrange(0, len(data_split)):
+        for i in range(0, len(data_split)):
             data_split[i] = tf.nn.softmax(data_split[i])
         data = tf.concat(axis=1, values=data_split,)
         output = tf.reshape(data, shape, SoftmaxNormalizationLayer.NAME)

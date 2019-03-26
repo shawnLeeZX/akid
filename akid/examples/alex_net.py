@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 def setup():
     from akid import AKID_DATA_PATH
     from akid import Kid

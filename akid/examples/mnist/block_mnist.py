@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from akid.sugar.block_templates import cnn_block
 from akid import AKID_DATA_PATH
 from akid import GraphBrain, MNISTFeedSource, FeedSensor, Kid, MomentumKongFu

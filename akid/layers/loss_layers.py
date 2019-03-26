@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import inspect
 
 import tensorflow as tf
@@ -5,6 +6,7 @@ import tensorflow as tf
 from ..core.blocks import ProcessingLayer
 from .activation_layers import GroupSoftmaxLayer
 from .. import backend as A
+from six.moves import range
 
 
 class LossLayer(ProcessingLayer):
@@ -100,11 +102,11 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
         for d in shape[0:-1]:
             nc_shape *= d
         self.ground_state = tf.constant(1.0, shape=[nc_shape, 1])
-        for i in xrange(0, len(data_split)):
+        for i in range(0, len(data_split)):
             data_split[i] = tf.concat(axis=1,
                                       values=[data_split[i],
                                        self.ground_state])
-        for i in xrange(0, len(data_split)):
+        for i in range(0, len(data_split)):
             data_split[i] = tf.nn.softmax(
                 data_split[i])
 
@@ -145,7 +147,7 @@ class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
             cross_entropy_mean = tf.reduce_mean(_, name='xentropy_mean')
 
         # Drop the augmented dimension.
-        for i in xrange(0, len(data_split)):
+        for i in range(0, len(data_split)):
             data_split[i] = data_split[i][:, 0:self.group_size]
         data = tf.concat(axis=1, values=data_split,)
         output = tf.reshape(data, shape, GroupSoftmaxWithLossLayer.NAME)

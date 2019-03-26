@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from six.moves import range
 def setup(graph=None):
 
     from akid import GraphBrain
@@ -11,7 +13,7 @@ def setup(graph=None):
     out_channel_num_list = [64, 128, 256, 512]
     group_size_list = [2, 4, 8, 16]
 
-    for i in xrange(0, 4):
+    for i in range(0, 4):
         brain.attach(cnn_block(
             ksize=[3, 3],
             init_para={

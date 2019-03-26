@@ -1,5 +1,7 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import multiprocessing
-import Queue
+import six.moves.queue
 
 import torch as th
 from torch.autograd import Variable
@@ -17,6 +19,8 @@ from akid.core.common import (
     TRAINING_DYNAMICS_COLLECTION,
 )
 from akid.utils.tools import currentframe
+import six
+from six.moves import zip
 
 
 _collections = None
@@ -100,7 +104,7 @@ class SummaryOp(object):
         try:
             self._call(step, v)
         except Exception as e:
-            print self.__str__()
+            print(self.__str__())
             raise e
 
 
@@ -156,7 +160,7 @@ def _summary_writer_worker(dir, queue, done_event):
         try:
             op, v, step = queue.get(timeout=cg_general.TIMEOUT)
             op(step, v)
-        except Queue.Empty:
+        except six.moves.queue.Empty:
             continue
 
 
@@ -217,7 +221,7 @@ def get_collection(name=None):
         return _collections[name]
     else:
         ret = []
-        for v in _collections.itervalues():
+        for v in six.itervalues(_collections):
             ret.extend(v)
         return ret
 
@@ -245,7 +249,7 @@ def run_summary_op(ops, feed_dict=None):
     # NOTE: it may take some time to transfer from GPU to CPU, if this becomes
     # a bottleneck, a thread should be used to transfer the data.
     op_values = [cg.tensor_by_name[op.name].to("cpu") for op in ops]
-    op_value_tuples = zip(ops, op_values)
+    op_value_tuples = list(zip(ops, op_values))
     for t in op_value_tuples:
         # TODO: resize queue if its size is not enough.
         _queue.put((t[0], t[1], cg_general.get_step()))

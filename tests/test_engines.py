@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from akid import (
     Kid,
     FeedSensor,
@@ -9,6 +10,7 @@ from akid.models import OneLayerBrain
 
 from akid.utils.test import AKidTestCase, TestFactory, main, skipUnless, debug_on
 from akid import backend as A
+from six.moves import range
 
 
 class TestEngine(AKidTestCase):
@@ -89,7 +91,7 @@ class TestEngine(AKidTestCase):
         self.assertTensorEquals(kid.sensor.training_data,
                                 kid_ref.sensor.training_data)
 
-        for i in xrange(10):
+        for i in range(10):
             kid.step()
             kid_ref.step()
 

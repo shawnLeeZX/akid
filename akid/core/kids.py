@@ -21,6 +21,7 @@ from .common import (
     TRAINING_DYNAMICS_COLLECTION
 )
 from .eval_blocks import BatchEvalBlock
+from six.moves import range
 
 
 class Kid(Block):
@@ -251,7 +252,7 @@ class Kid(Block):
         loss_block = BatchEvalBlock()
         steps_per_epoch = self.sensor.num_batches_per_epoch
 
-        for step in tqdm(range(1, steps_per_epoch+1)):
+        for step in tqdm(list(range(1, steps_per_epoch+1))):
             if verbose_eval_blocks is None:
                 loss, evals = self.run_step(update=False, val=True)
             else:
@@ -460,7 +461,7 @@ class Kid(Block):
             os.makedirs(self.log_dir)
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
-        log.init("stdout", akid_logger=True)
+        A.init_log()
         if self.log_to_file:
             log.add(self.log_filepath)
         if self.debug:

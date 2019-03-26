@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from akid.utils.test import AKidTestCase, main, skipUnless, skip
 from akid.examples.mnist import block_mnist
 from akid import sugar

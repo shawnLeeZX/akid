@@ -32,10 +32,12 @@ import sys
 import abc
 import inspect
 from deprecated import deprecated
+import six
+from six.moves import range
 
 if sys.version_info[0] == 2:
-    from Queue import Queue
-    import Queue as queue
+    from six.moves.queue import Queue
+    import six.moves.queue as queue
 else:
     from queue import Queue
     import queue
@@ -260,12 +262,11 @@ class SimpleSensor(Sensor):
 
 
 @deprecated(reason="Legacy code. Use `Sensor` instead.")
-class OldSensor(ProcessingBlock):
+class OldSensor(six.with_metaclass(abc.ABCMeta, ProcessingBlock)):
     """
     The top level abstract sensor to preprocessing raw data received from
     `Source`, such as batching, data augmentation etc.
     """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self,
                  source_in=None,
@@ -420,7 +421,7 @@ class OldSensor(ProcessingBlock):
                 return [self.val_data]
 
 
-class ShuffleQueueSensor(OldSensor):
+class ShuffleQueueSensor(six.with_metaclass(abc.ABCMeta, OldSensor)):
     """
     A `OldSensor` that holds a shuffle queue, which would pre-load
     `min_fraction_of_examples_in_queue` number of examples and sample batches
@@ -429,7 +430,6 @@ class ShuffleQueueSensor(OldSensor):
     could ensure that the random shuffling has good
     mixing properties.
     """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self, min_fraction_of_examples_in_queue=0.1, **kwargs):
         """

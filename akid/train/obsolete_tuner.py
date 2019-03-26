@@ -11,6 +11,8 @@ release, since it is used to control access to the actual GPU. A training
 instance will be launched in a subshell using the GPU acquired. The semaphore
 is only released after the training has finished.
 """
+from __future__ import absolute_import
+from __future__ import print_function
 import multiprocessing
 import importlib
 import argparse
@@ -18,6 +20,7 @@ import argparse
 import tensorflow as tf
 import pycuda.autoinit
 import pycuda.driver as cuda
+from six.moves import range
 
 
 def spawn(s, l, gpu_mask, **kwargs):
@@ -29,8 +32,8 @@ def spawn(s, l, gpu_mask, **kwargs):
         with l:
             for idx, avail in enumerate(gpu_mask):
                 if avail == 1:
-                    print("GPU mask {}.".format(gpu_mask))
-                    print("Using GPU {}.".format(idx))
+                    print(("GPU mask {}.".format(gpu_mask)))
+                    print(("Using GPU {}.".format(idx)))
                     gpu_mask[idx] = 0
                     break
 
@@ -44,7 +47,7 @@ def spawn(s, l, gpu_mask, **kwargs):
 
         # Release the GPU.
         with l:
-            print("Released GPU {}.".format(idx))
+            print(("Released GPU {}.".format(idx)))
             gpu_mask[idx] = 1
 
 
@@ -103,7 +106,7 @@ process_pool = []
 
 # Start tuning.
 # #########################################################################
-for i in xrange(len(lr_list)):
+for i in range(len(lr_list)):
     p = multiprocessing.Process(target=spawn,
                                 args=(s, l, gpu_mask),
                                 kwargs={"lr": lr_list[i]})

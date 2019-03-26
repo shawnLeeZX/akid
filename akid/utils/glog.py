@@ -78,6 +78,7 @@ flags, like so:
 
 Happy logging!
 """
+from __future__ import absolute_import
 import sys
 import logging
 import time
@@ -153,7 +154,7 @@ def init(filename=None, akid_logger=False):
     logger = logging.getLogger("glog")
 
     if akid_logger:
-        def findCaller(self):
+        def findCaller(self, *args, **kwargs):
             """
             Find the stack frame of the caller so that we can note the source
             file name, line number and function name.
@@ -175,7 +176,7 @@ def init(filename=None, akid_logger=False):
                 if co.co_name == "log":
                     f = f.f_back
                     continue
-                rv = (co.co_filename, f.f_lineno, co.co_name)
+                rv = (co.co_filename, f.f_lineno, co.co_name, None)
                 break
             return rv
 

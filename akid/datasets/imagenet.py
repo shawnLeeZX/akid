@@ -19,6 +19,7 @@ from akid import (
 )
 
 from akid import backend as A
+import six
 
 
 """Small library that points to a data set.
@@ -31,9 +32,8 @@ Methods of Data class:
 """
 
 
-class Dataset(object):
+class Dataset(six.with_metaclass(ABCMeta, object)):
     """A simple class for handling data sets."""
-    __metaclass__ = ABCMeta
 
     def __init__(self, work_dir, name, subset):
         """Initialize dataset using a subset and the path to the data."""

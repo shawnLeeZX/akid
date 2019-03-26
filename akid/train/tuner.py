@@ -3,6 +3,7 @@ A module to provide a mechanism to ease network tuning.
 """
 from __future__ import print_function
 
+from __future__ import absolute_import
 import sys
 import inspect
 import multiprocessing
@@ -15,6 +16,7 @@ from tqdm import tqdm
 import pycuda.autoinit
 import pycuda.driver as cuda
 import gflags as flags
+from six.moves import range
 
 FLAGS = flags.FLAGS
 flags.DEFINE_boolean("use_sub_shell", True, "Deprecated. Not used."
@@ -246,7 +248,7 @@ def tune(template,
 
     # Start tuning.
     # #########################################################################
-    for repeat in xrange(0, repeat_times):
+    for repeat in range(0, repeat_times):
         for i, opt_paras in enumerate(opt_paras_list):
             for j, net_paras in enumerate(net_paras_list):
                 setup_func = template_str.render(opt_paras=opt_paras,

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import inspect
 
 import tensorflow as tf
@@ -128,7 +129,7 @@ class ScatterLayer(ProcessingLayer):
     """
     def __init__(self, scatter_len_list, **kwargs):
         self.scatter_len_list = scatter_len_list
-        if not kwargs.has_key("name"):
+        if "name" not in kwargs:
             kwargs["name"] = "scatter"
         super(ScatterLayer, self).__init__(**kwargs)
 

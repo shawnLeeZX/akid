@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import inspect
 
 from tensorflow.python.ops.image_ops import _Check3DImage

@@ -1,4 +1,5 @@
+from __future__ import absolute_import
 from .computational_graph import *
-import nn
-import summary
-import train
+from . import nn
+from . import summary
+from . import train

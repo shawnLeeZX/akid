@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from akid import GraphBrain
 from akid.layers import (
     ConvolutionLayer,
@@ -16,6 +17,7 @@ from akid.layers import (
     MaxPoolingLayer
 )
 from akid import backend as A
+from six.moves import range
 
 
 class AlexNet(GraphBrain):
@@ -576,7 +578,7 @@ class ResNet(GraphBrain):
                            stride,
                            act_before_residual,
                            conv_params)
-        for i in xrange(2, count+1):
+        for i in range(2, count+1):
             if block_type == "basic":
                 conv_params = [[(3, 3), (1, 1), "SAME"],
                                [(3, 3), (1, 1), "SAME"]]
@@ -839,7 +841,7 @@ class ImagenetResNet(ResNet):
                                  padding="SAME",
                                  type="max",
                                  name="pool0"))
-        for i in xrange(4):
+        for i in range(4):
             self._attach_stack(n_input_plane=n_stages[i],
                                n_output_plane=n_stages[i+1],
                                count=n_depth[i],

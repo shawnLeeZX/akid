@@ -1,5 +1,7 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import os
-import urllib
+import six.moves.urllib.request, six.moves.urllib.parse, six.moves.urllib.error
 import gzip
 import zipfile
 
@@ -30,7 +32,7 @@ class MNISTFeedSource(InMemoryFeedSource, SupervisedSource):
             os.mkdir(work_directory)
         filepath = os.path.join(work_directory, filename)
         if not os.path.exists(filepath):
-            filepath, _ = urllib.urlretrieve(self.url + filename, filepath)
+            filepath, _ = six.moves.urllib.request.urlretrieve(self.url + filename, filepath)
             statinfo = os.stat(filepath)
             self.log('Successfully downloaded {} {} bytes.'.format(filename, statinfo.st_size))
         return filepath
@@ -114,7 +116,7 @@ class MNISTFeedSource(InMemoryFeedSource, SupervisedSource):
 
     def _extract_labels(self, filename, one_hot=False):
         """Extract the labels into a 1D uint8 numpy array [index]."""
-        print('Extracting', filename)
+        print(('Extracting', filename))
         with gzip.open(filename) as bytestream:
             magic = self._read32(bytestream)
             if magic != 2049:
@@ -151,7 +153,7 @@ class RotatedMNISTFeedSource(InMemoryFeedSource, SupervisedSource):
             os.mkdir(self.work_dir)
         filepath = os.path.join(self.work_dir, filename)
         if not os.path.exists(filepath):
-            filepath, _ = urllib.urlretrieve(self.url + filename, filepath)
+            filepath, _ = six.moves.urllib.request.urlretrieve(self.url + filename, filepath)
             statinfo = os.stat(filepath)
             self.log('Successfully downloaded', filename, statinfo.st_size,
                      'bytes.')

@@ -1,7 +1,9 @@
+from __future__ import absolute_import
 import tensorflow as tf
-import computational_graph as cg
+from . import computational_graph as cg
 from akid.core.common import SEED
 from akid.utils import glog as log
+from six.moves import range
 
 
 def depthwise_conv2d(input, filter, bias=None, strides=1, padding='VALID', name=None):

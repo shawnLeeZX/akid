@@ -6,8 +6,9 @@ on CIFAR dataset, starting from the Maxout paper).
 """
 
 
+from __future__ import absolute_import
 import os
-import cPickle as pickle
+import six.moves.cPickle as pickle
 
 import numpy as np
 import tensorflow as tf
@@ -20,6 +21,7 @@ from ..core.sources import (
     StaticSource
 )
 from .datasets import DataSet, DataSets
+from six.moves import range
 
 
 class Cifar10Source(SupervisedSource):
@@ -82,7 +84,7 @@ class Cifar10FeedSource(Cifar10Source, InMemoryFeedSource):
         # Load training set into memory.
         train_filenames = [os.path.join(self.work_dir, 'cifar-10-batches-py',
                                         'data_batch_%d' % i)
-                           for i in xrange(1, 6)]
+                           for i in range(1, 6)]
         training_dataset = self._load_cifar10_python(train_filenames)
 
         test_filenames = [os.path.join(self.work_dir, 'cifar-10-batches-py',
@@ -163,7 +165,7 @@ class Cifar10TFSource(Cifar10Source, ClassificationTFSource):
             train_filenames = [os.path.join(self.work_dir,
                                             'cifar-10-batches-py',
                                             'data_batch_%d' % i)
-                               for i in xrange(1, 6)]
+                               for i in range(1, 6)]
             training_labels = self._load_cifar10_python(train_filenames).labels
             self._convert_to_tf(imgs, training_labels, TRAINING_TF_FILENAME)
 
@@ -217,7 +219,7 @@ class Cifar10TFSource(Cifar10Source, ClassificationTFSource):
 
         filenames = [os.path.join(self.work_dir, 'cifar-10-batches-bin',
                                   'data_batch_%d.bin' % i)
-                     for i in xrange(1, 6)]
+                     for i in range(1, 6)]
         datum, label = self._read_by_filenames(filenames)
         self._training_datum = datum
         self._training_label = label

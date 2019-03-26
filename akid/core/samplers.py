@@ -2,11 +2,13 @@
 The module provides samplers to iterate data in different sequence.
 """
 from __future__ import print_function
+from __future__ import absolute_import
 from six import raise_from
 
 import random
 
 from ..utils import glog as log
+from six.moves import range
 
 
 sampler_dict = {}
@@ -58,7 +60,7 @@ class Sampler(object):
     """
     def __init__(self, length, *args, **kwargs):
         super(Sampler, self).__init__(*args, **kwargs)
-        self.indices = range(length)
+        self.indices = list(range(length))
         self.current_idx = 0
 
     def reset(self):

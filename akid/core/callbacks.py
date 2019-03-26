@@ -4,9 +4,11 @@ A collection of functions that may attach to hooks of `Kid`.
 Each function is expected to take a `Kid` instance as an input that is
 supposed to hold all information needed.
 """
+from __future__ import absolute_import
 from akid import backend as A
 
 from ..utils import glog as log
+from six.moves import zip
 
 
 def _do_summary(kid):
@@ -33,7 +35,7 @@ def on_train_log_step(kid):
 
     name_to_print = [A.get_name(g) for g in kid.engine.eval()]
     eval_value_to_print = ["%0.04f" % v for v in evals]
-    eval_to_print = dict(zip(name_to_print, eval_value_to_print))
+    eval_to_print = dict(list(zip(name_to_print, eval_value_to_print)))
 
     num_examples_per_step = kid.sensor.batch_size
     examples_per_sec = num_examples_per_step / duration
@@ -74,11 +76,11 @@ def on_val_log_step(kid):
     # Log current validation.
     name_to_print = [A.get_name(g) for g in kid.engine.eval(get_val=True)]
     eval_value_to_print = ["%0.04f" % v for v in kid.evals]
-    eval_to_print = dict(zip(name_to_print, eval_value_to_print))
+    eval_to_print = dict(list(zip(name_to_print, eval_value_to_print)))
     if kid.verbose_evals is not None:
         name_to_print = [A.get_name(g) for g in kid.engine.verbose_eval(get_val=True)]
         veval_value_to_print = ["%0.04f" % v for v in kid.verbose_evals]
-        veval_to_print = dict(zip(name_to_print, veval_value_to_print))
+        veval_to_print = dict(list(zip(name_to_print, veval_value_to_print)))
     else:
         veval_to_print = None
     log.info('  Num examples: {}  Evals : {}  VEvals: {}'.format(
@@ -89,7 +91,7 @@ def on_val_log_step(kid):
                      for g in kid.engine.eval(get_val=True)]
     # TODO: handle best evals
     eval_value_to_print = ["%0.04f" % v for v in kid.best_val_evals]
-    eval_to_print = dict(zip(name_to_print, eval_value_to_print))
+    eval_to_print = dict(list(zip(name_to_print, eval_value_to_print)))
     log.info('Current best evals : {}'.format(eval_to_print))
 
     # Loss.
@@ -118,7 +120,7 @@ def on_train_begin(kid):
 
     name_to_print = [A.get_name(g) for g in kid.engine.eval()]
     eval_value_to_print = ["%0.04f" % v for v in kid.evals]
-    eval_to_print = dict(zip(name_to_print, eval_value_to_print))
+    eval_to_print = dict(list(zip(name_to_print, eval_value_to_print)))
     log.info("Step {}: loss = {:.5f} eval = {}".format(
         A.get_step(), kid.loss, eval_to_print))
 

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from akid.utils.test import AKidTestCase, TestFactory, main, skipUnless, skip
 from akid import (
     IntegratedSensor,

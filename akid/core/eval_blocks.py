@@ -3,6 +3,7 @@ This module holds classes that standardize evaluation metrics on algorithms.
 """
 from __future__ import division
 
+from __future__ import absolute_import
 import numpy as np
 from sklearn.metrics import roc_auc_score
 

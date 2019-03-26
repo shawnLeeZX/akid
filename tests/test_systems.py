@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import numpy as np
 
 from akid.utils.test import AKidTestCase, main, debug_on, skipUnless

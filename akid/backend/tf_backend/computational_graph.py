@@ -6,6 +6,7 @@ NOTE
 To use tensorflow backend to execute/evaluate any graph built, run `init`
 beforehand.
 """
+from __future__ import absolute_import
 import sys
 
 from uuid import uuid4

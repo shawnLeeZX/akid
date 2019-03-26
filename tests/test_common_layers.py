@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from akid.utils.test import AKidTestCase, main
 import tensorflow as tf
 from akid.layers import PaddingLayer

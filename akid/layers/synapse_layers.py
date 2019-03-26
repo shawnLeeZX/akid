@@ -1,5 +1,6 @@
 from __future__ import division
 
+from __future__ import absolute_import
 import abc
 import inspect
 
@@ -15,6 +16,7 @@ from .activation_layers import BatchNormalizationLayer
 from .. import nn
 
 from torch.nn import BatchNorm2d
+from six.moves import range
 
 
 class SynapseLayer(ProcessingLayer):
@@ -116,7 +118,7 @@ class SynapseLayer(ProcessingLayer):
                 # Do not apply on biases.
                 shape = v.get_shape().as_list()
                 if len(shape) > 1:
-                    _ = tf.reduce_sum(tf.square(v), range(0, len(shape)-1))
+                    _ = tf.reduce_sum(tf.square(v), list(range(0, len(shape)-1)))
                     v_norms = tf.sqrt(_, name="l2norm")
                     tf.add_to_collection(AUXILLIARY_STAT_COLLECTION,
                                          v_norms)
@@ -422,7 +424,7 @@ class EquivariantProjectionLayer(SynapseLayer):
         X_in = A.reshape(X_in, new_shape)
         X_g = A.unstack(X_in, 3)
         X_out_g = []
-        for i in xrange(self.g_size):
+        for i in range(self.g_size):
             X_out_g.append(
                 A.nn.conv2d(X_g[i],
                              self.weights[i, ...],

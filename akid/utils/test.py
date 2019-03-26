@@ -1,6 +1,7 @@
 """
 This module offer a top level class for testing.
 """
+from __future__ import absolute_import
 import sys
 import os
 import pdb
@@ -22,9 +23,9 @@ from akid import (
     SimpleSensor,
     MomentumKongFu
 )
-from akid import sugar
 from akid.models.brains import OneLayerBrain
 from akid import backend as A
+from six.moves import map
 
 
 def skipUnless(cond, msg=None):
@@ -37,8 +38,8 @@ def main():
 
 class AKidTestCase(TestCase):
     def setUp(self):
-        sugar.init()
         A.reset()
+        A.init_log()
 
     def assertNdarrayEquals(self, a, b):
         if not (a == b).all():

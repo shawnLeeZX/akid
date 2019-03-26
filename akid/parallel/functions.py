@@ -1,8 +1,12 @@
+from __future__ import absolute_import
 from .. import backend as A
 import torch as th
 import tensorflow as tf
 
 import threading
+from six.moves import map
+from six.moves import range
+from six.moves import zip
 
 
 _lock = threading.Lock()
@@ -15,7 +19,7 @@ def scatter(data, devices):
     """
     def scatter_inner(data):
         if type(data) is list:
-            return tuple(zip(*map(scatter_inner, data)))
+            return tuple(zip(*list(map(scatter_inner, data))))
         else:
             return A.scatter(data, devices)
 
@@ -27,7 +31,7 @@ def gather(data, output_device=0):
     def gather_inner(data):
         d = data[0]
         if type(d) is list:
-            return list(map(gather_inner, zip(*data)))
+            return list(map(gather_inner, list(zip(*data))))
         else:
             return A.gather(data, output_device)
 
@@ -58,7 +62,7 @@ def broadcast(data, devices):
         out = [out[i:i + len(data)] for i in range(0, len(out), len(data))]
 
     device_num = len(devices)
-    for i in xrange(1, device_num):
+    for i in range(1, device_num):
         with device("/gpu:{}".format(i)):
             for j, t in enumerate(out[i]):
                 name = "{}:{}".format(A.get_name(data[j]).split(':')[0], i)

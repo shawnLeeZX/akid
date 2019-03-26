@@ -42,9 +42,10 @@ from .common import (
 from ..core import initializers
 from .. import backend as A
 from .interface_blocks import UpdateBlock
+import six
 
 
-class Block(object):
+class Block(six.with_metaclass(abc.ABCMeta, object)):
     """
     The top level class. Everything should be its sub-class.
 
@@ -62,7 +63,6 @@ class Block(object):
 
     Call `setup` of each block before using it.
     """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self, name=None, debug=False, **kwargs):
         super(Block, self).__init__(**kwargs)

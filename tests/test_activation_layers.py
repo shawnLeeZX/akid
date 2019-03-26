@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import tensorflow as tf
 import numpy as np
 from akid.utils import glog as log
@@ -8,6 +9,7 @@ from akid.sugar import cnn_block
 from akid import sugar
 from akid.layers import SoftmaxWithLossLayer, BatchNormalizationLayer
 from akid import backend as A
+from six.moves import zip
 
 
 log.init()

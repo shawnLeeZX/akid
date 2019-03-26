@@ -15,6 +15,8 @@ get a tensor of dimension 0 --- that's to say to get a scalar ---, use
 from __future__ import division
 
 
+from __future__ import absolute_import
+from __future__ import print_function
 import numpy as np
 import math
 
@@ -108,7 +110,7 @@ class InitializerRegistry(object):
             return kwargs["value"]
 
     def help(self):
-        print self.message
+        print(self.message)
 
 
 class Initializer(object):

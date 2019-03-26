@@ -2,6 +2,7 @@
 This module contains different genres of Kong Fu to a `Kid` to practice,
 aka different training algorithms and policies to train a network.
 """
+from __future__ import absolute_import
 import abc
 import inspect
 
@@ -11,7 +12,6 @@ from .common import TRAINING_DYNAMICS_COLLECTION, LEARNING_RATE_TAG
 from .blocks import ShadowableBlock
 from .interface_blocks import UpdateBlock
 from .. import backend as A
-from ..utils.nonconflict import classmaker
 
 
 class LearningRateScheme(object):
@@ -55,7 +55,6 @@ class KongFu(ShadowableBlock, UpdateBlock):
     or gradient clipping.
     """
     NAME = "Kongfu"
-    __metaclass__ = classmaker()
 
     def __init__(self,
                  lr=0.01,

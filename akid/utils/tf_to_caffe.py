@@ -3,6 +3,7 @@ This module contains utilities to transform tensorflow style objects to Caffe
 style.
 """
 
+from __future__ import absolute_import
 import sys
 import numpy as np
 from . import glog as log

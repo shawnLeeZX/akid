@@ -19,6 +19,7 @@ As an example, we could do data parallelism on multiple computing towers using::
         log_dir="log",
         max_epoch=200)
 """
+from __future__ import absolute_import
 import abc
 
 import tensorflow as tf
@@ -27,6 +28,8 @@ from .blocks import ProcessingBlock
 from .interface_blocks import UpdateBlock
 from .. import backend as A
 from .. import parallel as P
+from six.moves import range
+from six.moves import zip
 
 
 class Engine(ProcessingBlock, UpdateBlock):
@@ -204,7 +207,7 @@ class DataParallelEngine(SingleGPUEngine):
         super(DataParallelEngine, self).__init__(**kwargs)
         # TODO: if num_gpu is None, use all available ones.
         self.gpu_num = gpu_num
-        self.devices = [i for i in xrange(gpu_num)]
+        self.devices = [i for i in range(gpu_num)]
 
         if A.backend() != A.TORCH:
             raise ValueError("Backend other torch has not been implemented yet.")
@@ -246,7 +249,7 @@ class DataParallelEngine(SingleGPUEngine):
         # Set up shadow copies.
         towers = []
         towers.append(brain)
-        for i in xrange(1, self.gpu_num):
+        for i in range(1, self.gpu_num):
             with P.device('/gpu:{}'.format(i)):
                 tower = brain.get_shadow_copy()
                 tower.setup()
@@ -276,7 +279,7 @@ class DataParallelEngine(SingleGPUEngine):
         # gathered through loss and eval in towers' attributes.
         results = []
         threads = []
-        for i in xrange(self.gpu_num):
+        for i in range(self.gpu_num):
             with P.device("/gpu:{}".format(i)):
                 # TODO: think how to handle tensorflow
                 ret, t = P.thread_run(self.towers[i].forward, data[i])
@@ -347,7 +350,7 @@ class DataParallelEngine(SingleGPUEngine):
 
         # Check whether the output is a list, if it is merge by list members
         if type(data[0]) is list:
-            data = zip(*data)
+            data = list(zip(*data))
             for i, l in enumerate(data):
                 data[i] = tf.concat(axis=0, values=l, name=name)
         # Otherwise, concat.
@@ -364,9 +367,9 @@ class DataParallelEngine(SingleGPUEngine):
             splitted_data = tf.split(axis=0, num_or_size_splits=self.gpu_num, value=data)
             if type(label) is list:
                 splitted_labels = []
-                for i in xrange(0, len(label)):
+                for i in range(0, len(label)):
                     splitted_labels.append(tf.split(axis=0, num_or_size_splits=self.gpu_num, value=label[i]))
-                splitted_labels = zip(*splitted_labels)
+                splitted_labels = list(zip(*splitted_labels))
             else:
                 splitted_labels = tf.split(axis=0, num_or_size_splits=self.gpu_num, value=label)
 
@@ -396,7 +399,7 @@ class DataParallelEngine(SingleGPUEngine):
         """
         with A.variable_scope("eval_average"):
             eval_list = []
-            for i in xrange(0, len(towers[0].eval)):
+            for i in range(0, len(towers[0].eval)):
                 sum_of_eval = tf.add_n([t.eval[i] for t in towers])
                 eval = tf.div(sum_of_eval,
                               self.gpu_num,
@@ -426,7 +429,7 @@ class DataParallelEngine(SingleGPUEngine):
         tower = self.brain
         kongfu = self.kongfu
         self.train_op_list = []
-        for i in xrange(0, self.gpu_num):
+        for i in range(0, self.gpu_num):
             self.log("Setting up tower {} for training".format(i))
             with tf.device('/gpu:{}'.format(i)):
                 # Set up a tower
@@ -470,7 +473,7 @@ class DataParallelEngine(SingleGPUEngine):
         # Set up val brains according to the number of gpus used.
         self.val_towers = []
         tower = self.val_brain
-        for i in xrange(0, self.gpu_num):
+        for i in range(0, self.gpu_num):
             self.log("Setting up tower {} for validation".format(i))
             with tf.device('/gpu:{}'.format(i)):
                 system_in = self._setup_system_in(splitted_data[i],

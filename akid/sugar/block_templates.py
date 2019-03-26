@@ -7,6 +7,8 @@ ease writing network structures. So instead of appending three layers and
 organizing their in a statement block, one could just use a template to create
 a block.
 """
+from __future__ import absolute_import
+from __future__ import print_function
 import sys
 import inspect
 
@@ -98,12 +100,12 @@ def cnn_block(ksize=None,
                 layer = GroupSoftmaxLayer(name="gsmax{}".format(counter),
                                           group_size=activation["group_size"])
             else:
-                print ("{} activation type has not been supported"
-                       " yet.".format(activation_type))
+                print(("{} activation type has not been supported"
+                       " yet.".format(activation_type)))
                 sys.exit(0)
         except KeyError as e:
-                print ("{} not found. You perhaps have a typo or miss a"
-                       " parameter.".format(e))
+                print(("{} not found. You perhaps have a typo or miss a"
+                       " parameter.".format(e)))
                 sys.exit(0)
     else:
         layer = None

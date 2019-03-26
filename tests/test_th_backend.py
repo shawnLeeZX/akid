@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os, unittest
 os.environ['AKID_BACKEND'] = 'pytorch'
 from akid.utils.test import TestSuite

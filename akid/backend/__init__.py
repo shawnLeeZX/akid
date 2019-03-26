@@ -13,11 +13,16 @@ non-trainable variables, the non-trainable should be declared with
 `requires_grad` true, to indicate though they are not trainable, they should
 save gradients (for back propagation).
 """
+from __future__ import absolute_import
 import os
+import sys
 
 import tensorflow as tf
 
 from .computational_graph import *
+from ..utils import glog as log
+import gflags
+FLAGS = gflags.FLAGS
 
 
 if 'AKID_BACKEND' in os.environ:
@@ -52,3 +57,8 @@ def reset():
     if _BACKEND == TORCH:
         summary.reset_collections()
         summary.close()
+
+
+def init_log():
+    FLAGS(sys.argv)
+    log.init("stdout", akid_logger=True)

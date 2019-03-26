@@ -4,8 +4,10 @@ semaphore.
 """
 from __future__ import print_function
 
+from __future__ import absolute_import
 from multiprocessing import Semaphore as _Semaphore
 from multiprocessing import Lock
+from six.moves import range
 
 
 class Semaphore(object):
@@ -21,7 +23,7 @@ class Semaphore(object):
                 The number of semaphores to acquire.
         """
         with self.in_lock:
-            for i in xrange(0, count):
+            for i in range(0, count):
                 self.semaphore.acquire()
                 print ("Acquired semaphore.")
 
@@ -32,6 +34,6 @@ class Semaphore(object):
                 The number of semaphores to acquire.
         """
         with self.out_lock:
-            for i in xrange(0, count):
+            for i in range(0, count):
                 self.semaphore.release()
                 print ("Released semaphore.")

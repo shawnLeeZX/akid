@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,6 +13,7 @@ from akid.datasets import MNISTFeedSource, RotatedMNISTFeedSource
 from akid import LearningRateScheme
 
 from akid import backend as A
+from six.moves import range
 
 
 class TestSource(AKidTestCase):
@@ -30,13 +33,13 @@ class TestSource(AKidTestCase):
         imgs, labels = source.get_batch(1, True)
         img = np.squeeze(imgs)
         plt.imshow(img)
-        print("The class label is {}.".format(labels[0]))
+        print(("The class label is {}.".format(labels[0])))
         plt.show()
 
         imgs, labels = source.get_batch(1, False)
         img = np.squeeze(imgs)
         plt.imshow(img)
-        print("The class label is {}.".format(labels[0]))
+        print(("The class label is {}.".format(labels[0])))
         plt.show()
 
     @skipUnless(A.backend() == A.TF)
@@ -53,13 +56,13 @@ class TestSource(AKidTestCase):
         imgs, labels = source.get_batch(1, True)
         img = np.squeeze(imgs)
         plt.imshow(img)
-        print("The class label is {}.".format(labels[0]))
+        print(("The class label is {}.".format(labels[0])))
         plt.show()
 
         imgs, labels = source.get_batch(1, False)
         img = np.squeeze(imgs)
         plt.imshow(img)
-        print("The class label is {}.".format(labels[0]))
+        print(("The class label is {}.".format(labels[0])))
         plt.show()
 
     @skipUnless(A.backend() == A.TF)
@@ -75,12 +78,12 @@ class TestSource(AKidTestCase):
         source.forward()
         imgs, labels = source.get_batch(1, True)
         plt.imshow(imgs[0, ...])
-        print("The class label is {}.".format(labels[0]))
+        print(("The class label is {}.".format(labels[0])))
         plt.show()
 
         imgs, labels = source.get_batch(1, False)
         plt.imshow(imgs[0, ...])
-        print("The class label is {}.".format(labels[0]))
+        print(("The class label is {}.".format(labels[0])))
         plt.show()
 
     @skipUnless(A.backend() == A.TF)
@@ -96,14 +99,14 @@ class TestSource(AKidTestCase):
 
         source.forward()
         imgs, labels = source.get_batch(1, True)
-        for c in xrange(0, 3):
+        for c in range(0, 3):
             plt.imshow(imgs[0, ..., c])
-            print("The class label is {}.".format(labels[0]))
+            print(("The class label is {}.".format(labels[0])))
             plt.show()
         imgs, labels = source.get_batch(1, False)
-        for c in xrange(0, 3):
+        for c in range(0, 3):
             plt.imshow(imgs[0, ..., c])
-            print("The class label is {}.".format(labels[0]))
+            print(("The class label is {}.".format(labels[0])))
             plt.show()
 
     @skipUnless(A.backend() == A.TF)

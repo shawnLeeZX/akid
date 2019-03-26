@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from akid import AKID_DATA_PATH
 from akid.core import kids, kongfus
 from akid import Cifar10FeedSource, FeedSensor, Brain
