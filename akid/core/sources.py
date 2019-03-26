@@ -68,6 +68,9 @@ class Source(DataBlock):
     """
     A source that holds datasets, which include training, validation, and test
     datasets.
+
+    Subclasses should implement their own `get` method normally (though a
+    default `get` method is implemented for PyTorch for now).
     """
     NAME = "Source"
 
@@ -107,6 +110,11 @@ class Source(DataBlock):
         self.mode = mode
 
     def get(self, indices):
+        """
+        This is a default `get` method to work with the `DataSet` class of
+        PyTorch. A customized source that does not use `DataSet` in PyTorch
+        should implement a `get` method of its own.
+        """
         # Only work in torch for now.
         sample_batch = default_collate([self.data[i] for i in indices])
         if A.use_cuda():

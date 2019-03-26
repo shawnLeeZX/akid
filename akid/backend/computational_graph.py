@@ -237,7 +237,6 @@ class NamedScalar(np.float, NamedValue):
     """
     def __init__(self, name=None, *args, **kwargs):
         self.name = name
-        # super(NamedScalar, self).__init__(*args, **kwargs)
 
     def __new__(cls, name, *args, **kwargs):
         return super(NamedScalar, cls).__new__(cls, *args, **kwargs)
