@@ -109,7 +109,7 @@ def relu(v, name=None):
 
 @cache_name_if_exist
 def sigmoid(v, name=None):
-    return F.sigmoid(v)
+    return th.sigmoid(v)
 
 
 @cache_name_if_exist
@@ -124,7 +124,7 @@ def zero_fraction(data, name=None):
 
 @cache_name_if_exist
 def mse_loss(data, labels, size_average=True, name=None):
-    return th.nn.functional.mse_loss(data, labels, size_average=size_average)
+    return th.nn.functional.mse_loss(data, labels, reduction="mean")
 
 
 @cache_name_if_exist
@@ -133,8 +133,8 @@ def cross_entropy_loss(logits, labels, name=None):
 
 
 @cache_name_if_exist
-def binary_cross_entropy_loss_with_logits(logits, labels, name=None):
-    return F.binary_cross_entropy_with_logits(logits, labels)
+def binary_cross_entropy_loss_with_logits(logits, labels, pos_weight=None, name=None):
+    return F.binary_cross_entropy_with_logits(logits, labels, pos_weight=pos_weight)
 
 
 @cache_name_if_exist

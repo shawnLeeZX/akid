@@ -357,6 +357,22 @@ class TestActivationLayers(AKidTestCase):
         assert (X_out_eval == X_out_ref).all(), \
             "X_out_eval: {}; X_out_ref: {}".format(X_out_eval, X_out_ref)
 
+    @skipUnless(A.backend() == A.TORCH, "tf backend does not have nn.l2_norm function yet.")
+    def test_l2norm_layer(self):
+        from akid.layers import L2Norm
+
+        X_in = np.array(
+            [
+                [1, 1],
+                [2, 2]
+            ]
+        )
+        l = L2Norm()
+        X_out = l(A.Tensor(X_in))
+        X_out = A.eval(X_out)
+        for i in range(X_out.shape[0]):
+            self.assertAlmostEquals(np.linalg.norm(X_out[i, :]), 1, places=6)
+
 
 if __name__ == "__main__":
     main()

@@ -255,10 +255,14 @@ class GraphSystem(SequentialSystem):
                 dtype = type(data)
                 if inputs:
                     in_name = [A.get_name(i) for i in inputs]
+                    if None in in_name:
+                        # No name is created for the inputs, thus, we use their
+                        # shape instead.
+                        in_name = [str(i.shape) for i in inputs]
                 else:
                     in_name = A.get_name(data[0])
 
-                if in_name is None or type(in_name) is list and None in in_name:
+                if in_name is None:
                     in_name = previous_data_name
 
                 if l.data is not None:

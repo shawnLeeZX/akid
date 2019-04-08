@@ -202,6 +202,10 @@ def reset_eval_block_map():
     tensor_name_to_eval_block_map = {}
 
 
+# Named objects.
+# #########################################################################
+
+
 class NamedValue(object):
     pass
 
@@ -240,3 +244,53 @@ class NamedScalar(np.float, NamedValue):
 
     def __new__(cls, name, *args, **kwargs):
         return super(NamedScalar, cls).__new__(cls, *args, **kwargs)
+
+
+class NamedNdarray(np.ndarray, NamedValue):
+    """
+    Object to pass a named numpy array.
+
+    To create a `NamedNdarray`::
+
+        a = ... # A numpy array
+        NamedNdarray("any_name", a)
+
+    Refer to https://docs.scipy.org/doc/numpy/user/basics.subclassing.html for
+    how to subclass numpy array.
+    """
+    def __new__(cls, name, array):
+        # Input array is an already formed ndarray instance
+        # We first cast to be our class type
+        # It also triggers a call to NamedNdarray.__array_finalize__
+        obj = np.asarray(array).view(cls)
+        # set the new 'info' attribute to the value passed
+        obj.name = name
+        # Finally, we must return the newly created object:
+        return obj
+
+    def __array_finalize__(self, obj):
+        # ``self`` is a new object resulting from
+        # ndarray.__new__(NamedNdarray, ...), therefore it only has
+        # attributes that the ndarray.__new__ constructor gave it -
+        # i.e. those of a standard ndarray.
+        #
+        # We could have got to the ndarray.__new__ call in 3 ways:
+        # From an explicit constructor - e.g. NamedNdarray():
+        #    obj is None
+        #    (we're in the middle of the InfoArray.__new__
+        #    constructor, and self.info will be set when we return to
+        #    InfoArray.__new__)
+        if obj is None: return
+        # From view casting - e.g arr.view(NamedNdarray):
+        #    obj is arr
+        #    (type(obj) can be NamedNdarray)
+        # From new-from-template - e.g namedarr[:3]
+        #    type(obj) is NamedNdarray
+        #
+        # Note that it is here, rather than in the __new__ method,
+        # that we set the default value for 'info', because this
+        # method sees all creation of default objects - with the
+        # NamedNdarray.__new__ constructor, but also with
+        # arr.view(NamedNdarray).
+        self.name = getattr(obj, 'name', None)
+        # We do not need to return anything

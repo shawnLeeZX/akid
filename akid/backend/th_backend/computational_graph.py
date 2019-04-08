@@ -11,6 +11,8 @@ from torch.autograd import Variable
 from .. import computational_graph as cg
 from akid.utils import glog as log
 
+float32 = th.float32
+
 DATA_FORMAT = "CHW"
 
 # Maintain two hash table for looking up variables.
@@ -336,7 +338,7 @@ def eval(t):
     if type(t) is list or type(t) is tuple:
         return [eval(i) for i in t]
 
-    if type(t) is np.ndarray:
+    if isinstance(t, np.ndarray):
         return t
 
     if type(t) is cg.NamedTensorTuple:
@@ -497,3 +499,13 @@ def gather(data, output_device, name=None):
         return th.nn.parallel._functions.Gather(output_device, dim=0)(*data)
     else:
         return th.nn.parallel._functions.Gather.apply(output_device, 0, *data)
+
+
+@cache_name_if_exist
+def expand_dims(x, axis, name=None):
+    return th.unsqueeze(x, dim=axis)
+
+
+@cache_name_if_exist
+def cast(x, dtype, name=None):
+    return x.type(dtype)

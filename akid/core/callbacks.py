@@ -125,10 +125,11 @@ def on_train_begin(kid):
         A.get_step(), kid.loss, eval_to_print))
 
     # Initial validation
-    kid.loss, kid.evals = kid.validate()
-    kid.on_val_log_step()
-    kid.sensor.set_mode("train")
-    kid.sensor.setup()
+    if not kid.skip_validation:
+        kid.loss, kid.evals = kid.validate()
+        kid.on_val_log_step()
+        kid.sensor.set_mode("train")
+        kid.sensor.setup()
 
 
 def on_batch_begin(kid):

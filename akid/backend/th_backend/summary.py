@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 import multiprocessing
 import six.moves.queue
+import six
 
 import torch as th
 from torch.autograd import Variable
@@ -248,11 +249,16 @@ def run_summary_op(ops, feed_dict=None):
 
     # NOTE: it may take some time to transfer from GPU to CPU, if this becomes
     # a bottleneck, a thread should be used to transfer the data.
-    op_values = [cg.tensor_by_name[op.name].to("cpu") for op in ops]
+    op_values = [cg.tensor_by_name[op.name].detach().to("cpu") for op in ops]
     op_value_tuples = list(zip(ops, op_values))
     for t in op_value_tuples:
-        # TODO: resize queue if its size is not enough.
-        _queue.put((t[0], t[1], cg_general.get_step()))
+        try:
+            # TODO: resize queue if its size is not enough.
+            _queue.put((t[0], t[1], cg_general.get_step()))
+        except RuntimeError as e:
+            # TODO: The runtime error cannot be caught. Possibly because another
+            # thread actually is doing this other than the main process.
+            six.raise_from(ValueError("Error when putting {} into queue.".format(t[0])), e)
 
 
 def close():

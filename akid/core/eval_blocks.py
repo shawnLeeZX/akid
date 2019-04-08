@@ -51,13 +51,21 @@ class AUCEvalBlock(EvalBlock):
     NAME = "AUC"
 
     def __init__(self):
-        self.y_pred = np.array([])
-        self.y = np.array([])
+        self.y_pred = []
+        self.y = []
 
     def add(self, v):
-        self.y_pred = np.append(self.y_pred, v[0])
-        self.y = np.append(self.y, v[1])
+        self.y_pred.append(v[0])
+        self.y.append(v[1])
 
     @property
     def data(self):
-        return roc_auc_score(self.y, self.y_pred, average="macro")
+        auc = []
+        y = np.stack(self.y)
+        y_pred = np.stack(self.y_pred)
+        assert y.shape[1] == len(self.y[0]), "`np.stack` works wrongly."
+
+        for i in range(len(self.y)):
+            if np.sum(y[:, i]) != 0:
+                auc.append(roc_auc_score(y[:, i], y_pred[:, i], average=None))
+        return np.mean(auc)

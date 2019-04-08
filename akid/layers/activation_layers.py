@@ -441,19 +441,24 @@ class BatchNormalizationLayer(ProcessingLayer):
                                            self.channel_num,
                                            self._get_initializer({"name": "constant", "value": 0}))
 
-            # Running mean and variance that require no grad.
-            self.running_mean = self._get_variable("running_mean",
-                                                   self.channel_num,
-                                                   self._get_initializer({"name": "constant", "value": 0}),
-                                                   trainable=False)
-            self.running_var = self._get_variable("running_var",
-                                                  self.channel_num,
-                                                  self._get_initializer({"name": "constant", "value": 1}),
-                                                  trainable=False)
-            self.num_batches_tracked = self._get_variable("num_batches_tracked",
-                                                        0,
-                                                        self._get_initializer({"name": "scalar", "value": 0}),
-                                                        trainable=False)
+            if self.track_running_stats:
+                # Running mean and variance that require no grad.
+                self.running_mean = self._get_variable("running_mean",
+                                                    self.channel_num,
+                                                    self._get_initializer({"name": "constant", "value": 0}),
+                                                    trainable=False)
+                self.running_var = self._get_variable("running_var",
+                                                    self.channel_num,
+                                                    self._get_initializer({"name": "constant", "value": 1}),
+                                                    trainable=False)
+                self.num_batches_tracked = self._get_variable("num_batches_tracked",
+                                                            0,
+                                                            self._get_initializer({"name": "scalar", "value": 0}),
+                                                            trainable=False)
+            else:
+                self.running_mean = None
+                self.running_var = None
+                self.num_batches_tracked = None
 
             return
 
@@ -549,5 +554,40 @@ class DropoutLayer(ProcessingLayer):
 
 Dropout = DropoutLayer
 
+
+class FixedWeightInnerProductLayer(ProcessingLayer):
+    NAME = "FixedWeightIP"
+
+    def __init__(self, weights, **kwargs):
+        super(FixedWeightInnerProductLayer, self).__init__(**kwargs)
+        self.weights = weights
+
+    def _setup(self):
+        self.weights = A.Tensor(self.weights)
+
+    def _forward(self, x):
+        self._data = A.nn.inner_product(x,
+                                        self.weights,
+                                        name='fmap' if self.summarize_output else None)
+
+        return self._data
+
+FixedWeightIPLayer = FixedWeightInnerProductLayer
+
+
+class L2NormalizationLayer(ProcessingLayer):
+    NAME = "L2Norm"
+
+    def _forward(self, x):
+        dim = len(x.shape)
+        assert dim == 1 or dim == 2, "dim {} is not supported".format(dim)
+
+        norm = A.nn.l2_norm(x)
+        norm = A.expand_dims(norm, axis=1)
+        self._data = x / norm
+
+        return self._data
+
+L2Norm = L2NormalizationLayer
 
 __all__ = [name for name, x in locals().items() if not inspect.ismodule(x)]

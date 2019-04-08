@@ -4,7 +4,7 @@ Solving conflicting meta class problem.
 From: http://code.activestate.com/recipes/204197-solving-the-metaclass-conflict/
 """
 from __future__ import absolute_import
-import inspect, types, six.moves.builtins
+import inspect
 from six.moves import map
 
 ############## preliminary: two utility functions #####################

@@ -29,6 +29,7 @@ except ImportError as e:
 
 # Expose sub-modules
 import akid.nn as nn
+import akid.layers as layers
 
 
 # Alert if AKID_DATA_PATH is not defined.

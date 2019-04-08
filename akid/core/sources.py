@@ -69,8 +69,8 @@ class Source(DataBlock):
     A source that holds datasets, which include training, validation, and test
     datasets.
 
-    Subclasses should implement their own `get` method normally (though a
-    default `get` method is implemented for PyTorch for now).
+    Subclasses should implement their own `_get` method normally (though a
+    default `_get` method is implemented for PyTorch for now).
     """
     NAME = "Source"
 
@@ -108,8 +108,17 @@ class Source(DataBlock):
     def set_mode(self, mode):
         A.check_mode(mode)
         self.mode = mode
+        # Each time `set_mode` is called, we need re-set up the source. It is
+        # easy to miss it, so we make it explicit.
+        self.is_setup = False
 
     def get(self, indices):
+        if not self.is_setup:
+            raise ValueError("Source is not set up yet.")
+
+        return self._get(indices)
+
+    def _get(self, indices):
         """
         This is a default `get` method to work with the `DataSet` class of
         PyTorch. A customized source that does not use `DataSet` in PyTorch

@@ -75,6 +75,7 @@ class Kid(Block):
                  inference_mode=False,
                  do_summary=True,
                  do_summary_on_val=False,
+                 skip_validation=False,
                  debug=False):
         """
         Assemble a sensor, a brain, and a KongFu to start the survival game.
@@ -140,6 +141,8 @@ class Kid(Block):
                 validation source will reshuffle data after one epoch is
                 finished, some validation may be reused and some may not be
                 seen at all when doing the actual validation.
+            skip_validation: bool
+                If True, would not do validation during training.
             Other args are self-evident.
         """
         self.sensor = sensor_in
@@ -173,6 +176,7 @@ class Kid(Block):
         self.do_summary = do_summary
         self.save_chk_point = save_chk_point
         self.continue_from_chk_point = continue_from_chk_point
+        self.skip_validation = skip_validation
 
         self.initialized = False
 
@@ -231,6 +235,8 @@ class Kid(Block):
             self.log('Validation Data Eval:')
         elif mode == A.Mode.TEST:
             self.log('Test Data Eval:')
+        elif mode == A.Mode.TRAIN:
+            self.log('Train Data Eval:')
         else:
             assert False, "Program should not reach here."
 
@@ -376,7 +382,8 @@ class Kid(Block):
             A.get_step() == self.max_steps):
             if self.save_chk_point:
                 self.save_to_ckpt()
-            self.loss, self.evals = self.validate()
+            if not self.skip_validation:
+                self.loss, self.evals = self.validate()
             val_loss, val_evals = self.loss, self.evals
             self.on_val_log_step()
             self.sensor.set_mode("train")
@@ -386,6 +393,9 @@ class Kid(Block):
 
         self.on_batch_begin()
         self.loss, self.evals = self.run_step()
+
+        if self.debug:
+            print("Loss: {}; Eval: {}".format(self.loss, self.evals))
 
         self.step_time = time.time() - start_time
 
@@ -397,7 +407,8 @@ class Kid(Block):
             if self.log_by_epoch:
                 if self.save_chk_point:
                     self.save_to_ckpt()
-                self.loss, self.evals = self.validate()
+                if not self.skip_validation:
+                    self.loss, self.evals = self.validate()
                 self.on_val_log_step()
                 val_loss, val_evals = self.loss, self.evals
                 self.sensor.set_mode("train")

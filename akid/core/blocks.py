@@ -360,8 +360,12 @@ class ProcessingBlock(FlowBlock):
                 self.log("Do tensorboard summary on outputs {} of {}".format(
                     name, self.name))
 
-                shape = len(A.get_shape(d))
-                if shape == 0:
+                shape = A.get_shape(d)
+                if shape != 0:
+                    dim = len(shape)
+                else:
+                    dim = 0
+                if dim == 0:
                     A.summary.scalar(name, d, collections=[collection])
                 else:
                     A.summary.histogram(name,

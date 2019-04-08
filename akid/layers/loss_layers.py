@@ -197,7 +197,8 @@ class MSELossLayer(LossLayer):
         self.size_average = size_average
 
     def _forward(self, data):
-        self._loss = A.nn.mse_loss(data[0], data[1], self.size_average)
+        self._loss = A.nn.mse_loss(data[0], data[1], self.size_average,
+                                   name="mse_loss" if self.summarize_output else None)
         self._data = self._loss
         return self._loss
 
@@ -206,7 +207,12 @@ class BCELossLayer(LossLayer):
     NAME = "BCELoss"
 
     def _forward(self, x):
-        self._loss = A.nn.binary_cross_entropy_loss_with_logits(x[0], x[1])
+        if len(x) == 3:
+            pos_weight = x[2]
+        else:
+            pos_weight = None
+
+        self._loss = A.nn.binary_cross_entropy_loss_with_logits(x[0], x[1], pos_weight=pos_weight)
         self._data = self._loss
         return self._loss
 
