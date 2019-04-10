@@ -100,6 +100,9 @@ class Block(six.with_metaclass(abc.ABCMeta, object)):
     def _setup(self):
         pass
 
+    def teardown(self):
+        pass
+
     def _pre_setup(self):
         for f in self.pre_setup_hook:
             f(self)

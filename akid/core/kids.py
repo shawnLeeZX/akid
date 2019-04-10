@@ -24,6 +24,17 @@ from .eval_blocks import BatchEvalBlock
 from six.moves import range
 
 
+def scavenger(f):
+    def robust_f(self, *args, **kwargs):
+        try:
+            return f(self, *args, **kwargs)
+        except Exception as e:
+            self.teardown()
+            A.reset()
+            raise e
+    return robust_f
+
+
 class Kid(Block):
     """
     Kid is a class to assemble a `Sensor`, for supplying data, a
@@ -213,6 +224,7 @@ class Kid(Block):
         self.evals = None
         self.best_val_evals = None
 
+    @scavenger
     def validate(self, mode="val"):
         """Evaluating on validation set.
 
@@ -317,11 +329,15 @@ class Kid(Block):
         self.sensor.setup()
         self.step(update=False, val=True)
 
+    def teardown(self):
+        self.sensor.teardown()
+
     def restore(self):
         A.restore(self.model_dir)
         if A.backend() ==  A.TORCH and not self.inference_mode:
             self.kongfu.set_lr(A.retrieve_tensor('lr'))
 
+    @scavenger
     def practice(self, return_eval=False):
         """
         Improve the performance of the kid's brain by practicing, aka
@@ -355,6 +371,7 @@ class Kid(Block):
         else:
             return val_loss
 
+    @scavenger
     def predict(self, data):
         """
         Given a datum, do inference with a NN. Note that we do not have format

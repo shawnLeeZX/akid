@@ -66,6 +66,6 @@ class AUCEvalBlock(EvalBlock):
         assert y.shape[1] == len(self.y[0]), "`np.stack` works wrongly."
 
         for i in range(len(self.y)):
-            if np.sum(y[:, i]) != 0:
+            if not all(y[1:, i] == y[0, i]):
                 auc.append(roc_auc_score(y[:, i], y_pred[:, i], average=None))
         return np.mean(auc)

@@ -6,6 +6,7 @@ import tensorflow as tf
 from ..core.blocks import ProcessingLayer
 from .activation_layers import GroupSoftmaxLayer
 from .. import backend as A
+from .. import nn
 from six.moves import range
 
 
@@ -233,6 +234,31 @@ class WeightDecayLayer(LossLayer):
         self._data = sum
 
         return sum
+
+
+class HingeLossLayer(LossLayer):
+    """
+    The hinge loss takes class score, and labels and compute hinge loss.
+
+    Args:
+        If the inputs is a two-element list of `[y, t]`, where `y` is the
+        estimated class score, and `t` is the target label. `t` should give
+        labels as +1, or -1. Optionally, a third element could be added to be
+        use as weights for each sample and each label (if it is a 2D tesnor),
+        or just for each sample (if it is a 1D tensor).
+    """
+    NAME = "HingeLoss"
+
+    def _forward(self, x):
+        if len(x) == 3:
+            weights = x[2]
+        else:
+            weights = None
+
+        self._loss = nn.hinge_loss(x[0], x[1], weights=weights, name="hinge_loss")
+        return self._loss
+
+HingeLoss = HingeLossLayer
 
 
 

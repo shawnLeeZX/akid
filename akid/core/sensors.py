@@ -30,6 +30,7 @@ from __future__ import absolute_import, division, print_function
 
 import sys
 import abc
+import os
 import inspect
 from deprecated import deprecated
 import six
@@ -45,40 +46,130 @@ import threading
 
 import tensorflow as tf
 import torch as th
+from torch import multiprocessing as mp
 
 from .jokers import JokerSystem
 from .blocks import ProcessingBlock
 from . import sources
 from . import samplers
 from .common import TRAIN_SUMMARY_COLLECTION, VALID_SUMMARY_COLLECTION
-from .events import DataPrefetchThreadsDeadEvent
+from .events import DataPrefetchThreadsDeadEvent, DataPrefetchProcessesDeadEvent
 from akid import backend as A
+from akid.utils import glog as log
 
-import sys
-import os
-import pdb
-import functools
-import traceback
+
+
+def _check_if_main_thread_is_dead():
+    # If the main thread is dead, quit.
+    for t in threading.enumerate():
+        if t.name == "MainThread":
+            if not t.is_alive():
+                return True
+            else:
+                return False
 
 
 def _data_fetching_worker(source, index_queue, data_queue, done_event):
     # If index queue is not empty, then fetch the indices of a batch, and load
     # the data to data queue.
     while True:
-        # If the main thread is dead, quit.
-        for t in threading.enumerate():
-            if t.name == "MainThread":
-                if not t.is_alive():
-                    return
+        if _check_if_main_thread_is_dead():
+            return
+
         # If the done event is set, quit.
         if done_event.is_set():
             return
 
         try:
+            log.debug("Data Prefetching Worker: Fetching data according to indices ... ")
             indices = index_queue.get(timeout=A.TIMEOUT)
             data = source.get(indices)
             data_queue.put(data)
+            log.debug("Data Prefetching Worker: Data fetched")
         except queue.Empty:
+            continue
+
+
+def _data_fetching_worker_process(i, source, index_queue, data_queue, done_event):
+    repeat = False
+    NAME = "Data Prefetching Worker {}".format(i)
+
+    while True:
+        log.debug("{}: Working ...".format(NAME))
+        try:
+            os.kill(os.getppid(), 0)
+        except ProcessLookupError:
+            return
+
+        # If the done event is set, quit.
+        log.debug("{}: Done event {}".format(NAME, done_event.is_set()))
+        if done_event.is_set():
+            return
+
+        try:
+            log.debug("{}: Fetching data according to indices ... ".format(NAME))
+            if not repeat:
+                # It is possible the previous try to enqueue data is timeout,
+                # so we do not fetch data this time.
+                indices = index_queue.get(timeout=A.TIMEOUT)
+                data = source.get(indices)
+            data_queue.put(data, timeout=A.TIMEOUT)
+            repeat = False
+            log.debug("{}: Data fetched".format(NAME))
+        except queue.Empty:
+            continue
+        except queue.Full:
+            repeat = True
+            continue
+        except Exception as e:
+            log.debug("Process {} : Exception {}.".format(i, e))
+            raise e
+
+
+def _data_preloading_worker(prefetch_data_queue, data_queue, done_event):
+    log.debug("Data Preloading Worker: Started. ")
+    NAME = "Data Preloading Worker"
+
+    repeat = False
+
+    while True:
+        log.debug("Data Preloading Worker: Working ... ")
+        if _check_if_main_thread_is_dead():
+            return
+
+        try:
+            log.debug("{}: Loading CPU data ... ".format(NAME))
+
+            if not repeat or done_event.is_set():
+                data = prefetch_data_queue.get(timeout=A.TIMEOUT)
+                if data is None:
+                    assert done_event.is_set()
+                    return
+                elif done_event.is_set():
+                    # We need to consume all data before finishing, otherwise,
+                    # data fetching workers may cannot finish since it waits to
+                    # enqueue data (for that the pipe used by the queue may be
+                    # full, thus the workers are waiting the data to be
+                    # consumed; this is an implementation issue of
+                    # multiprocessing.Queue in python). But we do not need to
+                    # process them anymore.
+                    continue
+                elif type(data) is list:
+                    data_gpu = []
+                    for d in data:
+                        data_gpu.append(A.Tensor(d))
+
+            log.debug("{}: Enqueuing GPU data ... ".format(NAME))
+
+            data_queue.put(data_gpu, timeout=A.TIMEOUT)
+            repeat = False
+
+            log.debug("Data Preloading Worker: Data loaded")
+        except queue.Empty:
+            log.debug("{}: Queue is empty. Repeat.".format(NAME))
+            continue
+        except queue.Full:
+            repeat = True
             continue
 
 
@@ -101,6 +192,7 @@ class Sensor(ProcessingBlock):
                  test_batch_size=None,
                  queue_size=5,
                  sampler="shuffle",
+                 val_sampler="sequence",
                  **kwargs):
         """
         Args:
@@ -122,7 +214,7 @@ class Sensor(ProcessingBlock):
                                  A.Mode.TEST: val_batch_size if test_batch_size is None else test_batch_size}
         self.queue_size = queue_size
         self.sampler_name = sampler
-        self.sampler = samplers.get(sampler, len(self.source.data))
+        self.val_sampler_name = val_sampler
 
         self.mode = A.Mode.TRAIN
 
@@ -152,19 +244,39 @@ class Sensor(ProcessingBlock):
 
         self.mode = mode
         self.source.set_mode(mode)
-        self.sampler = samplers.get(self.sampler_name, len(self.source.data))
 
     def _setup(self):
         """
         Set up a FIFO queue to load data from source.
         """
-        # Set up a queue.
-        self.index_queue = Queue(self.queue_size)
-        # Start loading data from source according to mode.
-        ## Put indices to prefetch.
-        for i in range(self.queue_size):
-            self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+        self.source.setup()
+        if self.mode == A.Mode.TRAIN:
+            self.sampler = samplers.get(self.sampler_name, self.source.size)
+        elif self.mode == A.Mode.VAL or self.mode == A.Mode.TEST:
+            self.sampler = samplers.get(self.val_sampler_name, self.source.size)
+        else:
+            raise ValueError("Wrong mode {}".format(self.mode))
+
+        self._setup_index_queue()
         self._setup_data_queue()
+
+    def teardown(self):
+        self._teardown_data_queue()
+
+    @abc.abstractmethod
+    def _setup_index_queue(self):
+        """
+        The procedure to set up an index queue.
+        """
+        pass
+
+    @abc.abstractproperty
+    def index_queue(self):
+        """
+        Any subclass should has a queue to provide indices for workers to
+        fetch.
+        """
+        pass
 
     @property
     def data(self):
@@ -187,16 +299,12 @@ class Sensor(ProcessingBlock):
     @abc.abstractproperty
     def data_queue(self):
         """
-        Any subclass should has a queue that supports a `get` method to provide
-        data.
+        Any subclass should has a data queue to hold data fetched according to
+        index queue.
         """
         pass
 
     def _forward(self, *args, **kwargs):
-        if threading.active_count() == 1:
-            # Only the main thread is alive. Raise exception.
-            raise DataPrefetchThreadsDeadEvent
-
         ret = self.data_queue.get(timeout=A.TIMEOUT)
         A.cache_tensor_auto_scope(ret[0], "val_data" if self.is_val else "data")
         A.cache_tensor_auto_scope(ret[1], "val_labels" if self.is_val else "labels")
@@ -204,30 +312,6 @@ class Sensor(ProcessingBlock):
 
         self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
         return self._data
-
-
-class SimpleSensor(Sensor):
-    """
-    A simple sensor that uses a single thread to prefetch data.
-    """
-    def _setup_data_queue(self):
-        # Set up a data queue.
-        self._data_queue = Queue(self.queue_size)
-        # Start loading data from source according to mode.
-        ## Start the workers to fetch data.
-        self.done_event = threading.Event()
-        self.worker_thread = threading.Thread(
-            target=_data_fetching_worker,
-            args=(self.source, self.index_queue, self.data_queue, self.done_event))
-        self.worker_thread.start()
-
-    def _teardown_data_queue(self):
-        self.done_event.set()
-        self.worker_thread.join()
-
-    @property
-    def data_queue(self):
-        return self._data_queue
 
     def _post_forward(self, *args, **kwargs):
         super(Sensor, self)._post_forward(*args, **kwargs)
@@ -259,6 +343,109 @@ class SimpleSensor(Sensor):
             A.summary.image(name,
                             image_batch,
                             collections=[collection])
+
+
+class SimpleSensor(Sensor):
+    """
+    A simple sensor that uses a single thread to prefetch data.
+    """
+    def _pre_forward(self):
+        super(SimpleSensor, self)._pre_forward()
+        if threading.active_count() == 1:
+            # Only the main thread is alive. Raise exception.
+            raise DataPrefetchThreadsDeadEvent
+
+    def _setup_index_queue(self):
+        # Set up a queue.
+        self._index_queue = Queue(self.queue_size)
+        # Start loading data from source according to mode.
+        ## Put indices to prefetch.
+        for i in range(self.queue_size):
+            self._index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+
+    @property
+    def index_queue(self):
+        return self._index_queue
+
+    def _setup_data_queue(self):
+        # Set up a data queue.
+        self._data_queue = Queue(self.queue_size)
+        # Start loading data from source according to mode.
+        ## Start the workers to fetch data.
+        self.done_event = threading.Event()
+        self.worker_thread = threading.Thread(
+            target=_data_fetching_worker,
+            args=(self.source, self._index_queue, self._data_queue, self.done_event))
+        self.worker_thread.start()
+
+    def _teardown_data_queue(self):
+        self.done_event.set()
+        self.worker_thread.join()
+
+    @property
+    def data_queue(self):
+        return self._data_queue
+
+
+class ParallelSensor(Sensor):
+    """
+    The sensor that fetches data using multiple processes.
+    """
+    def __init__(self, num_workers=4, *args, **kwargs):
+        super(ParallelSensor, self).__init__(*args, **kwargs)
+        self.num_workers = num_workers
+
+    def _pre_forward(self):
+        super(ParallelSensor, self)._pre_forward()
+        if len(mp.active_children()) == 0:
+            # If all child processes are dead, we raise error.
+            raise DataPrefetchProcessesDeadEvent
+        if not self.preloading_thread.is_alive():
+            # The thread to move data from CPU to GPU is dead.
+            raise DataPrefetchThreadsDeadEvent
+
+    def _setup_index_queue(self):
+        self._index_queue = mp.Queue(self.queue_size * self.num_workers)
+        for i in range(self.queue_size * self.num_workers):
+            self._index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+
+    @property
+    def index_queue(self):
+        return self._index_queue
+
+    def _setup_data_queue(self):
+        # Set up a data queue.
+        self._prefetch_data_queue = mp.Queue(self.queue_size * self.num_workers)
+        # Start loading data from source according to mode.
+        ## Start the workers to fetch data.
+        self.done_event = mp.Event()
+        self.worker_processes = []
+        for i in range(self.num_workers):
+            process = mp.Process(
+                target=_data_fetching_worker_process,
+                args=(i, self.source, self._index_queue, self._prefetch_data_queue, self.done_event))
+            process.start()
+            self.worker_processes.append(process)
+
+        # Start a thread to load the CPU data to GPU.
+        self._data_queue = Queue(self.queue_size * self.num_workers * 2)
+        self.preloading_thread = threading.Thread(
+            target=_data_preloading_worker,
+            args=(self._prefetch_data_queue, self._data_queue, self.done_event))
+        self.preloading_thread.start()
+
+    def _teardown_data_queue(self):
+        self.done_event.set()
+        for i in range(self.num_workers):
+            self.log("Waiting worker {} to join ...".format(i))
+            self.worker_processes[i].join()
+        self._prefetch_data_queue.put(None, timeout=A.TIMEOUT)
+        self.log("Waiting preloading thread to join ...")
+        self.preloading_thread.join()
+
+    @property
+    def data_queue(self):
+        return self._data_queue
 
 
 @deprecated(reason="Legacy code. Use `Sensor` instead.")

@@ -20,7 +20,7 @@ from akid.models.brains import AlexNet
 from akid import LearningRateScheme
 from akid import backend as A
 
-from akid import SimpleSensor, MNISTSource
+from akid import SimpleSensor, MNISTSource, ParallelSensor
 import akid
 
 import time
@@ -121,6 +121,39 @@ class TestSimpleSensor(AKidTestCase):
 
         val_summary_ops = A.summary.get_collection(akid.common.VALID_SUMMARY_COLLECTION)
         self.assertNotEquals(len(val_summary_ops), 0)
+
+
+class TestParallelSensor(AKidTestCase):
+    def setUp(self):
+        A.reset()
+        self.use_cuda_save = A.use_cuda()
+        A.use_cuda(False)
+
+    def tearDown(self):
+        A.use_cuda(self.use_cuda_save)
+
+    @skipUnless(A.backend() == A.TORCH, msg="Currently MNISTSource depends on torch")
+    def test_core(self):
+        source = MNISTSource(work_dir="data", name="source")
+        source.setup()
+
+        b_size = 32
+        sensor = ParallelSensor(source_in=source,
+                                batch_size=b_size,
+                                queue_size=2,
+                                num_workers=1,
+                                sampler="sequence",
+                                name="sensor")
+        sensor.setup()
+
+        time.sleep(2)
+        d = sensor.forward()
+        d_ref = source.get(list(range(b_size)))
+
+        for t in zip(A.eval(d), A.eval(d_ref)):
+            self.assertNdarrayEquals(t[0], t[1])
+
+        sensor.teardown()
 
 class TestFeedSensor(AKidTestCase):
     def setUp(self):

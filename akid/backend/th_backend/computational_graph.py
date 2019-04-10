@@ -509,3 +509,12 @@ def expand_dims(x, axis, name=None):
 @cache_name_if_exist
 def cast(x, dtype, name=None):
     return x.type(dtype)
+
+
+@cache_name_if_exist
+def value(x, name=None):
+    """
+    Get the value of a Tensor, which is a node in the graph, and holds
+    additional information which should be isolated.
+    """
+    return x.clone()

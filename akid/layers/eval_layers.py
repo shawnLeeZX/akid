@@ -5,6 +5,7 @@ import numpy as np
 from ..core.blocks import ProcessingLayer
 from ..backend import NamedTensorTuple, NamedScalar
 from .. import backend as A
+from .. import nn
 from six.moves import range
 
 
@@ -72,4 +73,17 @@ class MultiLabelAccuracy(EvalLayer):
         mean_precision = A.NamedScalar("MAP", mean_precision)
         self._eval = mean_precision
 
+        return self._eval
+
+
+class BinaryAccuracy(EvalLayer):
+    NAME = "Binary_Acc"
+
+    def __init__(self, hinge_loss_label=False, *args, **kwargs):
+        super(BinaryAccuracy, self).__init__(*args, **kwargs)
+        self.hinge_loss_label = hinge_loss_label
+
+    def _forward(self, inputs):
+        x, y = inputs[0], inputs[1]
+        self._eval = nn.binary_accuracy(x, y, self.hinge_loss_label, name="Acc")
         return self._eval
