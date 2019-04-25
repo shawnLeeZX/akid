@@ -3,13 +3,15 @@ PyTorch backend for akid.
 """
 from __future__ import absolute_import
 import os
+import sys
+import inspect
 
 import numpy as np
 import torch as th
 from torch.autograd import Variable
 
 from .. import computational_graph as cg
-from akid.utils import glog as log
+from akid.utils import glog
 
 float32 = th.float32
 
@@ -50,7 +52,7 @@ def get_variable(name=None, shape=None,
         if reuse:
             # Return the variable if already allocated.
             if name in tensor_by_name:
-                log.debug("Reuse variable {}".format(name))
+                glog.debug("Reuse variable {}".format(name))
                 return tensor_by_name[name]
         elif name in tensor_by_name:
             name = _append_num(name)
@@ -71,7 +73,7 @@ def get_variable(name=None, shape=None,
 
     t._is_variable = True
 
-    log.debug("Created new variable {}".format(name))
+    glog.debug("Created new variable {}".format(name))
 
     return t
 
@@ -430,6 +432,21 @@ def mean(v, name=None):
     return th.mean(v)
 
 
+@cache_name_if_exist
+def max(v, name=None):
+    return th.max(v)
+
+
+@cache_name_if_exist
+def log(v, name=None):
+    return th.log(v)
+
+
+@cache_name_if_exist
+def linspace(start, end, space, name=None):
+    return th.linspace(start, end, space)
+
+
 def get_shape(t):
     if isinstance(t, cg.NamedScalar):
         return 0
@@ -518,3 +535,47 @@ def value(x, name=None):
     additional information which should be isolated.
     """
     return x.clone()
+
+
+@cache_name_if_exist
+def zeros(shape, name=None):
+    return th.zeros(shape, device=device)
+
+
+@cache_name_if_exist
+def ones(shape, name=None):
+    return th.ones(shape, device=device)
+
+
+@cache_name_if_exist
+def eye(n, name=None):
+    return th.eye(n, device=device)
+
+
+@cache_name_if_exist
+def range(start, end, name=None):
+    return th.arange(start, end)
+
+
+@cache_name_if_exist
+def symeig(H):
+    return th.symeig(H, eigenvectors=True)
+
+
+@cache_name_if_exist
+def randn(shape, name=None):
+    return th.randn(*shape, device=device)
+
+
+@cache_name_if_exist
+def matmul(a, b, name=None):
+    return th.matmul(a, b)
+
+
+attributes = dir(sys.modules[__name__])
+public_attributes = []
+for a in attributes:
+    if a[0] == '_' or inspect.ismodule(getattr(sys.modules[__name__], a)):
+        continue
+    public_attributes.append(a)
+__all__ = public_attributes

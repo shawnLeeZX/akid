@@ -20,7 +20,7 @@ import sys
 import tensorflow as tf
 
 from .computational_graph import *
-from ..utils import glog as log
+from ..utils import glog
 import gflags
 FLAGS = gflags.FLAGS
 
@@ -61,4 +61,4 @@ def reset():
 
 def init_log():
     FLAGS(sys.argv)
-    log.init("stdout", akid_logger=True)
+    glog.init("stdout", akid_logger=True)

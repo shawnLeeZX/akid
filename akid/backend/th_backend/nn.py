@@ -255,3 +255,18 @@ def bn(x, out_channel_num, # out_channel_num is unused.
         x, running_mean, running_var, gamma, beta,
         not is_val or not track_running_stats,
         exponential_average_factor, eps)
+
+
+@cache_name_if_exist
+def hessian(l, x, name=None):
+    """
+    Compute the Hessian of l w.r.t. x, where l is the output of a loss function.
+    """
+    nabla = th.autograd.grad(l, x, create_graph=True)
+    H = []
+    for p in nabla:
+        p = th.cat(th.autograd.grad(p, x))
+        H.append(p)
+
+    H = th.stack(H, 1)
+    return H
