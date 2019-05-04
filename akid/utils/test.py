@@ -51,14 +51,14 @@ class AKidTestCase(TestCase):
         diff = a - b
         diff = abs(diff)
         if not (diff < 10 ** -places).all():
-            msg = self._formatMessage(None, '\ndiff:\n{}\n'.format(diff))
+            msg = self._formatMessage(None, '\ndiff:\n{}\n\n\n a:{}\n\n\n b:{}\n'.format(diff, a, b))
             raise self.failureException(msg)
 
     def assertNdarrayNotAlmostEquals(self, a, b):
         diff = a - b
         diff = abs(diff)
         if (diff < 10e-7).all():
-            msg = self._formatMessage(None, '\ndiff:\n{}\n'.format(diff))
+            msg = self._formatMessage(None, '\ndiff:\n{}\n a:{}\n b:\n'.format(diff, a, b))
             raise self.failureException(msg)
 
     def assertTensorEquals(self, a, b):

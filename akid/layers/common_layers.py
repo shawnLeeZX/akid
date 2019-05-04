@@ -12,15 +12,17 @@ class ReshapeLayer(ProcessingLayer):
     """
     Reshape data. Only intrinsic shape information of output data should be
     given. The dimension of batch size is not needed. If no shape is given, all
-    dimensions beyond batch size dimension are flattened.
+    dimensions beyond batch size dimension are flattened. Unless `squeeze` is
+    set to False, shape of dimension 1 would be squeezed.
     """
     NAME = "Reshape"
 
-    def __init__(self, shape=None, **kwargs):
+    def __init__(self, shape=None, squeeze=True, **kwargs):
         # Do not do summary since we just reshape the data.
         kwargs["do_summary"] = False
         super(ReshapeLayer, self).__init__(**kwargs)
         self.intrinsic_shape = shape
+        self.squeeze = squeeze
 
     def _forward(self, input):
         batch_size = A.get_shape(input)[0]
@@ -30,6 +32,10 @@ class ReshapeLayer(ProcessingLayer):
             shape = [-1]
         shape.insert(0, batch_size)
         self._data = A.reshape(input, shape)
+
+        if self.squeeze:
+            self._data = A.squeeze(self._data)
+
         return self._data
 
 

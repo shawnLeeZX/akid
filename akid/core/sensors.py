@@ -276,6 +276,13 @@ class Sensor(ProcessingBlock):
 
         self.mode = mode
         self.source.set_mode(mode)
+        self.log("Mode {}".format(mode))
+
+    def reset(self):
+        if self.is_setup:
+            self._teardown_data_queue()
+
+        self.setup()
 
     def _setup(self):
         """

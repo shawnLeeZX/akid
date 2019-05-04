@@ -173,6 +173,7 @@ class SynapseLayer(ProcessingLayer):
 
 
 class ConvolutionLayer(SynapseLayer):
+    NAME = "Conv2D"
     def __init__(self,
                  ksize,
                  strides=1,
@@ -181,7 +182,7 @@ class ConvolutionLayer(SynapseLayer):
                  bn=False,
                  **kwargs):
         super(ConvolutionLayer, self).__init__(**kwargs)
-        self.ksize = ksize
+        self.ksize = [ksize, ksize] if type(ksize) is int else ksize
         self.strides = strides
         self.padding = padding
         self.depthwise = depthwise

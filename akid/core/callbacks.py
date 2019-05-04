@@ -6,6 +6,7 @@ supposed to hold all information needed.
 """
 from __future__ import absolute_import
 from akid import backend as A
+from akid import ops
 
 from ..utils import glog as log
 from six.moves import zip
@@ -100,13 +101,7 @@ def on_val_log_step(kid):
 
 def on_train_begin(kid):
     # Calculate and log total parameter number.
-    total_parameters = 0
-    for variable in kid.brain.get_filters():
-        shape = A.get_shape(variable)
-        variable_parametes = 1
-        for dim in shape:
-            variable_parametes *= dim
-        total_parameters += variable_parametes
+    total_parameters = kid.brain.num_parameters()
     log.info("Total parameters: {}".format(total_parameters))
 
     # Set up summary ops

@@ -377,7 +377,10 @@ def Tensor(t, requires_grad=False, name=None):
     """
     type_t = type(t)
     if type_t is np.ndarray:
-        t = th.from_numpy(t.astype(np.float32))
+        if t.dtype == np.int:
+            t = th.from_numpy(t)
+        else:
+            t = th.from_numpy(t.astype(np.float32))
     elif np.isscalar(t):
         t = th.tensor(float(t))
     elif type_t is list:
@@ -503,6 +506,11 @@ def div(v, denominator, name=None):
     return th.div(v, denominator)
 
 
+@cache_name_if_exist
+def cat(v, name=None):
+    return th.cat(v)
+
+
 def scatter(data, devices):
     if torch_version < 0.4:
         return th.nn.parallel._functions.Scatter(devices, dim=0)(data)
@@ -521,6 +529,10 @@ def gather(data, output_device, name=None):
 @cache_name_if_exist
 def expand_dims(x, axis, name=None):
     return th.unsqueeze(x, dim=axis)
+
+@cache_name_if_exist
+def squeeze(x, name=None):
+    return th.squeeze(x)
 
 
 @cache_name_if_exist

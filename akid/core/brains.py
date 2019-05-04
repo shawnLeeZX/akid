@@ -159,6 +159,17 @@ class Brain(System, ProcessingLayer):
 
         return filter_list
 
+    def num_parameters(self):
+        total_parameters = 0
+        for variable in self.get_filters():
+            shape = A.get_shape(variable)
+            variable_parametes = 1
+            for dim in shape:
+                variable_parametes *= dim
+            total_parameters += variable_parametes
+
+        return total_parameters
+
     def _pre_setup(self):
         super(Brain, self)._pre_setup()
         if self.is_val:

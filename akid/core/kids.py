@@ -257,7 +257,7 @@ class Kid(Block):
             self.sensor.setup()
 
         # Run one epoch of eval.
-        self.log("A epoch of {} set contains {} batches".format(mode, self.sensor.num_batches_per_epoch))
+        self.log("A epoch of {} set contains {} batches. Batch size {}.".format(mode, self.sensor.num_batches_per_epoch, self.sensor.batch_size))
         eval_blocks = [BatchEvalBlock()
                        if A.get_eval_block(v) is None else A.get_eval_block(v)
                        for v in self.engine.eval(get_val=True)]

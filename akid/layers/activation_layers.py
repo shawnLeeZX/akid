@@ -58,12 +58,24 @@ class _PoolingLayer(ProcessingLayer):
     def __init__(self, ksize, strides, padding, **kwargs):
         super(_PoolingLayer, self).__init__(**kwargs)
 
-        self.ksize = ksize
+        t = type(ksize)
+        if t is int:
+            self.ksize = [ksize, ksize]
+        elif t is list or t is tuple:
+            if len(ksize) == 2:
+                self.ksize = ksize
+            else:
+                raise ValueError("Only 2D pooling is supported. Gotten {}".format(ksize))
+        else:
+            raise ValueError("Value not understood".format(ksize))
+
         self.strides = strides
         self.padding = padding
 
 
 class MaxPoolingLayer(_PoolingLayer):
+    NAME = "MaxPool2D"
+
     def __init__(self, get_argmax_idx=False, **kwargs):
         """
         Args:

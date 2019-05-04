@@ -82,7 +82,9 @@ def max_pool1d(x, ksize, stride, padding, name=None):
 def _normalize_stride(strides):
     # The format of ksize in torch is a tuple of size 2 instead of 4 in
     # tensorflow.
-    if len(strides) == 4:
+    if type(strides) is int:
+        strides = (strides, strides)
+    elif len(strides) == 4:
         log.warning("Torch backend does not support stride in all four dimensions."
                     " Use the last two as height and width.")
         strides=(strides[-2], strides[-1])
@@ -222,6 +224,9 @@ def padding_str2tuple(H_in, W_in, strides, padding, H, W):
     Convert padding from string to tuple. Thea meaning of string is from
     tensorflow.
     """
+    if type(strides) is int:
+        strides = (strides, strides)
+
     if padding == 'VALID':
         padding = 0
     elif padding == 'SAME':
@@ -263,10 +268,41 @@ def hessian(l, x, name=None):
     Compute the Hessian of l w.r.t. x, where l is the output of a loss function.
     """
     nabla = th.autograd.grad(l, x, create_graph=True)
+    nabla = th.cat([g.contiguous().view(-1) for g in nabla])
     H = []
     for p in nabla:
-        p = th.cat(th.autograd.grad(p, x))
+        p = th.cat(th.autograd.grad(p, x, retain_graph=True))
         H.append(p)
 
     H = th.stack(H, 1)
     return H
+
+
+@cache_name_if_exist
+def grad(l, x, flatten=False, name=None):
+    """
+    If `flatten` is True, the output grad would be flattened to a vector.
+    """
+    nabla = th.autograd.grad(l, x, create_graph=True)
+
+    if flatten:
+        if type(nabla) is tuple:
+            nabla = th.cat([g.contiguous().view(-1) for g in nabla])
+        elif type(nabla) is th.Tensor:
+            nabla = nabla.contiguous().view(-1)
+        else:
+            raise ValueError("Type {} of grad is not supported".format(type(nabla)))
+
+    return nabla
+
+@cache_name_if_exist
+def hessian_vector_product(nabla, x, v, allow_unused=False, name=None):
+    """
+    Take a gradient `nabla` computed by PyTorch and compute the Hessian vector
+    product between it and a vector `v`. To compute Hessian from `grad`, we
+    need the parameters `x` that are supposed to be taken derivatives against.
+    """
+    Hv = th.autograd.grad(nabla, x, allow_unused=allow_unused, grad_outputs=v)
+    # import ipdb; ipdb.set_trace()
+    Hv = th.cat([p.contiguous().view(-1) for p in Hv])
+    return Hv
