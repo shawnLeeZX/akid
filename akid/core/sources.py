@@ -126,8 +126,6 @@ class Source(DataBlock):
         """
         # Only work in torch for now.
         sample_batch = default_collate([self.data[i] for i in indices])
-        if A.use_cuda():
-            sample_batch = [d.to("cuda") for d in sample_batch]
         return sample_batch
 
 

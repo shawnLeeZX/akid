@@ -15,3 +15,7 @@ class EarlyStoppingEvent(Exception):
         """
         self.val_loss = val_loss
         self.val_evals = val_evals
+
+
+class EpochCompletedEvent(Exception):
+    pass

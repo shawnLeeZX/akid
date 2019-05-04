@@ -10,8 +10,9 @@ from `Source` is already in digital form, so this function is not there
 anymore. But the data batching, augmentation and so on could still be put in
 preprocessing. Thus we still use the name sensor for concept reuse.
 
-Sensors can also include the support for functions such as multi-threaded data
-prefetch to build better performed data preparation pipeline.
+Sensors can also include the support for functions such as multi-threaded, or
+multi-process data prefetch to build better performed data preparation
+pipeline.
 
 Mathematically, it is a system made up with a series of linked blocks that do
 data augmentation.
@@ -25,6 +26,23 @@ for the MNIST dataset. Taking a `Source`, we could make a sensor::
 
 Similar with `Source`, a sensor has multiple modes to supply data. Refer to the
 documentation of `Source` for more details.
+
+------------------
+Sensor as iterator
+------------------
+
+A `Sensor` can be used as an iterator when an automatic precise control on many
+epochs of data should be provided is needed. To use sensor as an iterator::
+
+    for batch in sensor:
+        # blah blah
+
+Note that, even if a `Sensor` is used as an iterator, one should call `setup`
+and `teardown` before a sensor is used and after it finishes its role. This is
+to properly shutdown threads, or processes that are prefetching data, if there
+are any.
+
+NOTE: Some sensors may do not support iteration. Check documentation for details.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -53,7 +71,11 @@ from .blocks import ProcessingBlock
 from . import sources
 from . import samplers
 from .common import TRAIN_SUMMARY_COLLECTION, VALID_SUMMARY_COLLECTION
-from .events import DataPrefetchThreadsDeadEvent, DataPrefetchProcessesDeadEvent
+from .events import (
+    DataPrefetchThreadsDeadEvent,
+    DataPrefetchProcessesDeadEvent,
+    EpochCompletedEvent
+)
 from akid import backend as A
 from akid.utils import glog as log
 
@@ -111,8 +133,13 @@ def _data_fetching_worker_process(i, source, index_queue, data_queue, done_event
             if not repeat:
                 # It is possible the previous try to enqueue data is timeout,
                 # so we do not fetch data this time.
-                indices = index_queue.get(timeout=A.TIMEOUT)
-                data = source.get(indices)
+                item = index_queue.get(timeout=A.TIMEOUT)
+                if type(item) is EpochCompletedEvent:
+                    # Epoch finishes, we pass on the event to let the sensor
+                    # knows an epoch has indeed finished.
+                    data = item
+                else:
+                    data = source.get(item) # The item is a list of indices now.
             data_queue.put(data, timeout=A.TIMEOUT)
             repeat = False
             log.debug("{}: Data fetched".format(NAME))
@@ -161,7 +188,10 @@ def _data_preloading_worker(prefetch_data_queue, data_queue, done_event):
 
             log.debug("{}: Enqueuing GPU data ... ".format(NAME))
 
-            data_queue.put(data_gpu, timeout=A.TIMEOUT)
+            if type(data) is EpochCompletedEvent:
+                data_queue.put(data, timeout=A.TIMEOUT)
+            else:
+                data_queue.put(data_gpu, timeout=A.TIMEOUT)
             repeat = False
 
             log.debug("Data Preloading Worker: Data loaded")
@@ -213,6 +243,8 @@ class Sensor(ProcessingBlock):
                                  A.Mode.VAL: val_batch_size,
                                  A.Mode.TEST: val_batch_size if test_batch_size is None else test_batch_size}
         self.queue_size = queue_size
+        if self.queue_size > self.num_batches_per_epoch:
+            self.queue_size = self.num_batches_per_epoch
         self.sampler_name = sampler
         self.val_sampler_name = val_sampler
 
@@ -305,12 +337,25 @@ class Sensor(ProcessingBlock):
         pass
 
     def _forward(self, *args, **kwargs):
+        if self.index_queue.empty():
+            # If we just finishes using the sensor as an iterator, calling
+            # forward now would results in errors, since no data is in the data
+            # queue now. If this is the case, we need to put same indices to
+            # prefetch to continue.
+            self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+
         ret = self.data_queue.get(timeout=A.TIMEOUT)
+
         A.cache_tensor_auto_scope(ret[0], "val_data" if self.is_val else "data")
         A.cache_tensor_auto_scope(ret[1], "val_labels" if self.is_val else "labels")
         self._data = ret
 
-        self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+        try:
+            self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+        except EpochCompletedEvent:
+            # Just keep prefetching the next batch.
+            self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+
         return self._data
 
     def _post_forward(self, *args, **kwargs):
@@ -389,11 +434,52 @@ class SimpleSensor(Sensor):
 
 class ParallelSensor(Sensor):
     """
-    The sensor that fetches data using multiple processes.
+    The sensor that fetches data using multiple processes. It supports to be
+    used as an iterator.
     """
     def __init__(self, num_workers=4, *args, **kwargs):
         super(ParallelSensor, self).__init__(*args, **kwargs)
         self.num_workers = num_workers
+        self.queue_size *= num_workers
+        if self.queue_size > self.num_batches_per_epoch:
+            self.queue_size = self.num_batches_per_epoch
+
+    def __iter__(self):
+        self.epoch_finished = False
+        if self.index_queue.empty():
+            # Upon setup of sensor, we have some indices put in the queue, so
+            # it may not be necessary put some indices. However, after the
+            # second entry to create an iterator, it is possible the index
+            # queue is empty, since further prefetching is disabled. In such a
+            # case, we need to put some indices to prefetch to get started.
+            self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+        return self
+
+    def __next__(self):
+        # Get the next batch of data.
+        ret = self.data_queue.get(timeout=A.TIMEOUT)
+
+        # Raise `StopIteration` since we have received the epoch completion
+        # signal we sent earlier.
+        if type(ret) is EpochCompletedEvent:
+            raise StopIteration
+
+        # If not, we do our normal data stuff.
+        A.cache_tensor_auto_scope(ret[0], "val_data" if self.is_val else "data")
+        A.cache_tensor_auto_scope(ret[1], "val_labels" if self.is_val else "labels")
+        self._data = ret
+
+        # Put the indices of the batch to be prefetched if we still have not
+        # finished an epoch. But if we have, stop fetching data by putting the
+        # EpochCompletedEvent to the index queue.
+        if not self.epoch_finished:
+            try:
+                self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+            except EpochCompletedEvent as e:
+                self.epoch_finished = True
+                self.index_queue.put(EpochCompletedEvent())
+
+        return ret
 
     def _pre_forward(self):
         super(ParallelSensor, self)._pre_forward()
@@ -405,8 +491,8 @@ class ParallelSensor(Sensor):
             raise DataPrefetchThreadsDeadEvent
 
     def _setup_index_queue(self):
-        self._index_queue = mp.Queue(self.queue_size * self.num_workers)
-        for i in range(self.queue_size * self.num_workers):
+        self._index_queue = mp.Queue(self.queue_size)
+        for i in range(self.queue_size):
             self._index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
 
     @property
@@ -415,7 +501,7 @@ class ParallelSensor(Sensor):
 
     def _setup_data_queue(self):
         # Set up a data queue.
-        self._prefetch_data_queue = mp.Queue(self.queue_size * self.num_workers)
+        self._prefetch_data_queue = mp.Queue(self.queue_size)
         # Start loading data from source according to mode.
         ## Start the workers to fetch data.
         self.done_event = mp.Event()
@@ -428,7 +514,7 @@ class ParallelSensor(Sensor):
             self.worker_processes.append(process)
 
         # Start a thread to load the CPU data to GPU.
-        self._data_queue = Queue(self.queue_size * self.num_workers * 2)
+        self._data_queue = Queue(self.queue_size * 2)
         self.preloading_thread = threading.Thread(
             target=_data_preloading_worker,
             args=(self._prefetch_data_queue, self._data_queue, self.done_event))

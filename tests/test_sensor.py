@@ -131,6 +131,7 @@ class TestParallelSensor(AKidTestCase):
 
     def tearDown(self):
         A.use_cuda(self.use_cuda_save)
+        A.reset()
 
     @skipUnless(A.backend() == A.TORCH, msg="Currently MNISTSource depends on torch")
     def test_core(self):
@@ -152,6 +153,36 @@ class TestParallelSensor(AKidTestCase):
 
         for t in zip(A.eval(d), A.eval(d_ref)):
             self.assertNdarrayEquals(t[0], t[1])
+
+        sensor.teardown()
+
+    @skipUnless(A.backend() == A.TORCH, msg="Currently MNISTSource depends on torch")
+    def test_iterator(self):
+        # from akid.utils import glog as log
+        # log.init()
+        # log.setLevel(log.DEBUG)
+        source = MNISTSource(work_dir="data", name="source")
+        source.setup()
+
+        b_size = 32
+        sensor = ParallelSensor(source_in=source,
+                                batch_size=b_size,
+                                queue_size=2,
+                                num_workers=4,
+                                sampler="sequence",
+                                name="sensor")
+        sensor.setup()
+
+        # Iterate through the source twice. The first time, we check whether
+        # the iteration could be done; the second, we check whether it could be
+        # restarted.
+        for b in sensor:
+            pass
+        for b in sensor:
+            pass
+        # We check the switching from iterator mode to data crunching mode is
+        # correct.
+        sensor.forward()
 
         sensor.teardown()
 

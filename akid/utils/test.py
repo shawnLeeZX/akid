@@ -21,6 +21,7 @@ from akid import (
     Kid,
     FeedSensor,
     SimpleSensor,
+    ParallelSensor,
     MomentumKongFu
 )
 from akid.models.brains import OneLayerBrain
@@ -128,7 +129,8 @@ class TestFactory(object):
         elif A.backend() == A.TORCH:
             s = MNISTSource(work_dir=AKID_DATA_PATH + '/mnist', name='mnist')
             s.setup()
-            return SimpleSensor(
+            # return SimpleSensor(
+            return ParallelSensor(
                 source_in=s,
                 # Do not shuffle training set for reproducible test
                 sampler="sequence",
@@ -145,7 +147,7 @@ class TestFactory(object):
                 FeedSensor(source_in=data_in, name='data'),
                 brain,
                 MomentumKongFu(),
-                debug=True,
+                # debug=True,
                 max_steps=900)
         else:
             # data_in is a sensor now
@@ -153,7 +155,7 @@ class TestFactory(object):
                 data_in,
                 brain,
                 MomentumKongFu(),
-                debug=True,
+                # debug=True,
                 max_steps=900)
 
 

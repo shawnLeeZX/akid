@@ -8,6 +8,7 @@ from six import raise_from
 import random
 
 from ..utils import glog as log
+from .events import EpochCompletedEvent
 from six.moves import range
 
 
@@ -66,14 +67,22 @@ class Sampler(object):
     def reset(self):
         self.current_idx = 0
 
-class SequenceSampler(Sampler):
-    def next(self, size=1):
+    def _check_epoch_finishes(self):
         if self.current_idx >= len(self.indices):
             self.reset()
-            log.info("An epoch finished. Restart.")
+            log.info("An epoch finished. Reset.")
+            raise EpochCompletedEvent()
 
-        index_batch = self.indices[self.current_idx:self.current_idx+size]
-        self.current_idx += size
+class SequenceSampler(Sampler):
+    def next(self, size=1):
+        self._check_epoch_finishes()
+
+        if self.current_idx + size > len(self.indices):
+            index_batch = self.indices[self.current_idx:]
+            self.current_idx = len(self.indices)
+        else:
+            index_batch = self.indices[self.current_idx:self.current_idx+size]
+            self.current_idx += size
 
         return index_batch
 
