@@ -53,6 +53,7 @@ from torch.utils.data.dataloader import default_collate
 
 from .blocks import DataBlock, FlowBlock
 from .. import backend as A
+from .common import AKID_DATA_PATH
 import six
 from six.moves import range
 
@@ -74,7 +75,7 @@ class Source(DataBlock):
     """
     NAME = "Source"
 
-    def __init__(self, work_dir="data", *args, **kwargs):
+    def __init__(self, work_dir=AKID_DATA_PATH + "/data", *args, **kwargs):
         """
         By default, the source is in `train` mode.
         Args:

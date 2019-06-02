@@ -80,7 +80,6 @@ from akid import backend as A
 from akid.utils import glog as log
 
 
-
 def _check_if_main_thread_is_dead():
     # If the main thread is dead, quit.
     for t in threading.enumerate():
@@ -259,10 +258,17 @@ class Sensor(ProcessingBlock):
         return (self.source.size - 1) // self.batch_size_dict[self.mode] + 1
 
     def set_batch_size(self, size):
+        """
+        NOTE: the queue size is determined dynamically from batch
+        size. However, if batch size is set after sensor setup, the queue size
+        is determined actually using the old batch size value.
+        """
         if type(size) is not int:
             raise ValueError("The batch size should be of type int. Type {} received".format(type(size)))
         else:
             self.batch_size_dict[self.mode] = size
+            if self.queue_size > self.num_batches_per_epoch:
+                self.queue_size = self.num_batches_per_epoch
 
     def set_mode(self, mode):
         A.check_mode(mode)
@@ -345,11 +351,17 @@ class Sensor(ProcessingBlock):
 
     def _forward(self, *args, **kwargs):
         if self.index_queue.empty():
-            # If we just finishes using the sensor as an iterator, calling
-            # forward now would results in errors, since no data is in the data
-            # queue now. If this is the case, we need to put same indices to
-            # prefetch to continue.
-            self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+            try:
+                # If we just finishes using the sensor as an iterator, calling
+                # forward now would results in errors, since no data is in the data
+                # queue now. If this is the case, we need to put same indices to
+                # prefetch to continue.
+                self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+            except EpochCompletedEvent:
+                # In some cases, it is possible that an epoch is finished, yet
+                # the next epoch has not been started. In such cases, we just
+                # keep fetching.
+                self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
 
         ret = self.data_queue.get(timeout=A.TIMEOUT)
 
@@ -357,6 +369,10 @@ class Sensor(ProcessingBlock):
         A.cache_tensor_auto_scope(ret[1], "val_labels" if self.is_val else "labels")
         self._data = ret
 
+        # It looks like the first index queue refill could be merged with the
+        # second one below. But it would require the index queue size is not
+        # fill before each data queue fetch. Though this is an easy condition
+        # to meet, I would like to just keep it in the current way.
         try:
             self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
         except EpochCompletedEvent:
@@ -454,12 +470,20 @@ class ParallelSensor(Sensor):
     def __iter__(self):
         self.epoch_finished = False
         if self.index_queue.empty():
-            # Upon setup of sensor, we have some indices put in the queue, so
-            # it may not be necessary put some indices. However, after the
-            # second entry to create an iterator, it is possible the index
-            # queue is empty, since further prefetching is disabled. In such a
-            # case, we need to put some indices to prefetch to get started.
-            self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+            try:
+                # Upon setup of sensor, we have some indices put in the queue, so
+                # it may not be necessary put some indices. However, after the
+                # second entry to create an iterator, it is possible the index
+                # queue is empty, since further prefetching is disabled. In such a
+                # case, we need to put some indices to prefetch to get started.
+                self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+            except EpochCompletedEvent as e:
+                # If the dataset is small, we could finish the dataset while we
+                # are creating the iterator (since we are prefetching data upon
+                # setup). In such a case, we would call it a day.
+                self.epoch_finished = True
+                self.index_queue.put(e)
+
         return self
 
     def __next__(self):
@@ -484,7 +508,7 @@ class ParallelSensor(Sensor):
                 self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
             except EpochCompletedEvent as e:
                 self.epoch_finished = True
-                self.index_queue.put(EpochCompletedEvent())
+                self.index_queue.put(e)
 
         return ret
 

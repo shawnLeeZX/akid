@@ -25,6 +25,9 @@ from six.moves import range
 
 
 def scavenger(f):
+    """
+    Decorator to clean up when exception occurs.
+    """
     def robust_f(self, *args, **kwargs):
         try:
             return f(self, *args, **kwargs)
@@ -321,9 +324,11 @@ class Kid(Block):
         self.engine.setup()
 
         # Do forward once to build ops.
-        self.step(update=False if self.inference_mode else True)
-        if A.backend() == A.TORCH and not self.inference_mode:
-            A.step()  # For PyTorch, the step matters
+
+        # We do not build ops for torch, since it would run a step to change
+        # the parameters.
+        if A.backend() == A.TF:
+            self.step(update=False if self.inference_mode else True)
         # Build validation ops
         self.sensor.set_mode("val")
         self.sensor.setup()
@@ -394,18 +399,6 @@ class Kid(Block):
         val_loss = None
         val_evals = None
 
-        if self.log_by_step and \
-            (A.get_step() % self.val_log_step == 0 or\
-            A.get_step() == self.max_steps):
-            if self.save_chk_point:
-                self.save_to_ckpt()
-            if not self.skip_validation:
-                self.loss, self.evals = self.validate()
-            val_loss, val_evals = self.loss, self.evals
-            self.on_val_log_step()
-            self.sensor.set_mode("train")
-            self.sensor.setup()
-
         start_time = time.time()
 
         self.on_batch_begin()
@@ -417,6 +410,26 @@ class Kid(Block):
         self.step_time = time.time() - start_time
 
         A.step()
+
+        if A.get_step() % self.train_log_step == 0:
+            # Since during logging, loss and evals are passed in as attributes
+            # of Kid, training log is put ahead of validation log to prevent
+            # validation loss and evals from overriding the ones of training,
+            # when the validation logging step and training logging step
+            # coincide.
+            self.on_train_log_step()
+
+        if self.log_by_step and \
+            (A.get_step() % self.val_log_step == 0 or\
+            A.get_step() == self.max_steps):
+            if self.save_chk_point:
+                self.save_to_ckpt()
+            if not self.skip_validation:
+                self.loss, self.evals = self.validate()
+            val_loss, val_evals = self.loss, self.evals
+            self.on_val_log_step()
+            self.sensor.set_mode("train")
+            self.sensor.setup()
 
         if A.get_step() % self.sensor.num_batches_per_epoch is 0:
             self.epoch += 1
@@ -430,9 +443,6 @@ class Kid(Block):
                 val_loss, val_evals = self.loss, self.evals
                 self.sensor.set_mode("train")
                 self.sensor.setup()
-
-        if A.get_step() % self.train_log_step == 0:
-            self.on_train_log_step()
 
         return val_loss, val_evals
 
@@ -450,14 +460,14 @@ class Kid(Block):
 
         return result["loss"], result["eval"], result["verbose_eval"] if val else None
 
-    def run_step(self, update=True, val=False):
+    def run_step(self, update=True, val=False, data=None):
         """
         Computation wise, execute the computational graph for a step.
         """
         if A.backend() == A.TF:
             return self.tf_step(update, val)
         elif A.backend() == A.TORCH:
-            loss, evals, verbose_evals = self.step(update, val)
+            loss, evals, verbose_evals = self.step(update, val, data=data)
             loss = A.eval(loss)
             evals = A.eval(evals)
             if verbose_evals is not None and val:
@@ -466,11 +476,19 @@ class Kid(Block):
             else:
                 return loss, evals
 
-    def step(self, update=True, val=False):
+    def step(self, update=True, val=False, data=None):
         """
         Computational graph wise, how the tensor should be run in a step.
+
+        If `data` is None, the caller is supposed to feed in data. In such a
+        case, the control on the sensor is left to the caller; that is, kid
+        would not modify it after setup.
         """
-        system_in = self.sensor.forward()
+        if data is None:
+            system_in = self.sensor.forward()
+        else:
+            system_in = data
+
         self.engine.forward(system_in, val)
         if update:
             self.engine.update()

@@ -1,8 +1,18 @@
 """
 This module holds common stuffs of all, such as global constants.
 """
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 import inspect
+import os
+import sys
+
+
+# Alert if AKID_DATA_PATH is not defined.
+AKID_DATA_PATH = os.getenv("AKID_DATA_PATH")
+if not AKID_DATA_PATH:
+    print("Environment variable AKID_DATA_PATH is not defined. It is needed to"
+          " run examples.", file=sys.stderr)
+
 
 # Graph collection names
 # #########################################################################

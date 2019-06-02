@@ -10,7 +10,7 @@ SUPPORT_DATA_FORMAT = ['nchw', 'nhwc']
 
 # Parallel
 # #######################################################################
-TIMEOUT = 5
+TIMEOUT = 1
 
 
 

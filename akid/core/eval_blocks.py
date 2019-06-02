@@ -32,6 +32,8 @@ class EvalBlock(DataBlock):
 
 
 class BatchEvalBlock(EvalBlock):
+    # TODO: it has a bug. If the last batch is smaller, the weights of its
+    # samples are increased, thus leading to wrong accuracy calculation.
     NAME = "BatchEval"
 
     def __init__(self, v=0):

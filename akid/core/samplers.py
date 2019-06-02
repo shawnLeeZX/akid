@@ -70,7 +70,7 @@ class Sampler(object):
     def _check_epoch_finishes(self):
         if self.current_idx >= len(self.indices):
             self.reset()
-            log.info("An epoch finished. Reset.")
+            log.debug("An epoch finished. Reset.")
             raise EpochCompletedEvent()
 
 class SequenceSampler(Sampler):
