@@ -57,6 +57,8 @@ class TestSimpleSensor(AKidTestCase):
         for t in zip(A.eval(d), A.eval(d_ref)):
             self.assertNdarrayEquals(t[0], t[1])
 
+        sensor.teardown()
+
     @skipUnless(A.backend() == A.TORCH, msg="Currently MNISTSource depends on torch")
     def test_summary(self):
         source = MNISTSource(work_dir="data", name="source")
@@ -83,6 +85,8 @@ class TestSimpleSensor(AKidTestCase):
         summary_ops.extend(val_summary_ops)
         summary_op = A.summary.merge(summary_ops)
         A.summary.run_summary_op(summary_op)
+
+        sensor.teardown()
 
     @skipUnless(A.backend() == A.TORCH, msg="Currently MNISTSource depends on torch")
     def test_do_summary_on_val_flag(self):
@@ -121,6 +125,8 @@ class TestSimpleSensor(AKidTestCase):
 
         val_summary_ops = A.summary.get_collection(akid.common.VALID_SUMMARY_COLLECTION)
         self.assertNotEquals(len(val_summary_ops), 0)
+
+        sensor.teardown()
 
 
 class TestParallelSensor(AKidTestCase):

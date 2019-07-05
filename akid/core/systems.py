@@ -2,6 +2,11 @@
 This module provides systems of different topology to compose `Block`s to
 create more complex blocks. A system does not concern which type of block it
 holds, but only concerns the mathematical topology how they connect.
+
+Atrributes defined in a finer granularity overrides the same attributes defined
+in a system. E.g., if `do_summary` is defined as `False` in a block, and the
+block is attached to a system with `do_summary` valued `True`, the `False` will
+take priority.
 """
 from __future__ import absolute_import
 import copy
@@ -86,14 +91,30 @@ class System(GenerativeBlock, UpdateBlock):
         return self._data
 
     def attach(self, block_in):
-        block_in.do_summary = self.do_summary
-        block_in.summarize_output = self.summarize_output
+        # Set flags value to the value of this system if they are not
+        # individually set.
+        for f in self.__class__._flags:
+            if getattr(block_in, f) is None:
+                block_in.set_flag(f, getattr(self, f))
+
         self.blocks.append(block_in)
 
     def set_do_summary_flag(self, v):
         super(System, self).set_do_summary_flag(v)
         for b in self.blocks:
             b.do_summary = v
+
+    def set_flag(self, flag_name, v):
+        """
+        Set a flag that all blocks in the system all have recursively.
+        """
+        if flag_name in self.__class__._flags:
+            setattr(self, flag_name, v)
+        else:
+            raise ValueError("{} does not have flag {}".format(self.__class__, flag_name))
+
+        for b in self.blocks:
+            b.set_flag(flag_name, v)
 
 
 class SequentialSystem(System):

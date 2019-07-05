@@ -14,6 +14,11 @@ from .. import computational_graph as cg
 from akid.utils import glog
 
 float32 = th.float32
+uint8 = th.uint8
+to_th_dtype = {
+    int: th.long,
+    float: th.float
+}
 
 DATA_FORMAT = "CHW"
 
@@ -31,6 +36,14 @@ assert type(torch_version) is float, "Torch version number extraction failed. Ve
 
 # Device to use. Only useful for torch newer than or equal to 0.4.
 device = "cuda:0" if cg.use_cuda() else "cpu"
+
+
+def remove_variable_contains_str(str):
+    name_list = [name for name in tensor_by_name]
+    for n in name_list:
+        # Clean up the monitoring tensors created to save memory.
+        if str in n:
+            tensor_by_name.pop(n)
 
 
 def get_variable(name=None, shape=None,
@@ -101,9 +114,11 @@ def cache_tensor(tensor, name):
     # The reverse direction (get tensor by name) only works when it is a
     # variable. We occasionally cache numeric values as well, e.g. learning rate.
 
+    if isinstance(tensor, cg.NamedValue):
+        tensor.name = name
     # The instance below is to ensure we are dealing with an object, so
     # attributes could be added.
-    if torch_version < 0.4:
+    elif torch_version < 0.4:
         if isinstance(tensor, Variable):
             tensor.name_ = name
     else:
@@ -198,7 +213,7 @@ def remove_scope_from_name(name):
     """
     Remove scope and device information in the name.
     """
-    if cg.use_cuda():
+    if ':' in name:
         name, _ = name.split(':')
 
     name = name.split('/')[-1]
@@ -264,7 +279,7 @@ def _append_num(name):
     return name
 
 
-def get_name(v, with_device_id=True):
+def get_name(v, with_device_id=True, no_scope=False):
     """
     Given an object, return its name if available.
 
@@ -274,15 +289,20 @@ def get_name(v, with_device_id=True):
     if type(v) is th.Tensor:
         if hasattr(v, "name_"):
             if with_device_id:
-                return v.name_
+                name = v.name_
             else:
-                return v.name_.split(':')[0]
-        return None
+                name = v.name_.split(':')[0]
+        else:
+            name = None
+    elif isinstance(v, cg.NamedValue):
+        name = v.name
+    else:
+        raise TypeError("Type {} not supported".format(type(v)))
 
-    if isinstance(v, cg.NamedValue):
-        return v.name
+    if no_scope and name is not None:
+        name = remove_scope_from_name(name)
 
-    raise TypeError("Type {} not supported".format(type(v)))
+    return name
 
 
 def standardize_data_format(data, old_format):
@@ -340,7 +360,7 @@ def eval(t):
     if type(t) is list or type(t) is tuple:
         return [eval(i) for i in t]
 
-    if isinstance(t, np.ndarray):
+    if isinstance(t, np.ndarray) or np.isscalar(t):
         return t
 
     if type(t) is cg.NamedTensorTuple:
@@ -383,10 +403,17 @@ def Tensor(t, requires_grad=False, name=None):
             t = th.from_numpy(t.astype(np.float32))
     elif np.isscalar(t):
         t = th.tensor(float(t))
-    elif type_t is list:
-        t = th.tensor(t, dtype=th.float32)
-    elif type_t is tuple:
-        t = th.tensor(t, dtype=th.float32)
+    elif type_t is list or type_t is tuple:
+        t_element = t[0]
+        element_type = type(t_element)
+        # Get the type of the first element in the iterable.
+        while element_type is list or element_type is tuple:
+            t_element = t_element[0]
+            element_type = type(t_element)
+        if element_type  == th.Tensor:
+            t = th.tensor(t)
+        else:
+            t = th.tensor(t, dtype=to_th_dtype[element_type])
     elif type_t is th.Tensor:
         pass
     else:
@@ -431,8 +458,13 @@ def mul(a, b, name=None):
 
 
 @cache_name_if_exist
-def mean(v, name=None):
-    return th.mean(v)
+def mean(v, dim=None, name=None):
+    if v.dtype != th.float:
+        v = v.type(th.float)
+    if dim is None:
+        return th.mean(v)
+    else:
+        return th.mean(v, dim)
 
 
 @cache_name_if_exist
@@ -531,8 +563,11 @@ def expand_dims(x, axis, name=None):
     return th.unsqueeze(x, dim=axis)
 
 @cache_name_if_exist
-def squeeze(x, name=None):
-    return th.squeeze(x)
+def squeeze(x, dim=None, name=None):
+    if dim is not None:
+        return th.squeeze(x, dim=dim)
+    else:
+        return th.squeeze(x)
 
 
 @cache_name_if_exist

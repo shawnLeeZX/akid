@@ -6,6 +6,7 @@ supposed to hold all information needed.
 """
 from __future__ import absolute_import
 from akid import backend as A
+import akid as K
 from akid import ops
 
 from ..utils import glog as log
@@ -18,14 +19,25 @@ def _do_summary(kid):
             feed_dict = kid.feed_dict
         elif A.backend() == A.TORCH:
             if kid.do_summary_on_val:
+                kid.sensor.set_mode("val")
+                kid.sensor.setup()
                 # If doing summary on validation set, a step needs to be run to
                 # update the feature maps. Tensorflow will do this
                 # automatically, so forward once only for torch.
                 kid.step(update=False, val=True)
+                kid.sensor.set_mode("train")
+                kid.sensor.setup()
 
             feed_dict = None
 
         A.summary.run_summary_op(kid.summary_op, feed_dict=feed_dict)
+
+
+def v_to_text(name_list, v_list):
+    """
+    Convert named tensors to text to print. v is a list of tensors.
+    """
+    return [K.get_eval_block(name_list[i]).__str__(None, v) for i, v in enumerate(v_list)]
 
 
 def on_train_log_step(kid):
@@ -34,8 +46,8 @@ def on_train_log_step(kid):
     duration = kid.step_time
     step = A.get_step()
 
-    name_to_print = [A.get_name(g) for g in kid.engine.eval()]
-    eval_value_to_print = ["%0.04f" % v for v in evals]
+    name_to_print = [A.get_name(g, no_scope=True) for g in kid.engine.eval()]
+    eval_value_to_print = v_to_text(name_to_print, evals)
     eval_to_print = dict(list(zip(name_to_print, eval_value_to_print)))
 
     num_examples_per_step = kid.sensor.batch_size
@@ -55,6 +67,9 @@ def on_train_log_step(kid):
 
     _do_summary(kid)
 
+    if kid.do_batch_monitoring:
+        kid.batch_monitoring(kid.cached_data)
+
 
 def on_val_log_step(kid):
     if kid.do_summary:
@@ -63,24 +78,26 @@ def on_val_log_step(kid):
                              value=kid.loss,
                              step=A.get_step())
         for i, v in enumerate(kid.evals):
-            A.summary.add_scalar(
-                name=A.append_suffix(A.get_name(kid.engine.eval(get_val=True)[i]), "val"),
-                value=v,
-                step=A.get_step())
-        if kid.verbose_evals is not None:
-            for i, v in enumerate(kid.verbose_evals):
+            if A.is_numerical(v):
                 A.summary.add_scalar(
-                    name=A.append_suffix(A.get_name(kid.engine.verbose_eval(get_val=True)[i]), "vval"),
+                    name=A.append_suffix(A.get_name(kid.engine.eval(get_val=True)[i]), "val"),
                     value=v,
                     step=A.get_step())
+        if kid.verbose_evals is not None:
+            if A.is_numerical(v):
+                for i, v in enumerate(kid.verbose_evals):
+                    A.summary.add_scalar(
+                        name=A.append_suffix(A.get_name(kid.engine.verbose_eval(get_val=True)[i]), "vval"),
+                        value=v,
+                        step=A.get_step())
 
     # Log current validation.
-    name_to_print = [A.get_name(g) for g in kid.engine.eval(get_val=True)]
-    eval_value_to_print = ["%0.04f" % v for v in kid.evals]
+    name_to_print = [A.get_name(g, no_scope=True) for g in kid.engine.eval(get_val=True)]
+    eval_value_to_print = v_to_text(name_to_print, kid.evals)
     eval_to_print = dict(list(zip(name_to_print, eval_value_to_print)))
     if kid.verbose_evals is not None:
-        name_to_print = [A.get_name(g) for g in kid.engine.verbose_eval(get_val=True)]
-        veval_value_to_print = ["%0.04f" % v for v in kid.verbose_evals]
+        name_to_print = [A.get_name(g, no_scope=True) for g in kid.engine.verbose_eval(get_val=True)]
+        veval_value_to_print =  v_to_text(name_to_print, kid.verbose_evals)
         veval_to_print = dict(list(zip(name_to_print, veval_value_to_print)))
     else:
         veval_to_print = None
@@ -88,10 +105,10 @@ def on_val_log_step(kid):
         kid.sensor.source.size, eval_to_print, veval_to_print))
 
     # Log current best validation.
-    name_to_print = [A.get_name(g) + '_best'
+    name_to_print = [A.get_name(g, no_scope=True) + '_best'
                      for g in kid.engine.eval(get_val=True)]
-    # TODO: handle best evals
-    eval_value_to_print = ["%0.04f" % v for v in kid.best_val_evals]
+    eval_value_to_print = v_to_text([A.get_name(g, no_scope=True) for g in kid.engine.eval(get_val=True)],
+                                    kid.best_val_evals)
     eval_to_print = dict(list(zip(name_to_print, eval_value_to_print)))
     log.info('Current best evals : {}'.format(eval_to_print))
 
@@ -113,11 +130,16 @@ def on_train_begin(kid):
 
     _do_summary(kid)
 
-    name_to_print = [A.get_name(g) for g in kid.engine.eval()]
-    eval_value_to_print = ["%0.04f" % v for v in kid.evals]
+    name_to_print = [A.get_name(g, no_scope=True) for g in kid.engine.eval()]
+    eval_value_to_print = v_to_text(name_to_print, kid.evals)
     eval_to_print = dict(list(zip(name_to_print, eval_value_to_print)))
     log.info("Step {}: loss = {:.5f} eval = {}".format(
         A.get_step(), kid.loss, eval_to_print))
+
+    # Cache the current batch as the monitoring batch if the flag is set.
+    if kid.do_batch_monitoring:
+        kid.cached_data = kid.sensor.data
+        kid.batch_monitoring(kid.cached_data)
 
     # Initial validation
     if not kid.skip_validation:

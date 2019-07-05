@@ -172,36 +172,6 @@ def check_mode(mode):
         and mode != Mode.TEST:
         raise ValueError("Mode `{}` is not support.".format(mode))
 
-# Eval blocks for evaluations.
-# #######################################################################
-tensor_name_to_eval_block_map = {}
-
-
-def register_eval_block(tensor_name, eval_block):
-    """
-    For different evaluation metrics, it may take different ways to combine
-    the evaluation obtained in batches. This function registers an
-    `EvalBlock` to handle the combination for evaluation results obtained
-    in the tensor named `tensor_name`.
-
-    If for an evaluation metric tensor that is not registered, `BatchEvalBlock`
-    be its eval block by default.
-    """
-    tensor_name_to_eval_block_map[tensor_name] = eval_block
-
-
-def get_eval_block(tensor_name):
-    try:
-        return tensor_name_to_eval_block_map[tensor_name]
-    except KeyError:
-        return None
-
-
-def reset_eval_block_map():
-    global tensor_name_to_eval_block_map
-    tensor_name_to_eval_block_map = {}
-
-
 # Named objects.
 # #########################################################################
 
@@ -229,7 +199,11 @@ class NamedTensorTuple(tuple, NamedValue):
         return super(NamedTensorTuple, cls).__new__(cls, *args, **kwargs)
 
 
-class NamedScalar(np.float, NamedValue):
+class NamedNumericValue(NamedValue):
+    pass
+
+
+class NamedScalar(np.float, NamedNumericValue):
     """
     Object to pass a scalar. It enables the scalar to be named, thus, be
     identifiable by name.
@@ -246,7 +220,7 @@ class NamedScalar(np.float, NamedValue):
         return super(NamedScalar, cls).__new__(cls, *args, **kwargs)
 
 
-class NamedNdarray(np.ndarray, NamedValue):
+class NamedNdarray(np.ndarray, NamedNumericValue):
     """
     Object to pass a named numpy array.
 

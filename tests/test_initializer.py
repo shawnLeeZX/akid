@@ -56,11 +56,8 @@ def build_kid(init_para):
 
 
 class TestInitializer(AKidTestCase):
-    def setUp(self):
-        A.reset()
-
     def test_tensor(self):
-        X_np = np.array([[1, 1], [2, 3]])
+        X_np = np.array([[1., 1], [2, 3]])
         init = initializers.get("tensor", value=X_np)
         X = A.get_variable("X", initializer=init)
         A.init()
@@ -85,6 +82,8 @@ class TestInitializer(AKidTestCase):
         kid.setup()
         loss = kid.practice()
         self.assertLessEqual(loss, 0.3)
+
+        kid.teardown()
 
     @skipUnless(A.backend() == A.TF)
     def test_uniform_unit_scale_initializer(self):

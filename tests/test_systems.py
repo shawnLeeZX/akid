@@ -92,11 +92,11 @@ class TestSystem(AKidTestCase):
             "X_b_out_eval: {}; X_b_out_ref{}".format(X_b_out_eval, X_b_out_ref)
 
     def test_graph_system(self):
-        X_in = A.Tensor([[1, 0], [0, 0]], requires_grad=True)
-        label_in = A.Tensor([[1, 0], [0, 0]], requires_grad=True)
+        X_in = A.Tensor([[1., 0], [0, 0]], requires_grad=True)
+        label_in = A.Tensor([[1., 0], [0, 0]], requires_grad=True)
 
         weight = A.Tensor([
-            [1, 1],
+            [1., 1],
             [0, 0]
         ])
         label_in = label_in + 1

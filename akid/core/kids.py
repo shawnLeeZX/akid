@@ -8,6 +8,7 @@ import time
 import sys
 import inspect
 from tqdm import tqdm
+import akid as K
 
 from ..utils import glog as log
 from . import sensors
@@ -18,7 +19,9 @@ from .events import EarlyStoppingEvent
 from .common import (
     TRAIN_SUMMARY_COLLECTION,
     VALID_SUMMARY_COLLECTION,
-    TRAINING_DYNAMICS_COLLECTION
+    TRAINING_DYNAMICS_COLLECTION,
+    DEFAULT_COLLECTION,
+    BATCH_MONITORING_COLLECTION
 )
 from .eval_blocks import BatchEvalBlock
 from six.moves import range
@@ -90,6 +93,7 @@ class Kid(Block):
                  do_summary=True,
                  do_summary_on_val=False,
                  skip_validation=False,
+                 do_batch_monitoring=False,
                  debug=False):
         """
         Assemble a sensor, a brain, and a KongFu to start the survival game.
@@ -157,6 +161,12 @@ class Kid(Block):
                 seen at all when doing the actual validation.
             skip_validation: bool
                 If True, would not do validation during training.
+            do_batch_monitoring: bool
+                Whether to do summary on a specific batch throughout
+                training. If you decide to switch this option on, you also need
+                to manually add summary ops when building the network to the
+                collection `BATCH_MONITORING_COLLECTION`, otherwise, nothing
+                would be done.
             Other args are self-evident.
         """
         self.sensor = sensor_in
@@ -191,6 +201,7 @@ class Kid(Block):
         self.save_chk_point = save_chk_point
         self.continue_from_chk_point = continue_from_chk_point
         self.skip_validation = skip_validation
+        self.do_batch_monitoring = do_batch_monitoring
 
         self.initialized = False
 
@@ -257,16 +268,20 @@ class Kid(Block):
 
         if not self.sensor.mode == mode:
             self.sensor.set_mode(mode)
-            self.sensor.setup()
+
+        # We want to traverse the dataset, so reset to reset the sampler.
+        self.sensor.reset()
 
         # Run one epoch of eval.
         self.log("A epoch of {} set contains {} batches. Batch size {}.".format(mode, self.sensor.num_batches_per_epoch, self.sensor.batch_size))
         eval_blocks = [BatchEvalBlock()
-                       if A.get_eval_block(v) is None else A.get_eval_block(v)
+                       if K.get_eval_block(A.get_name(v, no_scope=True)) is None
+                       else K.get_eval_block(A.get_name(v, no_scope=True))()
                        for v in self.engine.eval(get_val=True)]
         if self.engine.verbose_eval(get_val=True) is not None:
             verbose_eval_blocks = [BatchEvalBlock()
-                                   if A.get_eval_block(v.name) is None else A.get_eval_block(v.name)()
+                                   if K.get_eval_block(A.get_name(v, no_scope=True)) is None
+                                   else K.get_eval_block(A.get_name(v, no_scope=True))()
                                    for v in self.engine.verbose_eval(get_val=True)]
         else:
             verbose_eval_blocks = None
@@ -325,10 +340,7 @@ class Kid(Block):
 
         # Do forward once to build ops.
 
-        # We do not build ops for torch, since it would run a step to change
-        # the parameters.
-        if A.backend() == A.TF:
-            self.step(update=False if self.inference_mode else True)
+        self.step(update=False)
         # Build validation ops
         self.sensor.set_mode("val")
         self.sensor.setup()
@@ -341,6 +353,34 @@ class Kid(Block):
         A.restore(self.model_dir)
         if A.backend() ==  A.TORCH and not self.inference_mode:
             self.kongfu.set_lr(A.retrieve_tensor('lr'))
+
+    def batch_monitoring(self, data):
+        """
+        A method that creates summary ops to visualize a specific batch
+        throughout training to monitor the progress of training.
+
+        Args:
+            data:
+                The specific data batch to monitor.
+        """
+        # Propagate the sample through network.
+        # NOTE: the following code is PyTorch specific.
+        self.brain.switch_batch_monitoring_mode()
+        self.step(update=False, val=False, data=data)
+
+        # Create summary ops if not already, and run them.
+        if not hasattr(self, "batch_monitoring_summary_ops"):
+            self.batch_monitoring_summary_ops = A.summary.get_collection(BATCH_MONITORING_COLLECTION)
+        A.summary.run_summary_op(self.batch_monitoring_summary_ops)
+
+        # Clean up the monitoring tensors created to save memory.
+        # A.remove_variable_contains_str(self.brain.name)
+
+        self.brain.switch_batch_monitoring_mode()
+
+        if not self.brain.done_first_batch_monitoring_pass:
+            self.brain.set_flag("done_first_batch_monitoring_pass", True)
+
 
     @scavenger
     def practice(self, return_eval=False):
@@ -363,8 +403,11 @@ class Kid(Block):
 
         self.init()
         self.on_train_begin()
+        # Reset sensor, so to prevent any code from using some training batches
+        # in advance, and making them missing from initial training.
+        self.sensor.reset()
 
-        while A.get_step() < self.max_steps + 1:
+        while A.get_step() < self.max_steps:
             try:
                 val_loss, val_evals = self.step_with_logistics()
             except EarlyStoppingEvent as e:
@@ -540,6 +583,8 @@ class Kid(Block):
             summary_ops = A.summary.get_collection(TRAIN_SUMMARY_COLLECTION)
             summary_ops.extend(A.summary.get_collection(
                 TRAINING_DYNAMICS_COLLECTION))
+            summary_ops.extend(A.summary.get_collection(
+                DEFAULT_COLLECTION))
             if self.do_summary_on_val:
                 val_summary_ops = A.summary.get_collection(
                     VALID_SUMMARY_COLLECTION)

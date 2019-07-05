@@ -63,7 +63,6 @@ class Block(six.with_metaclass(abc.ABCMeta, object)):
 
     Call `setup` of each block before using it.
     """
-
     def __init__(self, name=None, debug=False, **kwargs):
         super(Block, self).__init__(**kwargs)
 
@@ -182,10 +181,7 @@ class ProcessingBlock(FlowBlock):
     `Sensor`, `ProcessingLayer`, `LossLayer` and `ProcessingSystem` etc are all
     sub-classes of this class.
 
-    `ProcessingBlock` builds computational graph that processes data. Since
-    normally we have the two types of data, a.k.a, validation data and training
-    data, `ProcessingBlock` has a `is_val` flag to indicate which state it is
-    in. It decides the type of data being processed.
+    `ProcessingBlock` builds computational graph that processes data.
 
     A `ProcessingBlock` should try to implement most of its functionality only
     with what it owns, and ask for communication (which in implementation is to
@@ -206,12 +202,12 @@ class ProcessingBlock(FlowBlock):
     arguments passed to `_forward` are also available in functions in the
     hooks.
     """
+    _flags = ["do_summary", "summarize_output", "is_mon", "done_first_batch_monitoring_pass"]
 
     def __init__(self,
                  do_summary=None,
                  bag=None,
-                 summarize_output=False,
-                 do_summary_on_val=None,
+                 summarize_output=None,
                  **kwargs):
         """
         Create a layer and name it.
@@ -233,8 +229,6 @@ class ProcessingBlock(FlowBlock):
                 tag will be given to the outputs, consequently, summarizing
                 events will be created for tensorboard. This semantics is
                 enforced by each individual layer, by implementing properly.
-            do_summary_on_val: bool
-                Whether to do summary on validation copy.
         """
         super(ProcessingBlock, self).__init__(**kwargs)
 
@@ -250,20 +244,27 @@ class ProcessingBlock(FlowBlock):
         # Some operations only run at the first forward pass, so set a flag.
         self.done_first_pass = False
 
-        # A Boolean flag to indicate whether this block is in validation mode.
-        self.mode = "train"
-        self.done_first_pass_val = False
-        self.do_summary_on_val = do_summary_on_val
+        self.done_first_batch_monitoring_pass = False
+        # Whether the brain is in the batch monitoring mode.
+        self.is_mon = False
 
-    @property
-    def is_val(self):
-        return self.mode == A.Mode.VAL
+    def set_flag(self, flag_name, v):
+        if flag_name in self.__class__._flags:
+            setattr(self, flag_name, v)
+        else:
+            raise ValueError("{} does not have flag {}".format(flag_name))
 
     def set_do_summary_flag(self, v):
         self.do_summary = v
 
-    def set_do_summary_on_val_flag(self, v):
-        self.do_summary_on_val = v
+    def summarize_data(self, data, collections=None):
+        """
+        Helper function to summarize data with Tensorboard. `data` needs to be
+        numerical, e.g., a Tensor, or a numpy array.
+        """
+        if not self.done_first_pass\
+           or self.is_val and not self.done_first_pass_val:
+            self._data_summary(data, collections=collections)
 
     def forward(self, *args, **kwargs):
         """
@@ -277,12 +278,8 @@ class ProcessingBlock(FlowBlock):
             self._pre_forward(*args, **kwargs)
             out = self._forward(*args, **kwargs)
             self._post_forward(*args, **kwargs)
-            # FIXME: The flag is kept set each forward propagation in torch backend.
             if not self.done_first_pass:
                 self.done_first_pass = True
-
-            if not self.done_first_pass_val and self.is_val:
-                self.done_first_pass_val = True
 
         return out
 
@@ -294,27 +291,11 @@ class ProcessingBlock(FlowBlock):
         for f in self.post_forward_hook:
             f(self, *args, **kwargs)
 
-        # If has done forward for building computational graphs that exist in
-        # form of ops, return. But it is possible we still need to build ops
-        # for validation block.
-        if self.done_first_pass and not self.is_val:
+        if self.done_first_pass or not self.do_summary:
             return
 
-        if not self.do_summary:
-            return
-
-        if not self.is_val\
-           or (self.is_val\
-               and self.do_summary_on_val\
-               and not self.done_first_pass_val):
-            if self.data is not None:
-                self._data_summary(self.data, sparsity_summary=True)
-
-    def _pre_setup(self):
-        super(ProcessingBlock, self)._pre_setup()
-
-        if self.is_val:
-            A.get_variable_scope().reuse_variables()
+        if self.data is not None:
+            self._data_summary(self.data, sparsity_summary=True, collections=[TRAIN_SUMMARY_COLLECTION])
 
     @abc.abstractmethod
     def _forward(self):
@@ -323,6 +304,90 @@ class ProcessingBlock(FlowBlock):
         """
         raise NotImplementedError('Each sub-layer needs to implement this'
                                   'method to process data!')
+
+    def _data_summary(self, data, sparsity_summary=False, collections=None):
+        """
+        Helper function to do statistical summary on the bundle of data.
+        """
+        if type(data) is not list and type(data) is not tuple:
+            data = [data]
+
+        for d in data:
+            name = A.get_name(d)
+            if name:
+                if not A.is_numerical(d):
+                    return
+
+                self.log("Do tensorboard summary on outputs {} of {}".format(
+                    name, self.name))
+
+                shape = A.get_shape(d)
+                if shape != 0:
+                    dim = len(shape)
+                else:
+                    dim = 0
+                if dim == 0:
+                    A.summary.scalar(name, d, collections=collections)
+                else:
+                    A.summary.histogram(name,
+                                        d,
+                                        collections=collections)
+                    if sparsity_summary:
+                        A.summary.scalar(
+                            A.append_suffix(name, SPARSITY_SUMMARY_SUFFIX),
+                            A.nn.zero_fraction(d,
+                                               # The scope removing does
+                                               # nothing for tensorflow
+                                               # backend, since the name gotten
+                                               # is already scope removed.
+                                               name=A.remove_scope_from_name(name) \
+                                               + '/' \
+                                               + SPARSITY_SUMMARY_SUFFIX),
+                            collections=collections)
+
+
+class ValidatableProcessingBlock(ProcessingBlock):
+    """
+    Since normally we have the two types of data, a.k.a, validation data and
+    training data, `ValidatableProcessingBlock` support blocks to operate in
+    two modes.
+    """
+    _flags = copy.copy(ProcessingBlock._flags)
+    _flags.append("do_summary_on_val")
+
+    def __init__(self, do_summary_on_val=None, **kwargs):
+        """
+        Args:
+            do_summary_on_val: bool
+                Whether to do summary on validation copy.
+        """
+        super(ValidatableProcessingBlock, self).__init__(**kwargs)
+
+        # A Boolean flag to indicate whether this block is in validation mode.
+        self.mode = "train"
+        self.done_first_pass_val = False
+        self.do_summary_on_val = do_summary_on_val
+
+    @property
+    def is_val(self):
+        return self.mode == A.Mode.VAL
+
+    def set_do_summary_on_val_flag(self, v):
+        self.do_summary_on_val = v
+
+    def forward(self, *args, **kwargs):
+        out = super(ValidatableProcessingBlock, self).forward(*args, **kwargs)
+
+        if not self.done_first_pass_val and self.is_val:
+            self.done_first_pass_val = True
+
+        return out
+
+    def _pre_setup(self):
+        super(ValidatableProcessingBlock, self)._pre_setup()
+
+        if self.is_val:
+            A.get_variable_scope().reuse_variables()
 
     def get_val_copy(self):
         """
@@ -347,48 +412,32 @@ class ProcessingBlock(FlowBlock):
     def set_val(self, val):
         self.mode = A.Mode.VAL if val else A.Mode.TRAIN
 
-    def _data_summary(self, data, sparsity_summary=False):
-        """
-        Helper function to do statistical summary on the bundle of data.
-        """
-        collection = VALID_SUMMARY_COLLECTION if self.is_val \
-            else TRAIN_SUMMARY_COLLECTION
+    def _post_forward(self, *args, **kwargs):
+        for f in self.post_forward_hook:
+            f(self, *args, **kwargs)
 
-        if type(data) is not list and type(data) is not tuple:
-            data = [data]
+        # If has done forward for building computational graphs that exist in
+        # form of ops, return. But it is possible we still need to build ops
+        # for validation block.
+        if self.done_first_pass and not self.is_val:
+            return
 
-        for d in data:
-            name = A.get_name(d)
-            if name:
-                self.log("Do tensorboard summary on outputs {} of {}".format(
-                    name, self.name))
+        if not self.do_summary:
+            return
 
-                shape = A.get_shape(d)
-                if shape != 0:
-                    dim = len(shape)
-                else:
-                    dim = 0
-                if dim == 0:
-                    A.summary.scalar(name, d, collections=[collection])
-                else:
-                    A.summary.histogram(name,
-                                    d,
-                                    collections=[collection])
-                    if sparsity_summary:
-                        A.summary.scalar(
-                            A.append_suffix(name, SPARSITY_SUMMARY_SUFFIX),
-                            A.nn.zero_fraction(d,
-                                               # The scope removing does
-                                               # nothing for tensorflow
-                                               # backend, since the name gotten
-                                               # is already scope removed.
-                                               name=A.remove_scope_from_name(name) \
-                                               + '/' \
-                                               + SPARSITY_SUMMARY_SUFFIX),
-                            collections=[collection])
+        if not self.is_val\
+           or (self.is_val\
+               and self.do_summary_on_val\
+               and not self.done_first_pass_val):
+
+            collection = VALID_SUMMARY_COLLECTION if self.is_val \
+                else TRAIN_SUMMARY_COLLECTION
+
+            if self.data is not None:
+                self._data_summary(self.data, sparsity_summary=True, collections=[collection])
 
 
-class ShadowableBlock(ProcessingBlock):
+class ShadowableBlock(ValidatableProcessingBlock):
     """
     A block for creating shadow replicas for parallelism.
 
@@ -483,9 +532,13 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
     list), this layer is supposed to have multiple inputs. Refer to
     `system.GraphSystem` for more explanation.
     """
+    _flags = copy.copy(ValidatableProcessingBlock._flags)
+    _flags.append("summarize_variables")
+
     def __init__(self,
                  moving_average_decay=None,
                  inputs=None,
+                 summarize_variables=None,
                  **kwargs):
         """
         Args:
@@ -497,6 +550,8 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
             inputs: list
                 A list to list inputs of this layer. Refer to
                 `system.GraphSystem` for more explanation.
+            summarize_variables: bool
+                Whether to do tensorboard summary on variables.
         """
         super(ProcessingLayer, self).__init__(**kwargs)
 
@@ -509,6 +564,7 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
         self.inputs = inputs
 
         # Bookkeeping all variables.
+        self.summarize_variables = summarize_variables
         self.var_list = []
 
     def set_shadow(self):
@@ -561,7 +617,9 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
 
     def _get_initializer(self, init_para=None):
         if not init_para:
-            init = initializers.get("default")
+            name = "default"
+            init = initializers.get(name)
+            kwargs = {}
         else:
             name = init_para["name"]
             kwargs = init_para.copy()
@@ -614,7 +672,7 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
                 var_average = self.moving_averages.average(var)
                 self._var_summary(A.get_name(var) + "_average", var_average)
 
-        if self.do_summary:
+        if self.do_summary and self.summarize_variables:
             for var in self.var_list:
                 self._var_summary(A.get_name(var), var)
 
@@ -652,12 +710,17 @@ class ProcessingLayer(GenerativeBlock, UpdateBlock):
            or (self.is_val\
                and self.do_summary_on_val\
                and not self.done_first_pass_val):
-            if self.data is not None:
-                self._data_summary(self.data)
+            if self.is_val:
+                collections = [VALID_SUMMARY_COLLECTION]
+            else:
+                collections = [TRAIN_SUMMARY_COLLECTION]
+
+            if self.summarize_output and self.data is not None:
+                self._data_summary(self.data, collections=collections)
             if self.loss is not None:
-                self._data_summary(self.loss)
+                self._data_summary(self.loss, collections=collections)
             if self.eval is not None:
-                self._data_summary(self.eval)
+                self._data_summary(self.eval, collections=collections)
 
 
     def _on_update(self, K_prev):

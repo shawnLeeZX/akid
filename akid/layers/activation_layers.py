@@ -58,17 +58,7 @@ class _PoolingLayer(ProcessingLayer):
     def __init__(self, ksize, strides, padding, **kwargs):
         super(_PoolingLayer, self).__init__(**kwargs)
 
-        t = type(ksize)
-        if t is int:
-            self.ksize = [ksize, ksize]
-        elif t is list or t is tuple:
-            if len(ksize) == 2:
-                self.ksize = ksize
-            else:
-                raise ValueError("Only 2D pooling is supported. Gotten {}".format(ksize))
-        else:
-            raise ValueError("Value not understood".format(ksize))
-
+        self.ksize = ksize
         self.strides = strides
         self.padding = padding
 
@@ -84,6 +74,19 @@ class MaxPoolingLayer(_PoolingLayer):
                 indices is saved in `self.in_group_indices`.
         """
         super(MaxPoolingLayer, self).__init__(**kwargs)
+
+        ksize = self.ksize
+        t = type(ksize)
+        if t is int:
+            self.ksize = [ksize, ksize]
+        elif t is list or t is tuple:
+            if len(ksize) == 2:
+                self.ksize = ksize
+            else:
+                raise ValueError("Only 2D pooling is supported. Gotten {}".format(ksize))
+        else:
+            raise ValueError("Value not understood".format(ksize))
+
 
         self.get_argmax_idx = get_argmax_idx
 
@@ -592,14 +595,15 @@ class L2NormalizationLayer(ProcessingLayer):
 
     def _forward(self, x):
         dim = len(x.shape)
-        assert dim == 1 or dim == 2, "dim {} is not supported".format(dim)
+        assert dim == 2, "dim {} is not supported".format(dim)
 
-        norm = A.nn.l2_norm(x)
+        norm = A.nn.l2_norm(x, 1)
         norm = A.expand_dims(norm, axis=1)
         self._data = x / norm
 
         return self._data
 
 L2Norm = L2NormalizationLayer
+
 
 __all__ = [name for name, x in locals().items() if not inspect.ismodule(x)]

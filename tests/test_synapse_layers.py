@@ -19,15 +19,14 @@ class TestSynapseLayers(AKidTestCase):
         self.use_cuda_save = A.use_cuda()
         A.use_cuda(False)
 
-        A.reset()
-
     def tearDown(self):
+        super(TestSynapseLayers, self).tearDown()
         A.use_cuda(self.use_cuda_save)
 
     def test_ip_forward(self):
-        X_in = A.Tensor([[1, 1], [1, 0]], requires_grad=True)
+        X_in = A.Tensor([[1., 1], [1, 0]], requires_grad=True)
         weight = A.Tensor([
-            [1, 1],
+            [1., 1],
             [0, 1]
         ])
         X_out_ref = np.array([

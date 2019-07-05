@@ -17,3 +17,5 @@ See http://akid.readthedocs.io/en/latest/index.html for documentation. The
 document is dated, and has not been updated to include new changes e.g., the
 PyTorch backend. But the backbone design is the same, and main features are
 there.
+
+NOTE: the PyTorch end support has been way ahead of Tensorflow support now ...

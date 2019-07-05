@@ -1,8 +1,35 @@
+"""
+The summary module works similarly in logic as in the Tensorflow summary
+mechanism. The API creates summary ops that would be executed later.
+
+To say an example, to do histogram summary on certain variables::
+
+    A.summary.histogram(name, var)
+
+Note that the `var` needs to be named, and the `name` parameter should be the
+name of the `var`. This is because not all variables are named in
+`akid`. `akid` is a front-end to the underlying backend, and in backend such as
+PyTorch, it does not have a unified naming mechanism. To provide unified
+interface, `akid` builds its own naming mechanism. If a variable is already
+named, you can call::
+
+    A.get_name(var)
+
+to get the name of the variable.
+
+By default, the summary op would be put in the collection
+`DEFAULT_COLLECTION`. More collections can be found at `akid.core.common`.
+
+Currently, the summary ops are executed in a process that is parallel to the
+main process.
+"""
 from __future__ import absolute_import
 from __future__ import print_function
 import multiprocessing
 import six.moves.queue
 import six
+
+import numpy as np
 
 import torch as th
 from torch.autograd import Variable
@@ -18,6 +45,8 @@ from akid.core.common import (
     TRAIN_SUMMARY_COLLECTION,
     VALID_SUMMARY_COLLECTION,
     TRAINING_DYNAMICS_COLLECTION,
+    DEFAULT_COLLECTION,
+    BATCH_MONITORING_COLLECTION
 )
 from akid.utils.tools import currentframe
 import six
@@ -81,6 +110,8 @@ def reset_collections():
     _collections[TRAIN_SUMMARY_COLLECTION] = []
     _collections[VALID_SUMMARY_COLLECTION] = []
     _collections[TRAINING_DYNAMICS_COLLECTION] = []
+    _collections[DEFAULT_COLLECTION] = []
+    _collections[BATCH_MONITORING_COLLECTION] = []
 
 
 class SummaryOp(object):
@@ -115,8 +146,14 @@ class HistogramSummaryOp(SummaryOp):
         self.summary_on_grad = summary_on_grad
 
     def _call(self, step, tensor):
+        # We skip illegal numbers such Nan.
+        tensor_np = cg.eval(tensor)
+        is_illegal = np.isnan(tensor_np).all()
+        if is_illegal:
+            return
+
         summary_writer.add_histogram(
-            self.name, cg.eval(tensor), global_step=step, bins='auto')
+            self.name, tensor_np, global_step=step, bins='auto')
         if self.summary_on_grad:
             grad = tensor.grad
             if grad is not None:
@@ -184,24 +221,32 @@ def init(dir=None):
     worker_process.start()
 
 
+def _add_op_to_collections(op, collections):
+    if collections is None:
+        collections = [DEFAULT_COLLECTION]
+
+    for c in collections:
+        _collections[c].append(op)
+
+
 def histogram(name, values, summary_on_grad=False, collections=None):
     """
     Args:
         summary_on_grad: bool
             Whether to do summary on the grad of the variable.
     """
-    for c in collections:
-        _collections[c].append(HistogramSummaryOp(name=name, summary_on_grad=summary_on_grad))
+    op = HistogramSummaryOp(name=name, summary_on_grad=summary_on_grad)
+    _add_op_to_collections(op, collections)
 
 
 def scalar(name, value, collections=None):
-    for c in collections:
-        _collections[c].append(ScalarSummaryOp(name))
+    op = ScalarSummaryOp(name)
+    _add_op_to_collections(op, collections)
 
 
 def image(name, value, collections=None):
-    for c in collections:
-        _collections[c].append(ImageSummaryOp(name))
+    op = ImageSummaryOp(name)
+    _add_op_to_collections(op, collections)
 
 
 def add_scalar(name, value, step):
@@ -232,6 +277,17 @@ def merge(l):
     return l
 
 
+def _tensor_cleanup(v):
+    """
+    Detach torch tensor, and move it to cpu if necessary.
+    """
+    v = v.detach()
+    if v.is_cuda:
+        v = v.to("cpu")
+
+    return v
+
+
 # TODO: since queue is used, we do not need to wait to run such merged summary;
 # we can add the summary to be written to on-the-fly during training.
 def run_summary_op(ops, feed_dict=None):
@@ -249,7 +305,18 @@ def run_summary_op(ops, feed_dict=None):
 
     # NOTE: it may take some time to transfer from GPU to CPU, if this becomes
     # a bottleneck, a thread should be used to transfer the data.
-    op_values = [cg.tensor_by_name[op.name].detach().to("cpu") for op in ops]
+    op_values = []
+    for op in ops:
+        t = cg.tensor_by_name[op.name]
+        if isinstance(t, th.Tensor):
+            op_values.append(_tensor_cleanup(t))
+        elif isinstance(t, cg_general.NamedTensorTuple):
+            op_values.append([_tensor_cleanup(v) for v in t])
+        elif isinstance(t, cg_general.NamedScalar) or isinstance(t, cg_general.NamedNdarrary):
+            op_values.append(t)
+        else:
+            raise ValueError("{} is not a valid value type".format(type(t)))
+
     op_value_tuples = list(zip(ops, op_values))
     for t in op_value_tuples:
         try:

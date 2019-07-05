@@ -18,6 +18,7 @@ import os
 import sys
 
 import tensorflow as tf
+import torch as th
 
 from .computational_graph import *
 from ..utils import glog
@@ -50,7 +51,6 @@ def backend():
 def reset():
     reset_step()
     reset_block_count()
-    reset_eval_block_map()
     close()
     # We use scope management from tensorflow, so reset graph
     tf.reset_default_graph()
@@ -62,3 +62,17 @@ def reset():
 def init_log():
     FLAGS(sys.argv)
     glog.init("stdout", akid_logger=True)
+
+
+def is_numerical(d):
+    if isinstance(d, NamedNumericValue):
+        return True
+
+    if _BACKEND == TF:
+        if isinstance(d, tf.Tensor):
+            return True
+    elif _BACKEND == TORCH:
+        if isinstance(d, th.Tensor):
+            return True
+
+    return False

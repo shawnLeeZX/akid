@@ -16,6 +16,8 @@ class TestExamples(AKidTestCase):
         assert eval_[0] > 0.99, \
             "Critical failure. DO a full check."
 
+        kid.teardown()
+
     @skipUnless(A.backend() == A.TF, "The data augmentation code has not been ported to CIFAR10")
     def test_alex_net(self):
         from akid.examples import alex_net

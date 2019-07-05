@@ -15,7 +15,7 @@ from six.moves import range
 sampler_dict = {}
 
 
-def get(sampler_name, indices):
+def get(sampler_name, *args, **kwargs):
     """
     Given the name of the sampler, return a Sampler that has a `next()`
     interface to iterate the dataset.
@@ -25,7 +25,7 @@ def get(sampler_name, indices):
     except ValueError as e:
         raise_from(ValueError("Sampler {} is not supported".format(sampler_name)), e)
 
-    return sampler.get(indices)
+    return sampler.get(*args, **kwargs)
 
 
 class SamplerRegistry(object):

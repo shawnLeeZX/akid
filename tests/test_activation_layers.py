@@ -365,7 +365,8 @@ class TestActivationLayers(AKidTestCase):
             [
                 [1, 1],
                 [2, 2]
-            ]
+            ],
+            dtype=np.float
         )
         l = L2Norm()
         X_out = l(A.Tensor(X_in))

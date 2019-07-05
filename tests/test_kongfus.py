@@ -13,17 +13,16 @@ from akid import backend as A
 
 class TestKongFu(AKidTestCase):
     def setUp(self):
+        super(TestKongFu, self).setUp()
         self.use_cuda_save = A.use_cuda()
         A.use_cuda(False)
 
-        A.reset()
-
     def tearDown(self):
+        super(TestKongFu, self).tearDown()
         A.use_cuda(self.use_cuda_save)
 
     def test_momentum_kongfu(self):
         from akid import initializers as init
-        # import ipdb; ipdb.set_trace()
         a = A.get_variable(initializer=init.get('tensor', value=[1.]))
         b = 2
         c = a * b
@@ -63,6 +62,8 @@ class TestKongFu(AKidTestCase):
 
         kid.practice()
         self.assertEquals(kid.kongfu.get_lr(), 0.0001)
+
+        kid.teardown()
 
     @skip("Currently broken.")
     # @skipUnless(A.backend() == A.TF)

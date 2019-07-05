@@ -33,8 +33,8 @@ class TestLossLayers(AKidTestCase):
     def test_mse_loss(self):
         from akid.layers import MSELossLayer
 
-        X_in = A.Tensor([[1, 1], [0, 0]])
-        label_in = A.Tensor([[1, 0], [0, 0]])
+        X_in = A.Tensor([[1., 1], [0, 0]])
+        label_in = A.Tensor([[1., 0], [0, 0]])
         l = MSELossLayer(name='loss')
         X_out = l.forward([X_in, label_in])
         X_out_ref = 0.25
@@ -48,12 +48,31 @@ class TestLossLayers(AKidTestCase):
 
         l = WeightDecayLayer(0.5)
 
-        W_list = [A.Tensor([[1, 1], [1, 1]]), A.Tensor([[1, 1], [1, 1]])]
+        W_list = [A.Tensor([[1., 1], [1, 1]]), A.Tensor([[1, 1], [1, 1]])]
         loss_ref = 4
 
         loss_out = l.forward(W_list)
 
         self.assertEquals(loss_ref, A.eval(loss_out))
+
+    def test_margin_ranking_loss(self):
+        positive_samples = np.array([
+            [0.5],
+            [0.8]
+        ])
+        positive_samples = A.Tensor(positive_samples)
+        negative_samples = np.array([
+            [0.1, 0.1],
+            [0.2, 0.1]
+        ])
+        negative_samples = A.Tensor(negative_samples)
+
+        from akid.layers import MarginRankingLoss
+        l = MarginRankingLoss(0.5)
+        loss = l([positive_samples, negative_samples])
+
+        loss_ref = (0.1) / 2
+        self.assertAlmostEqual(float(A.eval(loss)), loss_ref)
 
     @skip("Badly written test.")
     def test_multiplier(self):

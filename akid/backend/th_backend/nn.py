@@ -17,21 +17,21 @@ def l2_loss(var, name=None):
 
 
 @cache_name_if_exist
-def l2_norm(var, name=None):
+def l2_norm(var, dim=None, name=None):
     """
     Args:
          var: tensor
              tensor of rank 1 or 2. If the rank is 1, it is taken as a vector,
              and norm computed. If 2, it is taken as an array of vectors, where
              var[0] is a vector. The norm of each individually is computed.
+         dim: the dimension along which to compute l2 norm. Not useful when
+             `var` is of one dimension.
     """
     shape = cg.get_shape(var)
-    if len(shape) == 1:
+    if len(shape) == 1 or dim is None:
         return th.sqrt(th.sum(var * var))
-    elif len(shape) == 2:
-        return th.sqrt(th.sum(var * var, dim=1))
     else:
-        raise ValueError("Shape should or either 1 or 2. Got {}".format(len(shape)))
+        return th.sqrt(th.sum(var * var, dim=dim))
 
 
 @cache_name_if_exist
@@ -62,6 +62,11 @@ def inner_product(input, W, bias=None, name=None):
         return th.addmm(bias, input, W)
     else:
         return input.matmul(W)
+
+
+@cache_name_if_exist
+def bmm(M1, M2, name=None):
+        return th.bmm(M1, M2)
 
 
 @cache_name_if_exist
@@ -115,6 +120,11 @@ def sigmoid(v, name=None):
 
 
 @cache_name_if_exist
+def embedding(idxs, weights, name=None):
+    return F.embedding(idxs, weights)
+
+
+@cache_name_if_exist
 def dropout(v, keep_prob, val=False, in_place=False, name=None):
     return F.dropout(v, 1-keep_prob, training=not val, inplace=in_place)
 
@@ -132,6 +142,16 @@ def mse_loss(data, labels, size_average=True, name=None):
 @cache_name_if_exist
 def cross_entropy_loss(logits, labels, name=None):
     return F.cross_entropy(logits, labels)
+
+
+@cache_name_if_exist
+def margin_ranking_loss(x1, x2, target, margin=0, name=None):
+    return F.margin_ranking_loss(x1, x2, target, margin=margin)
+
+
+@cache_name_if_exist
+def consine_similarity(x1, x2, dim=1, eps=1e-8):
+    return F.cosine_similarity(x1, x2, dim, eps)
 
 
 @cache_name_if_exist

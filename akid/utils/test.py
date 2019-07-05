@@ -42,6 +42,9 @@ class AKidTestCase(TestCase):
         A.reset()
         A.init_log()
 
+    def tearDown(self):
+        A.reset()
+
     def assertNdarrayEquals(self, a, b):
         if not (a == b).all():
             msg = self._formatMessage(None, '\n{}\n == \n{}\n'.format(a, b))

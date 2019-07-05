@@ -132,6 +132,20 @@ class Brain(System, ProcessingLayer):
         for b in self.blocks:
             b.set_shadow()
 
+    def switch_batch_monitoring_mode(self):
+        """
+        Switch on and off batch monitoring mode.
+        """
+        if self.is_mon:
+            self.name = self.old_name
+            self.set_flag("is_mon", False)
+        else:
+            # Save the old name and change status flag
+            self.old_name = self.name
+            self.name += "_mon"
+            self.set_flag("is_mon", True)
+
+
     def set_do_summary_on_val_flag(self, v):
         super(Brain, self).set_do_summary_on_val_flag(v)
         for b in self.blocks:
@@ -259,13 +273,11 @@ class Brain(System, ProcessingLayer):
             t = type(b)
             if t is list or t is tuple:
                 for l in b:
-                    l.do_summary_on_val = self.do_summary_on_val
                     self.attach(l)
             else:
                 # A brain should only contain data processing layers.
                 assert issubclass(t, ProcessingLayer), \
                     "A `Brain` should only contain `ProcessingLayer`s."
-                b.do_summary_on_val = self.do_summary_on_val
                 super(Brain, self).attach(b)
                 # Pass options down.
                 if self.moving_average_decay:

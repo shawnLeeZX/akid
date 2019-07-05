@@ -18,7 +18,7 @@ import akid
 class Joker(ShadowableBlock):
     """
     A top level abstract class to do data augmentations. Since it is also part
-    of a data processing process, it is a sub-class of `ProcessingBlock`.
+    of a data processing process, it is a sub-class of `ShadowableBlock`.
 
     A Joker normally accepts one input -- so its `_forward` only takes one input,
     and gives out one output -- so the output is revealed via property `data`.

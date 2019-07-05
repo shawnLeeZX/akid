@@ -16,6 +16,8 @@ if not AKID_DATA_PATH:
 
 # Graph collection names
 # #########################################################################
+DEFAULT_COLLECTION = "default"
+BATCH_MONITORING_COLLECTION = "monitor"
 TRAIN_SUMMARY_COLLECTION = "train_summary"
 VALID_SUMMARY_COLLECTION = "val_summary"
 FILTER_WEIGHT_COLLECTION = "filter_weight"

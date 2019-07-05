@@ -261,6 +261,40 @@ class HingeLossLayer(LossLayer):
 HingeLoss = HingeLossLayer
 
 
+class MarginRankingLossLayer(LossLayer):
+    """
+    See :meth:`akid.nn.losses.hinge_loss` for hinge ranking loss. Here we note
+    the extra work done by the layer wrapper.
+
+    In some cases, e.g., implicit matrix completion, the negative samples could
+    be missing data. So it makes the model biased if we simply treat the
+    missing data as negative samples. In this case, it might be appropriate to
+    take an average score of negative sample. It at least gives a check on the
+    bias, since of very low probability out of the randomly sampled negative
+    samples, most of them are actually missed positive samples.
+    """
+    NAME = "MarginRankingLoss"
+
+    def __init__(self, margin, *args, **kwargs):
+        super(MarginRankingLossLayer, self).__init__(*args, **kwargs)
+        self.margin = margin
+
+    def _forward(self, x):
+        positive_samples, negative_samples = x[0], x[1]
+
+        # First, we check the shape of x,
+        if A.get_shape(negative_samples) == 3:
+            # Means we randomly sample some negative samples, and intend to use
+            # their average.
+            negative_samples = A.mean(negative_samples, -1)
+
+        self._loss = nn.hinge_ranking_loss(positive_samples, negative_samples, self.margin, name="hinge_ranking_loss")
+
+        return self._loss
+
+
+MarginRankingLoss = MarginRankingLossLayer
+
 
 __all__ = [name for name, x in locals().items() if
            not inspect.ismodule(x) and not inspect.isabstract(x)]

@@ -67,7 +67,7 @@ import torch as th
 from torch import multiprocessing as mp
 
 from .jokers import JokerSystem
-from .blocks import ProcessingBlock
+from .blocks import ValidatableProcessingBlock
 from . import sources
 from . import samplers
 from .common import TRAIN_SUMMARY_COLLECTION, VALID_SUMMARY_COLLECTION
@@ -105,7 +105,7 @@ def _data_fetching_worker(source, index_queue, data_queue, done_event):
             log.debug("Data Prefetching Worker: Fetching data according to indices ... ")
             indices = index_queue.get(timeout=A.TIMEOUT)
             data = source.get(indices)
-            data_queue.put(data)
+            data_queue.put(data, timeout=A.TIMEOUT)
             log.debug("Data Prefetching Worker: Data fetched")
         except queue.Empty:
             continue
@@ -202,7 +202,7 @@ def _data_preloading_worker(prefetch_data_queue, data_queue, done_event):
             continue
 
 
-class Sensor(ProcessingBlock):
+class Sensor(ValidatableProcessingBlock):
     """
     The top level abstract sensor to prepare data.
 
@@ -231,7 +231,7 @@ class Sensor(ProcessingBlock):
                 The number of samples in a time the sensor would provide.
             queue_size: int
                 The number of batches to prefetch.
-            sampler: str
+            sampler: str or a Sampler object
                 The sampler that determines the sequence to process data.
             name: str
                 Name of this sensor.
@@ -244,8 +244,18 @@ class Sensor(ProcessingBlock):
         self.queue_size = queue_size
         if self.queue_size > self.num_batches_per_epoch:
             self.queue_size = self.num_batches_per_epoch
-        self.sampler_name = sampler
-        self.val_sampler_name = val_sampler
+
+        # More complex datasets might customized samplers, Sensor supports pass
+        # a built sampler directly.
+        if type(sampler) is str:
+            self.train_sampler_name = sampler
+        else:
+            self.train_sampler = sampler
+
+        if type(val_sampler) is str:
+            self.val_sampler_name = val_sampler
+        else:
+            self.val_sampler = val_sampler
 
         self.mode = A.Mode.TRAIN
 
@@ -288,6 +298,7 @@ class Sensor(ProcessingBlock):
         if self.is_setup:
             self._teardown_data_queue()
 
+        self.sampler.reset()
         self.setup()
 
     def _setup(self):
@@ -296,9 +307,15 @@ class Sensor(ProcessingBlock):
         """
         self.source.setup()
         if self.mode == A.Mode.TRAIN:
-            self.sampler = samplers.get(self.sampler_name, self.source.size)
+            if hasattr(self, "train_sampler"):
+                self.sampler = self.train_sampler
+            else:
+                self.sampler = samplers.get(self.train_sampler_name, self.source.size)
         elif self.mode == A.Mode.VAL or self.mode == A.Mode.TEST:
-            self.sampler = samplers.get(self.val_sampler_name, self.source.size)
+            if hasattr(self, "val_sampler"):
+                self.sampler = self.val_sampler
+            else:
+                self.sampler = samplers.get(self.val_sampler_name, self.source.size)
         else:
             raise ValueError("Wrong mode {}".format(self.mode))
 
@@ -429,7 +446,10 @@ class SimpleSensor(Sensor):
         # Start loading data from source according to mode.
         ## Put indices to prefetch.
         for i in range(self.queue_size):
-            self._index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+            try:
+                self._index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+            except EpochCompletedEvent:
+                self._index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
 
     @property
     def index_queue(self):
@@ -524,7 +544,10 @@ class ParallelSensor(Sensor):
     def _setup_index_queue(self):
         self._index_queue = mp.Queue(self.queue_size)
         for i in range(self.queue_size):
-            self._index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+            try:
+                self._index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
+            except EpochCompletedEvent:
+                self._index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
 
     @property
     def index_queue(self):
@@ -556,9 +579,15 @@ class ParallelSensor(Sensor):
         for i in range(self.num_workers):
             self.log("Waiting worker {} to join ...".format(i))
             self.worker_processes[i].join()
-        self._prefetch_data_queue.put(None, timeout=A.TIMEOUT)
-        self.log("Waiting preloading thread to join ...")
-        self.preloading_thread.join()
+        # When training on MNIST, the preloading_thread dies each time data
+        # queues are torn down. To prevent deadlock, check whether it is dead
+        # or not. Why it dies is not clear.
+        if self.preloading_thread.is_alive():
+            self._prefetch_data_queue.put(None)
+            self.log("Waiting preloading thread to join ...")
+            self.preloading_thread.join()
+        else:
+            self.log("Preloading thread is dead already.")
 
     @property
     def data_queue(self):
@@ -566,7 +595,7 @@ class ParallelSensor(Sensor):
 
 
 @deprecated(reason="Legacy code. Use `Sensor` instead.")
-class OldSensor(six.with_metaclass(abc.ABCMeta, ProcessingBlock)):
+class OldSensor(six.with_metaclass(abc.ABCMeta, ValidatableProcessingBlock)):
     """
     The top level abstract sensor to preprocessing raw data received from
     `Source`, such as batching, data augmentation etc.

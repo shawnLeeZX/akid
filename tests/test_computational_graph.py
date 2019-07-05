@@ -58,7 +58,9 @@ class TestComputationalGraph(AKidTestCase):
             "{} is not the desired name {}".format(A.get_name(l.data), name_ref)
 
     def test_save_restore_replaces_existing_variables(self):
-        A.get_variable(name="x", initializer=np.array([0, 1]))
+        from akid.utils import glog as log
+        log.init()
+        A.get_variable(name="x", initializer=np.array([0., 1]))
         A.init()
         A.save("x")
         A.restore("x")
