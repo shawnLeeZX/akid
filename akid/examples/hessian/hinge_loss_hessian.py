@@ -18,7 +18,9 @@ from akid.layers import (
     HingeLossLayer,
     BinaryAccuracy,
     PoolingLayer,
-    SoftmaxWithLossLayer
+    SoftmaxWithLossLayer,
+    BN,
+    SynapseLayer
 )
 from akid import backend as A
 from akid.utils.test import debug_on
@@ -124,7 +126,10 @@ class VGG11(GraphBrain):
         for i in range(10):
             self.attach(ConvolutionLayer(3, 1, "SAME",
                                          in_channel_num=1 if i == 0 else channel_num[i-1],
+                                         initial_bias_value=None,
                                          out_channel_num=channel_num[i]))
+            # Uncomment to add BN.
+            # self.attach(BN(channel_num[i])),
             self.attach(ReLULayer())
             if i != 0 and i % 2 == 0:
                 self.attach(MaxPoolingLayer(ksize=2, strides=2, padding="VALID"))
@@ -248,8 +253,12 @@ def lanczos_nn(kid):
             Hv = 0
             for data in spectrum_sensor:
                 kid.run_step(update=False, data=data)
-                grad = A.nn.grad(kid.brain.loss, kid.brain.get_filters(), flatten=True)
-                Hv_ = A.nn.hessian_vector_product(grad, kid.brain.get_filters(), v, allow_unused=True)
+                weights = []
+                for l in kid.brain.blocks:
+                    if isinstance(l, SynapseLayer):
+                        weights.extend(l.var_list)
+                grad = A.nn.grad(kid.brain.loss, weights, flatten=True)
+                Hv_ = A.nn.hessian_vector_product(grad, weights, v, allow_unused=True)
                 if c is not None and d is not None:
                     # We need to normalize the Hessian.
                     Hv_ = Hv_ / d - c / d * v
@@ -262,7 +271,14 @@ def lanczos_nn(kid):
         return v
 
     # Normalize the Hessian to be in [-1, 1].
-    N = kid.brain.num_parameters()
+    N = 0
+    for l in kid.brain.blocks:
+        if isinstance(l, SynapseLayer):
+            for v in l.var_list:
+                n = 1
+                for i in v.shape:
+                    n *= i
+                N += n
     f, v = ops.matrix_ops.center_unit_eig_normalization_cr(N, iter_num=128, kappa=0.05)
     v = dataset_hessian_vector_product_cr(f, v)
     c, d = v # The parameters to renormalize Hessian.

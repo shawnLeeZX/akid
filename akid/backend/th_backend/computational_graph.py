@@ -502,6 +502,10 @@ def reshape(v, shape, name=None):
     return v.view(shape)
 
 
+def split(v, chunk_size, dim=0, name=None):
+    return v.split(chunk_size, dim=dim)
+
+
 def convert_to_tensor(v):
     """
     Convert to tensor if necessary.
@@ -543,7 +547,12 @@ def cat(v, name=None):
     return th.cat(v)
 
 
-def scatter(data, devices):
+@cache_name_if_exist
+def gather(input, dim, index, name=None):
+    return th.gather(input, dim, index)
+
+
+def scatter_parallel(data, devices):
     if torch_version < 0.4:
         return th.nn.parallel._functions.Scatter(devices, dim=0)(data)
     else:
@@ -551,7 +560,7 @@ def scatter(data, devices):
 
 
 @cache_name_if_exist
-def gather(data, output_device, name=None):
+def gather_parallel(data, output_device, name=None):
     if torch_version < 0.4:
         return th.nn.parallel._functions.Gather(output_device, dim=0)(*data)
     else:
@@ -561,6 +570,12 @@ def gather(data, output_device, name=None):
 @cache_name_if_exist
 def expand_dims(x, axis, name=None):
     return th.unsqueeze(x, dim=axis)
+
+
+@cache_name_if_exist
+def transpose(x, name=None):
+    return x.t()
+
 
 @cache_name_if_exist
 def squeeze(x, dim=None, name=None):
@@ -573,6 +588,11 @@ def squeeze(x, dim=None, name=None):
 @cache_name_if_exist
 def cast(x, dtype, name=None):
     return x.type(dtype)
+
+
+@cache_name_if_exist
+def stack(x, name=None):
+    return th.stack(x)
 
 
 @cache_name_if_exist
@@ -612,6 +632,11 @@ def symeig(H):
 @cache_name_if_exist
 def randn(shape, name=None):
     return th.randn(*shape, device=device)
+
+
+@cache_name_if_exist
+def randint(low, high, size=1, name=None):
+    return th.randint(low=low, high=high, size=size, device=device)
 
 
 @cache_name_if_exist

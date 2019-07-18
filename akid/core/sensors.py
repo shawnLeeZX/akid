@@ -380,7 +380,7 @@ class Sensor(ValidatableProcessingBlock):
                 # keep fetching.
                 self.index_queue.put(self.sampler.next(self.batch_size_dict[self.mode]))
 
-        ret = self.data_queue.get(timeout=A.TIMEOUT)
+        ret = self.data_queue.get()
 
         A.cache_tensor_auto_scope(ret[0], "val_data" if self.is_val else "data")
         A.cache_tensor_auto_scope(ret[1], "val_labels" if self.is_val else "labels")

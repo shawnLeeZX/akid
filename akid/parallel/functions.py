@@ -21,7 +21,7 @@ def scatter(data, devices):
         if type(data) is list:
             return tuple(zip(*list(map(scatter_inner, data))))
         else:
-            return A.scatter(data, devices)
+            return A.scatter_parallel(data, devices)
 
     with A.variable_scope("data_scatter"):
         return scatter_inner(data)
@@ -33,7 +33,7 @@ def gather(data, output_device=0):
         if type(d) is list:
             return list(map(gather_inner, list(zip(*data))))
         else:
-            return A.gather(data, output_device)
+            return A.gather_parallel(data, output_device)
 
     return gather_inner(data)
 

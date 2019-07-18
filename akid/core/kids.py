@@ -315,6 +315,7 @@ class Kid(Block):
 
         return loss_avg, eval_blocks
 
+    @scavenger
     def setup(self):
         """
         Set up logging and the computation graph.

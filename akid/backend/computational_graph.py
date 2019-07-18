@@ -21,6 +21,18 @@ TORCH = 'pytorch'
 _backends = [TF, TORCH]
 
 
+# Debug flags
+# #########################################################################
+_debug = False
+def set_debug_flag(v):
+    global _debug
+    _debug = v
+
+
+def get_debug_flag():
+    return _debug
+
+
 def available_backends():
     return _backends
 
@@ -193,6 +205,7 @@ class NamedTensorTuple(tuple, NamedValue):
     Arbitrary number of tuple members are supported.
     """
     def __init__(self, name=None, *args, **kwargs):
+        assert type(name) is str, "Named should be string."
         self.name = name
 
     def __new__(cls, name, *args, **kwargs):

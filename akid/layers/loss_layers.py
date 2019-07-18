@@ -282,13 +282,30 @@ class MarginRankingLossLayer(LossLayer):
     def _forward(self, x):
         positive_samples, negative_samples = x[0], x[1]
 
-        # First, we check the shape of x,
-        if A.get_shape(negative_samples) == 3:
-            # Means we randomly sample some negative samples, and intend to use
-            # their average.
-            negative_samples = A.mean(negative_samples, -1)
+        if not isinstance(positive_samples, tuple):
+            assert not isinstance(negative_samples, tuple), "If tuples are passed in, both of them should be tuples."
+            # First, we check the shape of x,
+            if A.get_shape(negative_samples) == 3:
+                # Means we randomly sample some negative samples, and intend to use
+                # their average.
+                negative_samples = A.mean(negative_samples, -1)
 
-        self._loss = nn.hinge_ranking_loss(positive_samples, negative_samples, self.margin, name="hinge_ranking_loss")
+            self._loss = nn.hinge_ranking_loss(positive_samples, negative_samples, self.margin, name="hinge_ranking_loss")
+        else:
+            assert isinstance(negative_samples, tuple), "If tuples are passed in, both of them should be tuples."
+            # NOTE: we could sample some negative samples, instead use all
+            # samples for now.
+            losses = []
+            for i,v in enumerate(positive_samples):
+                loss = nn.hinge_ranking_loss(A.expand_dims(v, 1),
+                                             A.expand_dims(negative_samples[i], 0),
+                                             self.margin,
+                                             name="hinge_ranking_loss")
+                losses.append(loss)
+
+            losses = A.stack(losses)
+
+            self._loss = A.mean(losses)
 
         return self._loss
 

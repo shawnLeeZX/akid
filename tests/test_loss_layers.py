@@ -60,12 +60,12 @@ class TestLossLayers(AKidTestCase):
             [0.5],
             [0.8]
         ])
-        positive_samples = A.Tensor(positive_samples)
+        positive_samples = A.Tensor(positive_samples, requires_grad=True)
         negative_samples = np.array([
             [0.1, 0.1],
             [0.2, 0.1]
         ])
-        negative_samples = A.Tensor(negative_samples)
+        negative_samples = A.Tensor(negative_samples, requires_grad=True)
 
         from akid.layers import MarginRankingLoss
         l = MarginRankingLoss(0.5)
@@ -73,6 +73,8 @@ class TestLossLayers(AKidTestCase):
 
         loss_ref = (0.1) / 2
         self.assertAlmostEqual(float(A.eval(loss)), loss_ref)
+
+        loss.backward()
 
     @skip("Badly written test.")
     def test_multiplier(self):

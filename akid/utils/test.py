@@ -28,6 +28,8 @@ from akid.models.brains import OneLayerBrain
 from akid import backend as A
 from six.moves import map
 
+from .debug import debug_on
+
 
 def skipUnless(cond, msg=None):
     return unittest.skipUnless(cond, msg)
@@ -50,12 +52,30 @@ class AKidTestCase(TestCase):
             msg = self._formatMessage(None, '\n{}\n == \n{}\n'.format(a, b))
             raise self.failureException(msg)
 
+    def assertNdarrayEqualAtLeastOne(self, a, b):
+        for v in b:
+            if (a == v).all():
+                return
+
+        msg = self._formatMessage(None, '\n{}\n == \n{}\n'.format(a, b))
+        raise self.failureException(msg)
+
     def assertNdarrayAlmostEquals(self, a, b, places=7):
         diff = a - b
         diff = abs(diff)
         if not (diff < 10 ** -places).all():
             msg = self._formatMessage(None, '\ndiff:\n{}\n\n\n a:{}\n\n\n b:{}\n'.format(diff, a, b))
             raise self.failureException(msg)
+
+    def assertNdarrayAlmostEqualAtLeastOne(self, a, b, places=7):
+        for v in b:
+            diff = a - v
+            diff = abs(diff)
+            if (diff < 10 ** -places).all():
+                return
+
+        msg = self._formatMessage(None, '\n{}\n == \n{}\n'.format(a, b))
+        raise self.failureException(msg)
 
     def assertNdarrayNotAlmostEquals(self, a, b):
         diff = a - b
@@ -178,22 +198,6 @@ class TestSuite():
         for module in map(__import__, modules_to_test):
             all_tests.addTest(unittest.findTestCases(module))
         return all_tests
-
-
-def debug_on(*exceptions):
-    if not exceptions:
-        exceptions = (AssertionError, )
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(*args, **kwargs):
-            try:
-                return f(*args, **kwargs)
-            except exceptions:
-                info = sys.exc_info()
-                traceback.print_exception(*info)
-                pdb.post_mortem(info[2])
-        return wrapper
-    return decorator
 
 
 class ForkablePdb(pdb.Pdb):
