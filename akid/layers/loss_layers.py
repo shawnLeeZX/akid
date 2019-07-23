@@ -275,9 +275,10 @@ class MarginRankingLossLayer(LossLayer):
     """
     NAME = "MarginRankingLoss"
 
-    def __init__(self, margin, *args, **kwargs):
+    def __init__(self, margin, hard_sample_mining=False, *args, **kwargs):
         super(MarginRankingLossLayer, self).__init__(*args, **kwargs)
         self.margin = margin
+        self.hard_sample_mining = hard_sample_mining
 
     def _forward(self, x):
         positive_samples, negative_samples = x[0], x[1]
@@ -285,27 +286,44 @@ class MarginRankingLossLayer(LossLayer):
         if not isinstance(positive_samples, tuple):
             assert not isinstance(negative_samples, tuple), "If tuples are passed in, both of them should be tuples."
             # First, we check the shape of x,
-            if A.get_shape(negative_samples) == 3:
+            shape = A.get_shape(negative_samples)
+            # NOTE: the below case leaves the case where the dims of positive
+            # and negative samples are aligned, and we want to compute the
+            # element-wise margin loss.
+            if len(shape) == 3:
                 # Means we randomly sample some negative samples, and intend to use
                 # their average.
                 negative_samples = A.mean(negative_samples, -1)
+            elif len(shape) == 1:
+                # We want to compute the margin between each positive and the
+                # rest of negative samples.
+                negative_samples = A.expand_dims(negative_samples, 0)
+                positive_samples = A.expand_dims(positive_samples, 1)
 
-            self._loss = nn.hinge_ranking_loss(positive_samples, negative_samples, self.margin, name="hinge_ranking_loss")
+            self._loss = nn.hinge_ranking_loss(positive_samples,
+                                               negative_samples,
+                                               self.margin,
+                                               hard_sample_mining=self.hard_sample_mining,
+                                               name="hinge_ranking_loss")
         else:
             assert isinstance(negative_samples, tuple), "If tuples are passed in, both of them should be tuples."
             # NOTE: we could sample some negative samples, instead use all
             # samples for now.
             losses = []
             for i,v in enumerate(positive_samples):
+                if len(negative_samples[i].shape) == 1:
+                    ns = A.expand_dims(negative_samples[i], 0)
+                else:
+                    ns = negative_samples[i]
                 loss = nn.hinge_ranking_loss(A.expand_dims(v, 1),
-                                             A.expand_dims(negative_samples[i], 0),
+                                             ns,
                                              self.margin,
-                                             name="hinge_ranking_loss")
+                                             hard_sample_mining=self.hard_sample_mining)
                 losses.append(loss)
 
             losses = A.stack(losses)
 
-            self._loss = A.mean(losses)
+            self._loss = A.mean(losses, name="hinge_ranking_loss")
 
         return self._loss
 

@@ -21,7 +21,7 @@ def hinge_loss(y, t, weights=None, name=None):
 
 
 @A.cache_name_if_exist
-def hinge_ranking_loss(x1, x2, margin, name=None):
+def hinge_ranking_loss(x1, x2, margin, hard_sample_mining=False, name=None):
     """
     Hinge loss adopted for ranking. To understand the loss, recall that hinge
     loss is an almost stair-case style approximation to 0-1 loss, and 0-1 loss
@@ -41,8 +41,16 @@ def hinge_ranking_loss(x1, x2, margin, name=None):
     Intuitively, compared with hinge loss, it simply enforces a margin between
     x1 and x2, instead of dictating that the score should be larger than an
     absolute value as in the hinge loss, :meth:`akid.nn.losses.hinge_loss`.
+
+    Args:
+        hard_sample_mining: bool
+            Whether to use hard sample mining in the loss. It would use the
+            pair (x1, x2), where x1 < x2.
     """
-    loss = margin - (x1 - x2)
+    delta = (x1 - x2)
+    if hard_sample_mining:
+        delta = delta[delta < 0]
+    loss = margin - delta
     loss[loss < 0] = 0
     loss = A.mean(loss)
     return loss
