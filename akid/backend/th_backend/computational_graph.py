@@ -54,9 +54,8 @@ def get_variable(name=None, shape=None,
     `Tensor`, it cached a name for the variable returned. It makes the variable
     available to be retrieved by name.
 
-    `shared`, and `trainable` are not used yet. They are legacy code from
-    tensorflow, which may be useful when torch is used for distributed
-    training.
+    `shared` is not used yet. They are legacy code from tensorflow, which may
+    be useful when torch is used for distributed training.
     """
     if name:
         reuse = cg.get_variable_scope().reuse
@@ -458,13 +457,25 @@ def mul(a, b, name=None):
 
 
 @cache_name_if_exist
-def mean(v, dim=None, name=None):
+def mean(v, dim=None, keep_dim=False, name=None):
     if v.dtype != th.float:
         v = v.type(th.float)
     if dim is None:
         return th.mean(v)
     else:
-        return th.mean(v, dim)
+        return th.mean(v, dim, keepdim=keep_dim)
+
+
+@cache_name_if_exist
+def abs(v, name=None):
+    return th.abs(v)
+
+
+def std(v, dim=None, name=None):
+    if dim is None:
+        return th.std(v)
+    else:
+        return th.std(v, dim)
 
 
 @cache_name_if_exist
@@ -519,8 +530,6 @@ def convert_to_tensor(v):
 
 @cache_name_if_exist
 def add(a, b, name=None):
-    a = convert_to_tensor(a)
-    b = convert_to_tensor(b)
     v = a + b
 
     return v
@@ -598,10 +607,9 @@ def stack(x, name=None):
 @cache_name_if_exist
 def value(x, name=None):
     """
-    Get the value of a Tensor, which is a node in the graph, and holds
-    additional information which should be isolated.
+    Get the value of a Tensor.
     """
-    return x.clone()
+    return x.detach().clone()
 
 
 @cache_name_if_exist

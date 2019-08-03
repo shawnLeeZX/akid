@@ -25,8 +25,11 @@ class LossLayer(ProcessingLayer):
         self.log("Using multiplier {}".format(self.multiplier))
 
     def _post_forward(self, *args, **kwargs):
+        self._loss = A.mul(self._loss, self.multiplier, name="loss")
+
         super(LossLayer, self)._post_forward(self, *args, **kwargs)
-        self._loss = self._loss * self.multiplier
+
+        return self._loss
 
 
 class SoftmaxWithLossLayer(LossLayer):
@@ -44,6 +47,9 @@ class SoftmaxWithLossLayer(LossLayer):
 
         self._loss = A.nn.cross_entropy_loss(logits, labels, name="xentropy_mean")
         self._eval = A.nn.class_acccuracy(logits, labels, name='accuracy')
+        self._data = self._loss
+
+        return self._data
 
 
 class GroupSoftmaxWithLossLayer(SoftmaxWithLossLayer, GroupSoftmaxLayer):
@@ -198,8 +204,7 @@ class MSELossLayer(LossLayer):
         self.size_average = size_average
 
     def _forward(self, data):
-        self._loss = A.nn.mse_loss(data[0], data[1], self.size_average,
-                                   name="mse_loss" if self.summarize_output else None)
+        self._loss = A.nn.mse_loss(data[0], data[1], self.size_average, name="mse_loss")
         self._data = self._loss
         return self._loss
 

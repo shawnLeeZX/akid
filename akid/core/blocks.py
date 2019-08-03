@@ -257,13 +257,18 @@ class ProcessingBlock(FlowBlock):
     def set_do_summary_flag(self, v):
         self.do_summary = v
 
-    def summarize_data(self, data, collections=None):
+    def summarize_data(self, data, val=False, collections=None):
         """
         Helper function to summarize data with Tensorboard. `data` needs to be
         numerical, e.g., a Tensor, or a numpy array.
+
+        Args:
+            val: bool
+                Whether to summarize data in val mode as well. If False,
+                Summary ops won't be created for data in val mode won.
         """
         if not self.done_first_pass\
-           or self.is_val and not self.done_first_pass_val:
+           or val and self.is_val and not self.done_first_pass_val:
             self._data_summary(data, collections=collections)
 
     def forward(self, *args, **kwargs):

@@ -10,6 +10,7 @@ import akid as K
 from akid import ops
 
 from ..utils import glog as log
+from ..utils.tools import is_tuple_or_list
 from six.moves import zip
 
 
@@ -83,13 +84,25 @@ def on_val_log_step(kid):
                     name=A.append_suffix(A.get_name(kid.engine.eval(get_val=True)[i]), "val"),
                     value=v,
                     step=A.get_step())
+            elif is_tuple_or_list(v):
+                for i, u in enumerate(v):
+                    A.summary.add_scalar(
+                        name=A.append_suffix(A.get_name(kid.engine.eval(get_val=True)[i]), "val_{}".format(i)),
+                        value=u,
+                        step=A.get_step())
         if kid.verbose_evals is not None:
-            if A.is_numerical(v):
-                for i, v in enumerate(kid.verbose_evals):
+            for i, v in enumerate(kid.verbose_evals):
+                if A.is_numerical(v):
                     A.summary.add_scalar(
                         name=A.append_suffix(A.get_name(kid.engine.verbose_eval(get_val=True)[i]), "vval"),
                         value=v,
                         step=A.get_step())
+                elif is_tuple_or_list(v):
+                    for j, u in enumerate(v):
+                        A.summary.add_scalar(
+                            name=A.append_suffix(A.get_name(kid.engine.verbose_eval(get_val=True)[i]), "vval_{}".format(j)),
+                            value=u,
+                            step=A.get_step())
 
     # Log current validation.
     name_to_print = [A.get_name(g, no_scope=True) for g in kid.engine.eval(get_val=True)]
