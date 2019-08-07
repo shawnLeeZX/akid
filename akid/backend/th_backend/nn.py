@@ -48,6 +48,16 @@ def conv2d(input, filter, bias=None, strides=1, padding=0, name=None):
     if type(padding) is str:
         padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
     strides = _normalize_stride(strides)
+
+    if len(padding) == 4:
+        # We need to do manual padding since by default, conv2d only do
+        # two-side padding with the same padding dim.
+        padding = list(padding)
+        padding.reverse()
+        padding = tuple(padding)
+        input = th.nn.functional.pad(input, padding)
+        padding = 0
+
     return F.conv2d(input, filter, bias, stride=strides, padding=padding)
 
 
@@ -71,6 +81,7 @@ def bmm(M1, M2, name=None):
 
 @cache_name_if_exist
 def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
+    ksize = _normalize_ksize(ksize)
     H, W = ksize[0], ksize[1]
     shape = cg.get_shape(value)
     H_in, W_in = shape[-2], shape[-1]
@@ -90,17 +101,20 @@ def _normalize_stride(strides):
     if type(strides) is int:
         strides = (strides, strides)
     elif len(strides) == 4:
-        log.warning("Torch backend does not support stride in all four dimensions."
-                    " Use the last two as height and width.")
-        strides=(strides[-2], strides[-1])
+        # log.warning("Torch backend does not support stride in all four dimensions."
+        #             " Use the middle two as height and width.")
+        strides=(strides[-3], strides[-2])
     elif type(strides) is not tuple:
         strides = tuple(strides)
 
     return strides
 
+_normalize_ksize = _normalize_stride
+
 
 @cache_name_if_exist
 def avg_pool(value, ksize, strides, padding, name=None):
+    ksize = _normalize_ksize(ksize)
     H, W = ksize[0], ksize[1]
     shape = cg.get_shape(value)
     H_in, W_in = shape[-2], shape[-1]
@@ -252,7 +266,11 @@ def padding_str2tuple(H_in, W_in, strides, padding, H, W):
     elif padding == 'SAME':
         H_pad = get_padding_SAME(H_in, strides[0], H)
         W_pad = get_padding_SAME(W_in, strides[1], W)
-        padding = (H_pad, W_pad)
+        if H_pad[0] == W_pad[1] and W_pad[0] == W_pad[1]:
+            # Use plan to use the default padding in conv op.
+            padding = (H_pad[0], H_pad[1])
+        else:
+            padding = (*H_pad, *W_pad)
     else:
         raise ValueError("{} padding is not supported. Should be VALID or SAME".format(padding))
 
@@ -265,7 +283,7 @@ def get_padding_SAME(input_size, stride, ksize):
     padding_before = padding_needed // 2
     padding_after = padding_needed - padding_before
     # Since torch seems not to support 4 tuple padding, just return the left part
-    padding = padding_before
+    padding = (padding_before, padding_after)
 
     return padding
 

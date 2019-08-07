@@ -86,6 +86,7 @@ class Kid(Block):
                  val_log_step=1000,
                  train_log_step=100,
                  log_by_epoch=False,
+                 num_epoch_per_log=1,
                  log_by_step=True,
                  save_chk_point=True,
                  continue_from_chk_point=False,
@@ -140,6 +141,8 @@ class Kid(Block):
                 After how many steps training statistics should be logged.
             log_by_epoch: bool
                 Whether to log at the end of each epoch.
+            num_epoch_per_log: int
+                Log per `epoch_num_per_log` number of epochs.
             log_by_step: bool
                 Whether to log at every `val_log_step`.
             inference_mode: bool
@@ -194,6 +197,7 @@ class Kid(Block):
         self.train_log_step = train_log_step
         self.val_log_step = val_log_step
         self.log_by_epoch = log_by_epoch
+        self.num_epoch_per_log = num_epoch_per_log
         self.log_by_step = log_by_step
         self.inference_mode = inference_mode
         self.do_summary_on_val = do_summary_on_val
@@ -408,6 +412,7 @@ class Kid(Block):
         # in advance, and making them missing from initial training.
         self.sensor.reset()
 
+        val_loss, val_evals = None, None
         while A.get_step() < self.max_steps:
             try:
                 val_loss, val_evals = self.step_with_logistics()

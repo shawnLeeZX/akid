@@ -212,10 +212,11 @@ class MNISTTorchSource(StaticSource, SupervisedSource):
 
 class MNISTSource(Source):
     def _setup(self):
-        self._data = datasets.MNIST(self.work_dir, train=True, download=True,
-                                    transform=transforms.Compose([
-                                        transforms.ToTensor(),
-                                        transforms.Normalize((0.1307,), (0.3081,))]))
+        if not hasattr(self, "_data"):
+            self._data = datasets.MNIST(self.work_dir, train=True, download=True,
+                                        transform=transforms.Compose([
+                                            transforms.ToTensor(),
+                                            transforms.Normalize((0.1307,), (0.3081,))]))
 
     def set_mode(self, mode):
         super(MNISTSource, self).set_mode(mode)

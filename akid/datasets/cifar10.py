@@ -15,6 +15,7 @@ import tensorflow as tf
 from torchvision import datasets, transforms
 
 from ..core.sources import (
+    Source,
     InMemoryFeedSource,
     SupervisedSource,
     ClassificationTFSource,
@@ -22,6 +23,8 @@ from ..core.sources import (
 )
 from .datasets import DataSet, DataSets
 from six.moves import range
+
+from akid import backend as A
 
 
 class Cifar10Source(SupervisedSource):
@@ -329,3 +332,56 @@ class Cifar10TorchSource(StaticSource, SupervisedSource):
                                             transform=convert)
     def _forward(self):
         pass
+
+
+class Cifar10AkidSource(Source):
+    def _setup(self):
+        if not hasattr(self, "_data"):
+            convert = transforms.Compose([
+                transforms.ToTensor(),
+                # lambda x: x.permute(2, 0, 1),
+                transforms.Normalize([i/255 for i in [125.3, 123.0, 113.9]],
+                                    [i/255 for i in [63.0, 62.1, 66.7]]),
+            ])
+            train_transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.Pad(4),
+                transforms.RandomCrop(32),
+                convert,
+            ])
+
+            self._data = datasets.CIFAR10(self.work_dir, train=True, download=True,
+                                            transform=train_transform)
+
+    def set_mode(self, mode):
+        super(Cifar10AkidSource, self).set_mode(mode)
+
+        convert = transforms.Compose([
+            transforms.ToTensor(),
+            # lambda x: x.permute(2, 0, 1),
+            transforms.Normalize([i/255 for i in [125.3, 123.0, 113.9]],
+                                 [i/255 for i in [63.0, 62.1, 66.7]]),
+        ])
+        train_transform = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.Pad(4),
+            transforms.RandomCrop(32),
+            convert,
+        ])
+
+        if mode == A.Mode.TRAIN:
+            self._data = datasets.CIFAR10(self.work_dir, train=True, download=True,
+                                          transform=train_transform)
+        elif mode == A.Mode.VAL:
+            self._data = datasets.CIFAR10(self.work_dir, train=False,
+                                          transform=convert)
+        else:
+            raise ValueError("Mode {} not supported yet.".format(mode))
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def size(self):
+        return len(self._data)

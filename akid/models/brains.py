@@ -691,8 +691,12 @@ class ResNet(GraphBrain):
                     padding="VALID",
                     type="avg",
                     name="pool_{}_shortcut".format(self.residual_block_No)))
+                if A.DATA_FORMAT == "CHW":
+                    padding = [0,(out_channel_num - in_channel_num) // 2, 0, 0]
+                else:
+                    padding = [0, 0, 0, (out_channel_num - in_channel_num) // 2]
                 self.attach(PaddingLayer(
-                    padding=[0, 0, 0, (out_channel_num - in_channel_num) // 2],
+                    padding=padding,
                     name="pad_{}_shortcut".format(self.residual_block_No)))
 
             shortcut_layer_name = self.blocks[-1].name
@@ -722,7 +726,7 @@ class CifarResNet(ResNet):
         if not n_stages:
             n_stages = [16, 16*k, 32*k, 64*k]
         assert (depth - 4) % 6 is 0
-        n = (depth - 4) / 6
+        n = (depth - 4) // 6
         if self.projection_shortcut:
             act_before_residual = [True, True, True]
             self.wd = {"type": "l2", "scale": 5e-4}

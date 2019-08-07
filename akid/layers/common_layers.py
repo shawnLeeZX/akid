@@ -63,7 +63,7 @@ class PaddingLayer(ProcessingLayer, Joker):
         self.padding = padding
 
     def _forward(self, input):
-        shape = input.get_shape().as_list()
+        shape = A.get_shape(input)
         assert len(shape) is 4 or 3,\
             "Shapes other than 4 or 3 are not supported."
 
@@ -96,8 +96,9 @@ class PaddingLayer(ProcessingLayer, Joker):
                     [self.padding[2], self.padding[2]]
                 ]
 
-        self.log("Padding: {}".format(_padding))
-        self._data = tf.pad(input, paddings=_padding)
+        if not self.done_first_pass:
+            self.log("Padding: {}".format(_padding))
+        self._data = A.pad(input, paddings=_padding)
 
 
 class MergeLayer(ProcessingLayer):

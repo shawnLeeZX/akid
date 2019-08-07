@@ -648,6 +648,17 @@ def randint(low, high, size=1, name=None):
 
 
 @cache_name_if_exist
+def pad(x, paddings, name=None):
+    # Reverse the padding para, since torch uses it backwardly.
+    paddings.reverse()
+    padding_flattened = []
+    for i, v in enumerate(paddings):
+        padding_flattened.extend(v)
+    padding_flattened = tuple(padding_flattened)
+    return th.nn.functional.pad(x, padding_flattened)
+
+
+@cache_name_if_exist
 def matmul(a, b, name=None):
     return th.matmul(a, b)
 
