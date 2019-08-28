@@ -42,7 +42,11 @@ class System(GenerativeBlock, UpdateBlock):
         self.do_stat_on_norm = do_stat_on_norm
 
         self.blocks = []
-        self.block_names = []
+
+        # Quick lookup table to get the idx of a block. Since the blocks are
+        # added in a topological order normally, this table provides quick
+        # topological order lookup.
+        self.block_name_to_idx = {}
 
     def get_copy(self):
         self_copy = super(System, self).get_copy()
@@ -98,6 +102,8 @@ class System(GenerativeBlock, UpdateBlock):
                 block_in.set_flag(f, getattr(self, f))
 
         self.blocks.append(block_in)
+
+        self.block_name_to_idx[block_in.name] = len(self.blocks) - 1
 
     def set_do_summary_flag(self, v):
         super(System, self).set_do_summary_flag(v)
@@ -205,9 +211,25 @@ class GraphSystem(SequentialSystem):
     `_forward` method of a block, inputs feeds to a block is a tensor (if there
     is only one input) or a list of tensors (if there are multiple inputs.)
     """
-    def _forward(self, data_in):
+    def _forward(self, data_in, injected_data=None, start_block=None, end_block=None):
         """
         Method overrode to handle arbitrary layer interconnections.
+
+        It also supports partial propagation by specifying the names of the
+        start and the end blocks. Note that in this case, `data_in` should be
+        given in the shape as that of the input of `start_block` block.
+
+        Args:
+            data_in: list of tensors
+            injected_data: dict
+                A dict consists of injected data to replace the inputs that are
+                needed in partial propagation.
+            start_block: str
+                The name of the start block for partial propagation.
+            end_block: str
+                The name of the end block for partial propagation. If None, and
+                `start_block` is given, the system do forward propagation until
+                the end.
         """
         # Normalize input to a list for convenience even if there is only one
         # input.
@@ -219,7 +241,29 @@ class GraphSystem(SequentialSystem):
                 [A.get_shape(d) for d in data]))
 
         previous_data_name = "system_in"
-        for i, l in enumerate(self.blocks):
+
+        # Check if we do partial propagation.
+        if start_block is None:
+            start_block = self.blocks[0].name
+
+        # Find the start_block and start from it.
+        for start_idx,l in enumerate(self.blocks):
+            if l.name == start_block:
+                break
+
+        if end_block is None:
+            end_block = self.blocks[-1].name
+
+        # Find the end block if given.
+        for end_idx in range(1, len(self.blocks)+1):
+            if self.blocks[-end_idx].name == end_block:
+                end_idx = len(self.blocks) - end_idx + 1
+                break
+
+        if start_idx > end_idx:
+            raise ValueError("Start idx should be larger than the end idx.")
+
+        for i, l in enumerate(self.blocks[start_idx:end_idx]):
 
             inputs = None
             if l.inputs:
@@ -242,17 +286,22 @@ class GraphSystem(SequentialSystem):
                             inputs.append(data_in[i])
                     # Then look through outputs of setup layers.
                     else:
-                        for b in self.blocks:
-                            if b.is_setup and b.name == input["name"]:
-                                # If a layer has only one output, directly put
-                                # that data in the input since otherwise, this
-                                # layer won't be listed at all.
-                                if type(b.data) is not list:
-                                    inputs.append(b.data)
-                                else:
-                                    for i in input["idxs"]:
-                                        inputs.append(b.data[i])
-                                break
+                        block_idx = self.block_name_to_idx[input["name"]]
+                        b = self.blocks[block_idx]
+                        data = b.data
+
+                        if block_idx < start_idx:
+                            # The input should be fed in from system_in.
+                            data = injected_data[input["name"]]
+
+                        # If a layer has only one output, directly put
+                        # that data in the input since otherwise, this
+                        # layer won't be listed at all.
+                        if type(data) is not list:
+                            inputs.append(data)
+                        else:
+                            for i in input["idxs"]:
+                                inputs.append(data[i])
 
                     if "idxs" not in input:
                         input_inc = 1

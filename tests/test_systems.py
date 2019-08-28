@@ -111,13 +111,62 @@ class TestSystem(AKidTestCase):
                               init_para={"name": "tensor",
                                          "value": weight},
                               name='ip'))
-        s.attach(MSELossLayer(name='loss'))
+        s.attach(MSELossLayer(inputs=[
+            {"name": "ip"},
+            {"name": "system_in", "idxs": [1]}],
+                              name='loss'))
         X_out = s.forward([X_in, label_in])
-        X_out_ref = 1
+        X_out_ref = 0.25
 
         A.init()
         X_out_eval = A.eval(X_out[0])
         self.assertEquals(X_out_eval, X_out_ref)
+
+    def test_graph_system_partial_forward(self):
+        X_in = A.Tensor([[1., 0], [0, 1]], requires_grad=True)
+
+        weight = A.Tensor([
+            [1., 1],
+            [0, 0]
+        ])
+
+        ip_out_ref = np.array(
+            [[1., 1],
+            [0, 0]])
+
+        label_in = A.Tensor([[1., 0], [0, 0]], requires_grad=True)
+        loss_in = A.Tensor([[1., 0], [0, 0]], requires_grad=True) + 1
+
+        from akid import GraphSystem
+        from akid.layers import InnerProductLayer, MSELossLayer
+        s = GraphSystem(name="test_graph_system")
+        s.attach(
+            InnerProductLayer(in_channel_num=2,
+                              out_channel_num=2,
+                              initial_bias_value=None,
+                              init_para={"name": "tensor",
+                                         "value": weight},
+                              name='ip'))
+        s.attach(MSELossLayer(inputs=[
+            {"name": "ip"},
+            {"name": "system_in", "idxs": [1]}],
+                              name='loss'))
+
+        X_out = s.forward([X_in], start_block="ip", end_block="ip")
+
+        A.init()
+        ip_out_eval = A.eval(X_out[0])
+        self.assertNdarrayEquals(ip_out_eval, ip_out_ref)
+
+        loss_in = label_in + 0.25
+        loss_ref = 0.25 ** 2
+        loss_out = s.forward([loss_in, label_in],
+                             injected_data={"ip": [loss_in]},
+                             start_block="loss")
+
+        A.init()
+        loss_out_eval = A.eval(loss_out[0])
+        self.assertEqual(loss_out_eval, loss_ref)
 
 if __name__ == "__main__":
     main()
