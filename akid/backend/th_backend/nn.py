@@ -86,6 +86,10 @@ def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
     shape = cg.get_shape(value)
     H_in, W_in = shape[-2], shape[-1]
     padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
+    # Only take the padding at the beginning, since PyTorch by default only pad
+    # the same at the both end.
+    if len(padding) == 4:
+        padding = (padding[0], padding[2])
     strides = _normalize_stride(strides)
     return F.max_pool2d(value, ksize, strides, padding)
 
@@ -266,9 +270,9 @@ def padding_str2tuple(H_in, W_in, strides, padding, H, W):
     elif padding == 'SAME':
         H_pad = get_padding_SAME(H_in, strides[0], H)
         W_pad = get_padding_SAME(W_in, strides[1], W)
-        if H_pad[0] == W_pad[1] and W_pad[0] == W_pad[1]:
+        if H_pad[0] == H_pad[1] and W_pad[0] == W_pad[1]:
             # Use plan to use the default padding in conv op.
-            padding = (H_pad[0], H_pad[1])
+            padding = (H_pad[0], W_pad[0])
         else:
             padding = (*H_pad, *W_pad)
     else:
