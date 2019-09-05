@@ -80,7 +80,7 @@ def bmm(M1, M2, name=None):
 
 
 @cache_name_if_exist
-def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
+def max_pool(value, ksize, strides, padding, data_format="NHWC", return_indices=False, name=None):
     ksize = _normalize_ksize(ksize)
     H, W = ksize[0], ksize[1]
     shape = cg.get_shape(value)
@@ -88,10 +88,10 @@ def max_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
     padding = padding_str2tuple(H_in, W_in, strides, padding, H, W)
     # Only take the padding at the beginning, since PyTorch by default only pad
     # the same at the both end.
-    if len(padding) == 4:
+    if type(padding) is not int and len(padding) == 4:
         padding = (padding[0], padding[2])
     strides = _normalize_stride(strides)
-    return F.max_pool2d(value, ksize, strides, padding)
+    return F.max_pool2d(value, ksize, strides, padding, return_indices=return_indices)
 
 
 @cache_name_if_exist

@@ -282,6 +282,69 @@ class TestActivationLayers(AKidTestCase):
             assert (I == I_ref).all(),\
                 "I_out_eval: {}; I_out_ref: {}".format(I, I_ref)
 
+    def test_memory_max_pooling_layer(self):
+        # Test the case where the memory is not used.
+        X_in = A.Tensor([[1., 2],
+                         [3, 4]])
+        X_in = A.stack([X_in] * 2)
+        X_in = A.stack([X_in] * 2)
+
+        X_in[0][1] = X_in[0][0] * 2
+        X_in[1][0] = X_in[0][0] * 3
+        X_in[1][1] = X_in[0][0] * 4
+
+        X_out_ref = A.Tensor([[4.]])
+        X_out_ref = A.stack([X_out_ref] * 2)
+        X_out_ref = A.stack([X_out_ref] * 2)
+        X_out_ref[0][1] = X_out_ref[0][0] * 2
+        X_out_ref[1][0] = X_out_ref[0][0] * 3
+        X_out_ref[1][1] = X_out_ref[0][0] * 4
+
+        from akid.layers import MPoolLayer
+        l = MPoolLayer(ksize=2, strides=2, padding="VALID")
+        X_out = l(X_in)
+
+        self.assertNdarrayEquals(A.eval(X_out), A.eval(X_out_ref))
+
+        # Test the case where the shape of the memory is the same with the
+        # input at the batch dimension.
+        l.set_state(True)
+
+        X_in = A.Tensor([[4., 3],
+                         [2, 1]])
+        X_in = A.stack([X_in] * 2)
+        X_in = A.stack([X_in] * 2)
+
+        X_in[0][1] = X_in[0][0] * 2
+        X_in[1][0] = X_in[0][0] * 3
+        X_in[1][1] = X_in[0][0] * 4
+
+        X_out_ref = A.Tensor([[1.]])
+        X_out_ref = A.stack([X_out_ref] * 2)
+        X_out_ref = A.stack([X_out_ref] * 2)
+        X_out_ref[0][1] = X_out_ref[0][0] * 2
+        X_out_ref[1][0] = X_out_ref[0][0] * 3
+        X_out_ref[1][1] = X_out_ref[0][0] * 4
+
+        X_out = l(X_in)
+
+        self.assertNdarrayEquals(A.eval(X_out), A.eval(X_out_ref))
+
+        # Test the case where the shape of the memory is not the same with the
+        # input at the batch dimension.
+        l.set_state(False)
+        X_in_one_example = A.Tensor([[1., 2],
+                                     [3, 4]])
+        X_in_one_example = A.stack([X_in_one_example] * 2)
+        X_in_one_example = A.expand_dims(X_in_one_example, 0)
+        X_out = l(X_in_one_example)
+        l.set_state(True)
+
+        X_out = l(X_in)
+
+        self.assertNdarrayEquals(A.eval(X_out), A.eval(X_out_ref))
+
+
     @skipUnless(A.backend() == A.TF)
     def test_colorization_relu(self):
         F = np.array([

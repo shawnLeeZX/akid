@@ -54,6 +54,74 @@ class PoolingLayer(ProcessingLayer):
         return self._data
 
 
+class MemoryMaxPoolingLayer(ProcessingLayer):
+    NAME = "MPool"
+
+    def __init__(self, ksize, strides, padding="VALID", type="max", **kwargs):
+        """
+        Args:
+            type: str
+                Use max or average pooling. 'max' for max pooling, and 'avg'
+                for average pooling.
+        """
+        super(MemoryMaxPoolingLayer, self).__init__(**kwargs)
+        self.ksize = ksize
+        self.strides = strides
+        self.padding = padding
+        self.keep_memory = False
+        self.memory = None
+
+    def _setup(self):
+        self.log("Padding method {}.".format(self.padding), debug=True)
+
+    def _forward(self, input):
+        if self.keep_memory:
+            if self.memory is None:
+                self._data, self.memory = A.nn.max_pool(input,
+                                                        self.ksize,
+                                                        self.strides,
+                                                        self.padding,
+                                                        return_indices=True)
+            else:
+                shape = A.get_shape(input)
+                mshape = A.get_shape(self.memory)
+                if mshape[:-2] != shape[:-2]:
+                    if mshape[1:-2] != shape[1:-2]:
+                        # Only the first dimension is allowed to be different.
+                        raise ValueError("Shape not supported.")
+
+                    idxs = A.cat([self.memory] * shape[0])
+                else:
+                    idxs = self.memory
+
+                tshape = shape[:-2]
+                tshape.append(shape[-1] * shape[-2])
+                d = A.reshape(input, tshape)
+
+                mshape = A.get_shape(idxs)
+                mtshape = mshape[:-2]
+                mtshape.append(mshape[-1] * mshape[-2])
+                m = A.reshape(idxs, mtshape)
+
+                out = A.gather(d, dim=-1, index=m)
+                self._data = A.reshape(out, mshape)
+
+        else:
+            self._data, self.memory = A.nn.max_pool(input,
+                                                    self.ksize,
+                                                    self.strides,
+                                                    self.padding,
+                                                    return_indices=True)
+
+
+        return self._data
+
+    def set_state(self, state):
+        self.keep_memory = state
+
+MPoolLayer = MemoryMaxPoolingLayer
+
+
 class _PoolingLayer(ProcessingLayer):
     def __init__(self, ksize, strides, padding, **kwargs):
         super(_PoolingLayer, self).__init__(**kwargs)
@@ -162,6 +230,39 @@ class ReLULayer(ProcessingLayer):
         return self._data_g
 
 ReLU = ReLULayer
+
+
+class MemoryReLULayer(ProcessingLayer):
+    """
+    ReLU layer that is able to memorize the activation patterns. If
+    `keep_memory` is set to True, the layer will memorize the activation if it
+    does not have one yet. The memorized activation pattern will be used until
+    `keep_memory` is set to False.
+    """
+
+    NAME = "MReLU"
+    def __init__(self, keep_memory=False, *args, **kwargs):
+        super(MemoryReLULayer, self).__init__(*args, **kwargs)
+
+        self.keep_memory = keep_memory
+        self.memory = None
+
+    def _forward(self, input):
+        if self.keep_memory:
+            if self.memory is None:
+                self.memory = A.cast(input > 0, A.float32)
+        else:
+            self.memory = A.cast(input > 0, A.float32)
+
+        self._data = A.mul(self.memory, input, name='fmap' if self.summarize_output else None)
+
+        return self._data
+
+    def set_state(self, keep_memory):
+        self.keep_memory = keep_memory
+
+
+MReLU = MemoryReLULayer
 
 
 class ColorizationReLULayer(ProcessingLayer):
