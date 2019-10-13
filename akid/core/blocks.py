@@ -267,8 +267,17 @@ class ProcessingBlock(FlowBlock):
                 Whether to summarize data in val mode as well. If False,
                 Summary ops won't be created for data in val mode won.
         """
+        if not self.do_summary:
+            return
+
         if not self.done_first_pass\
            or val and self.is_val and not self.done_first_pass_val:
+            if collections is None:
+                if not val:
+                    collections = [TRAIN_SUMMARY_COLLECTION]
+                else:
+                    collections = [VALID_SUMMARY_COLLECTION]
+
             self._data_summary(data, collections=collections)
 
     def forward(self, *args, **kwargs):
@@ -282,11 +291,14 @@ class ProcessingBlock(FlowBlock):
         with A.variable_scope(self.name):
             self._pre_forward(*args, **kwargs)
             out = self._forward(*args, **kwargs)
-            self._post_forward(*args, **kwargs)
+            post_out = self._post_forward(*args, **kwargs)
             if not self.done_first_pass:
                 self.done_first_pass = True
 
-        return out
+        if post_out is None:
+            return out
+        else:
+            return post_out
 
     def _pre_forward(self, *args, **kwargs):
         for f in self.pre_forward_hook:

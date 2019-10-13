@@ -59,9 +59,15 @@ def reset():
         summary.close()
 
 
+_log_initialized = False
+gflags.DEFINE_string('f', '', 'kernel')
+
 def init_log():
-    FLAGS(sys.argv)
-    glog.init("stdout", akid_logger=True)
+    global _log_initialized
+    if not _log_initialized:
+        FLAGS(sys.argv)
+        glog.init("stdout", akid_logger=True)
+        _log_initialized = True
 
 
 def is_numerical(d):

@@ -355,6 +355,8 @@ class GraphSystem(SequentialSystem):
             dtype = type(l.data)
             if l.data is not None:
                 data = l.data if dtype is tuple or dtype is list else [l.data]
+            else:
+                data = None
 
             previous_data_name = l.name
 

@@ -105,7 +105,8 @@ def _data_fetching_worker(source, index_queue, data_queue, done_event):
             log.debug("Data Prefetching Worker: Fetching data according to indices ... ")
             indices = index_queue.get(timeout=A.TIMEOUT)
             data = source.get(indices)
-            data_queue.put(data, timeout=A.TIMEOUT)
+            data_gpu = [A.Tensor(d) for d in data]
+            data_queue.put(data_gpu, timeout=A.TIMEOUT)
             log.debug("Data Prefetching Worker: Data fetched")
         except queue.Empty:
             continue
@@ -297,8 +298,8 @@ class Sensor(ValidatableProcessingBlock):
     def reset(self):
         if self.is_setup:
             self._teardown_data_queue()
+            self.sampler.reset()
 
-        self.sampler.reset()
         self.setup()
 
     def _setup(self):

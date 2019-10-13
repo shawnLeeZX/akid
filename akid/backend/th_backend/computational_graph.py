@@ -157,7 +157,8 @@ def save(path):
     _checkpoint_name_queue.append(name)
     if len(_checkpoint_name_queue) >= _max_checkpoint_count:
         name = _checkpoint_name_queue.pop(0)
-        os.remove(name)
+        if os.path.exists(name):
+            os.remove(name)
 
 
 def restore(path):
@@ -467,15 +468,27 @@ def mean(v, dim=None, keep_dim=False, name=None):
 
 
 @cache_name_if_exist
+def exp(v, name=None):
+    return th.exp(v)
+
+
+@cache_name_if_exist
 def abs(v, name=None):
     return th.abs(v)
 
 
-def std(v, dim=None, name=None):
+def std(v, dim=None, keep_dim=False, name=None):
     if dim is None:
         return th.std(v)
     else:
-        return th.std(v, dim)
+        return th.std(v, dim, keepdim=keep_dim)
+
+
+def var(v, dim=None, keep_dim=False, name=None):
+    if dim is None:
+        return th.var(v)
+    else:
+        return th.var(v, dim, keepdim=keep_dim)
 
 
 @cache_name_if_exist
@@ -526,6 +539,11 @@ def convert_to_tensor(v):
         return v
 
     return th.tensor(v)
+
+
+@cache_name_if_exist
+def sqrt(v, name=None):
+    return th.sqrt(v)
 
 
 @cache_name_if_exist

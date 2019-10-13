@@ -193,6 +193,7 @@ class Brain(System, ProcessingLayer):
 
     def _pre_forward(self, *args, **kwargs):
         super(Brain, self)._pre_forward(*args, **kwargs)
+        self.log("Forwarding in {} mode.".format(self.mode), debug=True)
 
     def _post_forward(self, *args, **kwargs):
         self._gather_loss()

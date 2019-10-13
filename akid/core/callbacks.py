@@ -85,9 +85,9 @@ def on_val_log_step(kid):
                     value=v,
                     step=A.get_step())
             elif is_tuple_or_list(v):
-                for i, u in enumerate(v):
+                for j, u in enumerate(v):
                     A.summary.add_scalar(
-                        name=A.append_suffix(A.get_name(kid.engine.eval(get_val=True)[i]), "val_{}".format(i)),
+                        name=A.append_suffix(A.get_name(kid.engine.eval(get_val=True)[i][j]), "val_{}".format(i)),
                         value=u,
                         step=A.get_step())
         if kid.verbose_evals is not None:

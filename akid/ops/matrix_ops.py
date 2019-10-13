@@ -111,6 +111,8 @@ def lanczos_tridiagonalization_fast_cr(N, q=None, K=None, return_beta_k=False):
 
     k = 0
     beta_k = 1
+
+    pbar = tqdm(total=K)
     while beta_k != 0 and k < K:
         if k == 0:
             if q is None:
@@ -140,6 +142,9 @@ def lanczos_tridiagonalization_fast_cr(N, q=None, K=None, return_beta_k=False):
         v = w / beta_k
 
         k += 1
+        pbar.update(1)
+
+    pbar.close()
 
     # Construct T and compute its eigenvalues.
     diag_idxs = A.range(0, K)
