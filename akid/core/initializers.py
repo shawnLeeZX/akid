@@ -149,19 +149,6 @@ class Initializer(object):
             return shape[0]
 
 
-class TheOldInitializer(Initializer):
-    """
-    The old way of doing initialization before even the (Glorot
-    paper)(http://proceedings.mlr.press/v9/glorot10a.html).
-    """
-    def __call__(self, shape):
-        n = self.compute_fan_in(shape)
-        stdv = 1. / math.sqrt(n)
-        value = np.random.uniform(-stdv, stdv, shape)
-
-        return value
-
-
 class FixedStdInitializer(Initializer):
     def __init__(self, stddev, **kwargs):
         super(FixedStdInitializer, self).__init__(**kwargs)
@@ -215,7 +202,7 @@ class ScalarInitializer(Initializer):
 
 
 class AutoInitializer(Initializer):
-    def __init__(self, normal_dist=False, **kwargs):
+    def __init__(self, normal_dist=False, fan_out=False, **kwargs):
         """
         The super class for all initializers that do not need parameters.
 
@@ -225,6 +212,31 @@ class AutoInitializer(Initializer):
         """
         super(AutoInitializer, self).__init__(**kwargs)
         self.normal_dist = normal_dist
+        self.fan_out = fan_out
+
+
+class TheOldInitializer(AutoInitializer):
+    """
+    The old way of doing initialization before even the (Glorot
+    paper)(http://proceedings.mlr.press/v9/glorot10a.html).
+    """
+    def __call__(self, shape):
+        n_in = self.compute_fan_in(shape)
+        if self.normal_dist:
+            if self.fan_out:
+                n_out = self.compute_fan_out(shape)
+                stdv = math.sqrt(1. / (n_in + n_out))
+            else:
+                stdv = math.sqrt(1. / 2 / n_in)
+            value = np.random.normal(-stdv, stdv, shape)
+        else:
+            # NOTE: fan out is implemented for now.
+            stdv = 1. / math.sqrt(n)
+            value = np.random.uniform(-stdv, stdv, shape)
+
+        return value
+
+
 
 
 class XavierInitializer(AutoInitializer):
@@ -253,7 +265,11 @@ class MSRAInitializer(AutoInitializer):
     """
     def __call__(self, shape):
         n_in = self.compute_fan_in(shape)
-        std = np.sqrt(2 / n_in)
+        if self.fan_out:
+            n_out = self.compute_fan_out(shape)
+            std = np.sqrt(4 / (n_in + n_out))
+        else:
+            std = np.sqrt(2 / n_in)
         v = np.random.normal(loc=0, scale=std, size=shape)
         return v
 
