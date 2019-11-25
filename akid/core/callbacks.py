@@ -47,6 +47,9 @@ def on_train_log_step(kid):
     duration = kid.step_time
     step = A.get_step()
 
+    kid.loss_data_train.append(loss)
+    kid.eval_data_train.append(evals)
+
     name_to_print = [A.get_name(g, no_scope=True) for g in kid.engine.eval()]
     eval_value_to_print = v_to_text(name_to_print, evals)
     eval_to_print = dict(list(zip(name_to_print, eval_value_to_print)))
@@ -128,6 +131,9 @@ def on_val_log_step(kid):
     # Loss.
     log.info('  Step %d: Validation loss = %.6f' % (A.get_step(), kid.loss))
 
+    kid.loss_data_val.append(kid.loss)
+    kid.eval_data_val.append(kid.evals)
+
 
 def on_train_begin(kid):
     # Calculate and log total parameter number.
@@ -148,6 +154,9 @@ def on_train_begin(kid):
     eval_to_print = dict(list(zip(name_to_print, eval_value_to_print)))
     log.info("Step {}: loss = {:.5f} eval = {}".format(
         A.get_step(), kid.loss, eval_to_print))
+
+    kid.loss_data_train.append(kid.loss)
+    kid.eval_data_train.append(kid.evals)
 
     # Cache the current batch as the monitoring batch if the flag is set.
     if kid.do_batch_monitoring:

@@ -169,7 +169,8 @@ class Brain(System, ProcessingLayer):
                 if b.name not in names:
                     continue
             for v in b.var_list:
-                filter_list.append(v)
+                if v.requires_grad:
+                    filter_list.append(v)
 
         return filter_list
 

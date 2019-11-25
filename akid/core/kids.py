@@ -207,6 +207,13 @@ class Kid(Block):
         self.skip_validation = skip_validation
         self.do_batch_monitoring = do_batch_monitoring
 
+        # Log training dynamics
+        self.loss_data_train = []
+        self.eval_data_train = []
+
+        self.loss_data_val = []
+        self.eval_data_val = []
+
         self.initialized = False
 
         # Set up hooks.
