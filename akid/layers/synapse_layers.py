@@ -171,6 +171,22 @@ class SynapseLayer(ProcessingLayer):
 
         return self.clipped_filters
 
+    @property
+    def weights(self):
+        return self._weights
+
+    @weights.setter
+    def weights(self, v):
+        self._weights = v
+
+    @property
+    def biases(self):
+        return self._biases
+
+    @biases.setter
+    def biases(self, v):
+        self._biases = v
+
 
 class ConvolutionLayer(SynapseLayer):
     NAME = "Conv2D"
