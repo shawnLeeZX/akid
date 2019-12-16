@@ -326,6 +326,10 @@ class Kid(Block):
 
         return loss_avg, eval_blocks
 
+    def reset(self):
+        self.sensor.reset()
+        self.sensor.setup()
+
     @scavenger
     def setup(self):
         """
@@ -491,7 +495,8 @@ class Kid(Block):
         if A.get_step() % self.sensor.num_batches_per_epoch is 0:
             self.epoch += 1
             self.on_epoch_end()
-            if self.log_by_epoch:
+            if self.log_by_epoch \
+               and A.get_step() % (self.sensor.num_batches_per_epoch * self.num_epoch_per_log) == 0:
                 if self.save_chk_point:
                     self.save_to_ckpt()
                 if not self.skip_validation:

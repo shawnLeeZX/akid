@@ -213,13 +213,26 @@ class ConvolutionLayer(SynapseLayer):
                  **kwargs):
         super(ConvolutionLayer, self).__init__(**kwargs)
         self.ksize = [ksize, ksize] if type(ksize) is int else ksize
+
         self.strides = strides
+        if A.backend() == A.TORCH:
+            if type(strides) is int:
+                self.strides = [strides, strides]
+            elif len(strides) == 4:
+                # The stride format is of that of tensorflow format. Extract the
+                # stride to torch format.
+                self.strides = [strides[1], strides[2]]
+
         self.padding = padding
         self.depthwise = depthwise
         self.bn = bn
 
     def get_weigth_shape(self):
         if A.backend() == A.TORCH:
+            if len(self.ksize) == 4:
+                # The ksize format is of that of tensorflow format. Extract the
+                # ksize to torch format.
+                self.ksize = [self.ksize[1], self.ksize[2]]
             shape = [self.out_channel_num, self.in_channel_num,
                           self.ksize[0], self.ksize[1]]
         else:

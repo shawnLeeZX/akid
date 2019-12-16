@@ -231,7 +231,7 @@ class TheOldInitializer(AutoInitializer):
             value = np.random.normal(-stdv, stdv, shape)
         else:
             # NOTE: fan out is implemented for now.
-            stdv = 1. / math.sqrt(n)
+            stdv = 1. / math.sqrt(n_in)
             value = np.random.uniform(-stdv, stdv, shape)
 
         return value
