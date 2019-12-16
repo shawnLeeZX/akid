@@ -7,6 +7,7 @@ from ..core.blocks import ProcessingLayer
 from .activation_layers import GroupSoftmaxLayer
 from .. import backend as A
 from .. import nn
+from ..utils import functions as f
 from six.moves import range
 
 
@@ -253,6 +254,11 @@ class HingeLossLayer(LossLayer):
         or just for each sample (if it is a 1D tensor).
     """
     NAME = "HingeLoss"
+    def __init__(self, tripod_hinge_loss=False, signal_balancing=False, *args, **kwargs):
+        super(HingeLossLayer, self).__init__(*args, **kwargs)
+
+        self.tripod_hinge_loss = tripod_hinge_loss
+        self.signal_balancing = signal_balancing
 
     def _forward(self, x):
         if len(x) == 3:
@@ -260,7 +266,10 @@ class HingeLossLayer(LossLayer):
         else:
             weights = None
 
-        self._loss = nn.hinge_loss(x[0], x[1], weights=weights, name="hinge_loss")
+        if self.tripod_hinge_loss:
+            self._loss = nn.tripod_hinge_loss(x[0], x[1], weights=weights, signal_balancing=self.signal_balancing, name="tripod_hinge_loss")
+        else:
+            self._loss = nn.hinge_loss(x[0], x[1], weights=weights, name="hinge_loss")
         return self._loss
 
 HingeLoss = HingeLossLayer
@@ -334,6 +343,36 @@ class MarginRankingLossLayer(LossLayer):
 
 
 MarginRankingLoss = MarginRankingLossLayer
+
+
+class KLRegularizationLayer(LossLayer):
+    """
+    Intake a tensor, and compute point-wise KL divergence between empirical
+    probability distribution and Gaussian distribution.
+    """
+    def __init__(self, mean=0, std=1, *args, **kwargs):
+        super(KLRegularizationLayer, self).__init__(*args, **kwargs)
+
+        # Mean is not used yet.
+        self.mu_0 = mean
+        self.sigma_0 = std
+
+    def _forward(self, x):
+        # mu = A.mean(x)
+        sigma = A.std(x, dim=1)
+
+        # Regularize to N(0, 1)
+        # KL_loss = A.mul(- 0.5, 1 + A.log(sigma ** 2) - mu ** 2 - sigma ** 2, name="kl_loss")
+
+        # Only regularize on the std.
+        kl_user_loss = -0.5 + A.log(self.sigma_0/sigma) + 0.5 * (sigma / self.sigma_0)**2
+        self._loss = A.mean(kl_user_loss)
+
+        return self._loss
+
+
+
+KLRegularization = KLRegularizationLayer
 
 
 __all__ = [name for name, x in locals().items() if
