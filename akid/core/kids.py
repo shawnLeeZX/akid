@@ -441,6 +441,7 @@ class Kid(Block):
         calls this API.
         """
         self.init()
+        self.engine.set_val(True)
         self.engine.forward(data, val=True)
 
         evals = [e for e in self.engine.eval(get_val=True)]
@@ -545,6 +546,7 @@ class Kid(Block):
         else:
             system_in = data
 
+        self.engine.set_val(val)
         self.engine.forward(system_in, val)
         if update:
             self.engine.update()

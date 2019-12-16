@@ -91,19 +91,19 @@ class AKidTestCase(TestCase):
             msg = self._formatMessage(None, '\n{}\n == \n{}\n'.format(a, b))
             raise self.failureException(msg)
 
-    def assertTensorAlmostEquals(self, a, b):
+    def assertTensorAlmostEquals(self, a, b, places=7):
         diff = a - b
         diff = A.eval(diff)
         diff = abs(diff)
-        if not (diff < 10e-7).all():
+        if not (diff < 10 ** -places).all():
             msg = self._formatMessage(None, '\ndiff:\n{}\n'.format(diff))
             raise self.failureException(msg)
 
-    def assertTensorNotAlmostEquals(self, a, b):
+    def assertTensorNotAlmostEquals(self, a, b, places=7):
         diff = a - b
         diff = A.eval(diff)
         diff = abs(diff)
-        if (diff < 10e-7).all():
+        if (diff < 10 ** -places).all():
             msg = self._formatMessage(None, '\ndiff:\n{}\n'.format(diff))
             raise self.failureException(msg)
 
@@ -144,7 +144,7 @@ class TestFactory(object):
             num_val=10000)
 
     @staticmethod
-    def get_test_sensor():
+    def get_test_sensor(simple=False):
         if A.backend() == A.TF:
             return FeedSensor(source_in=TestFactory.get_test_feed_source(),
                               val_batch_size=100,
@@ -152,12 +152,18 @@ class TestFactory(object):
         elif A.backend() == A.TORCH:
             s = MNISTSource(work_dir=AKID_DATA_PATH + '/mnist', name='mnist')
             s.setup()
-            # return SimpleSensor(
-            return ParallelSensor(
-                source_in=s,
-                # Do not shuffle training set for reproducible test
-                sampler="sequence",
-                name='mnist')
+            if simple:
+                return SimpleSensor(
+                    source_in=s,
+                    # Do not shuffle training set for reproducible test
+                    sampler="sequence",
+                    name='mnist')
+            else:
+                return ParallelSensor(
+                    source_in=s,
+                    # Do not shuffle training set for reproducible test
+                    sampler="sequence",
+                    name='mnist')
 
 
     @staticmethod

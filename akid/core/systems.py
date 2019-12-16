@@ -57,6 +57,15 @@ class System(GenerativeBlock, UpdateBlock):
 
         return self_copy
 
+    def get_clone(self):
+        clone = super(System, self).get_copy()
+
+        clone.blocks = []
+        for b in self.blocks:
+            clone.blocks.append(b.get_clone())
+
+        return clone
+
     def set_shadow(self):
         super(System, self).set_shadow()
         for b in self.blocks:

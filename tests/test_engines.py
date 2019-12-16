@@ -24,7 +24,7 @@ class TestEngine(AKidTestCase):
         from akid import engines
 
         brain = GraphBrain(name="brain")
-        weight = A.Tensor([2])
+        weight = A.Tensor([2.])
         l = InnerProductLayer(in_channel_num=1,
                               out_channel_num=1,
                               init_para={"name": "tensor",
@@ -45,14 +45,14 @@ class TestEngine(AKidTestCase):
         )
         engine.setup()
 
-        data = A.Tensor([[1], [2]], requires_grad=True).cuda()
-        labels = A.Tensor([[3], [3]], requires_grad=True).cuda()
+        data = A.Tensor([[1.], [2]], requires_grad=True).cuda()
+        labels = A.Tensor([[3.], [3]], requires_grad=True).cuda()
         loss = engine.forward([data, labels])
 
         A.init()
-        self.assertEqual(A.eval(loss), 1)
+        self.assertEqual(A.eval(loss[0]), 1)
 
-        grad = kongfu.forward(loss)
+        grad = kongfu.forward(loss[0])
         if A.backend() == A.TORCH:
             grad = l.weights.grad
 
@@ -65,7 +65,7 @@ class TestEngine(AKidTestCase):
         for b in brain.blocks:
             b.wd = {"type": "l2", "scale": 5e-4}
 
-        sensor = TestFactory.get_test_sensor()
+        sensor = TestFactory.get_test_sensor(simple=True)
         kid = Kid(
             sensor,
             brain,
@@ -74,22 +74,23 @@ class TestEngine(AKidTestCase):
             max_steps=1000)
         kid.setup()
 
-        brain = OneLayerBrain(name="brain")
-        for b in brain.blocks:
-            b.wd = {"type": "l2", "scale": 5e-4}
-        sensor = TestFactory.get_test_sensor()
+        brain = brain.get_clone()
+        sensor = TestFactory.get_test_sensor(simple=True)
         kid_ref = Kid(
             sensor,
             brain,
             MomentumKongFu(name="opt"),
             engine={"name": "single"},
+            # debug=True,
             max_steps=1000)
         kid_ref.setup()
 
-        self.assertTensorAlmostEquals(kid.brain.blocks[0].biases,
-                                      kid_ref.brain.blocks[0].biases)
-        self.assertTensorEquals(kid.sensor.training_data,
-                                kid_ref.sensor.training_data)
+        self.assertTensorEquals(kid.brain.blocks[0].biases,
+                                kid_ref.brain.blocks[0].biases)
+        self.assertTensorEquals(kid.sensor.data[0],
+                                kid_ref.sensor.data[0])
+        self.assertTensorEquals(kid.sensor.data[1],
+                                kid_ref.sensor.data[1])
 
         for i in range(10):
             kid.step()
@@ -99,7 +100,8 @@ class TestEngine(AKidTestCase):
                                     kid.engine.towers[0].blocks[0].biases)
 
         self.assertTensorAlmostEquals(kid.brain.blocks[0].biases,
-                                      kid_ref.brain.blocks[0].biases)
+                                      kid_ref.brain.blocks[0].biases,
+                                      places=6)
 
     @skipUnless(A.backend() == A.TORCH)
     def test_data_parallel_train(self):
@@ -121,6 +123,7 @@ class TestEngine(AKidTestCase):
 
         loss = kid.practice()
         self.assertLess(loss, 0.2)
+        kid.teardown()
 
 
 

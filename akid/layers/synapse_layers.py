@@ -5,6 +5,7 @@ import abc
 import inspect
 
 import tensorflow as tf
+from deprecated import deprecated
 
 from ..core.blocks import ProcessingLayer
 from ..core.common import (
@@ -171,6 +172,19 @@ class SynapseLayer(ProcessingLayer):
 
         return self.clipped_filters
 
+    def get_clone(self):
+        c = super(SynapseLayer, self).get_copy()
+
+        # TODO: current clone after setup does not have names.
+        if self.is_setup:
+            c.weights = A.Tensor(A.value(c.weights), requires_grad=True)
+            c.var_list = [c.weights]
+            if c.biases is not None:
+                c.biases = A.Tensor(A.value(c.biases), requires_grad=True)
+                c.var_list.append(c.biases)
+
+        return c
+
     @property
     def weights(self):
         return self._weights
@@ -216,18 +230,18 @@ class ConvolutionLayer(SynapseLayer):
 
     def _setup(self):
         self.shape = self.get_weigth_shape()
-        self.weights = self._get_variable("weights",
+        self._weights = self._get_variable("weights",
                                           self.shape,
                                           self._get_initializer(self.init_para))
 
         if self.initial_bias_value is not None:
-            self.biases = self._get_variable(
+            self._biases = self._get_variable(
                 'biases',
                 [self.out_channel_num if not self.depthwise else self.out_channel_num * self.in_channel_num],
                 initializer=self._get_initializer(init_para={"name": "constant",
                                                              "value": self.initial_bias_value}))
         else:
-            self.biases = None
+            self._biases = None
 
         self.log("Padding method {}.".format(self.padding), debug=True)
 
@@ -263,7 +277,8 @@ class ConvolutionLayer(SynapseLayer):
 
         return self._data
 
-    def _on_update(self, K_prev):
+    @deprecated(reason="Legacy code.")
+    def _on_update_stub(self, K_prev):
         # Save the metric for this RKHS
         self.metric = K_prev
         # Compute the metric for the next layer
@@ -308,17 +323,17 @@ class Convolution1DLayer(SynapseLayer):
             self.shape = [self.out_channel_num, self.in_channel_num, self.ksize]
         else:
             raise ValueError("Data format {} is not supported yet.".format(A.DATA_FORMAT))
-        self.weights = self._get_variable("weights",
+        self._weights = self._get_variable("weights",
                                           self.shape,
                                           self._get_initializer(self.init_para))
         if self.initial_bias_value is not None:
-            self.biases = self._get_variable(
+            self._biases = self._get_variable(
                 'biases',
                 [self.out_channel_num],
                  initializer=self._get_initializer(init_para={"name": "constant",
                                                               "value": self.initial_bias_value}))
         else:
-            self.biases = None
+            self._biases = None
 
     def _forward(self, x):
         self._data = A.nn.conv1d(x, self.weights, self.biases, self.stride, self.padding,
@@ -531,18 +546,19 @@ class InnerProductLayer(SynapseLayer):
 
     def _setup(self):
         self.shape = [self.in_channel_num, self.out_channel_num]
-        self.weights = self._get_variable(
+        self._weights = self._get_variable(
             'weights', self.shape, self._get_initializer(self.init_para))
 
         if self.initial_bias_value is not None:
-            self.biases = self._get_variable(
+            self._biases = self._get_variable(
                 'biases',
                 shape=[self.out_channel_num],
                 initializer=self._get_initializer({"name": "constant", "value": self.initial_bias_value}))
         else:
-            self.biases = None
+            self._biases = None
 
-    def _on_update(self, K_prev):
+    @deprecated(reason="Legacy code.")
+    def _on_update_stub(self, K_prev):
         # Save the metric for this RKHS
         self.metric = K_prev
         # Compute the metric for the next layer

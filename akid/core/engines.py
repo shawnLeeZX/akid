@@ -24,15 +24,16 @@ import abc
 
 import tensorflow as tf
 
-from .blocks import ProcessingBlock
+from .blocks import ValidatableProcessingBlock
 from .interface_blocks import UpdateBlock
 from .. import backend as A
 from .. import parallel as P
+from ..utils.tools import is_tuple_or_list
 from six.moves import range
 from six.moves import zip
 
 
-class Engine(ProcessingBlock, UpdateBlock):
+class Engine(ValidatableProcessingBlock, UpdateBlock):
     """
     The class that abstracts parallel scheme of network training.
 
@@ -104,7 +105,8 @@ class Engine(ProcessingBlock, UpdateBlock):
 
 class SingleGPUEngine(Engine):
     def _setup(self):
-        self.brain.setup()
+        if not self.brain.is_setup:
+            self.brain.setup()
         if A.backend() == A.TF:
             self.val_brain = self.brain.get_val_copy()
         elif A.backend() == A.TORCH:
@@ -117,18 +119,32 @@ class SingleGPUEngine(Engine):
         if val:
             if A.backend() == A.TORCH:
                 # For torch, val brain and brain are the same.
-                self.val_brain.set_val(True)
+                pushed_brain_state = None
+                if self.val_brain.mode != A.Mode.VAL:
+                    pushed_brain_state = self.val_brain.mode
+                    self.val_brain.set_val(True)
                 pushed_name = self.brain.name
                 self.val_brain.name = self.brain.name + "_val"
                 d = self.val_brain.forward(data)
-                self.val_brain.set_val(False)
+                if pushed_brain_state is not None:
+                    # Right now, we only have train and val for a brain, thus
+                    # the saved state is not used actually.
+                    self.val_brain.set_val(False)
                 self.val_brain.name = pushed_name
             elif A.backend() == A.TF:
                 d = self.val_brain.forward(data)
             else:
                 raise ValueError("Backend not supported.")
         else:
+            pushed_brain_state = None
+            if self.brain.mode != A.Mode.TRAIN:
+                pushed_brain_state = self.brain.mode
+                self.brain.set_val(False)
+
             d = self.brain.forward(data)
+
+            if pushed_brain_state != None:
+                self.brain.set_val(True)
         return d
 
     def _update(self):
@@ -203,11 +219,20 @@ class DataParallelEngine(SingleGPUEngine):
     Due to the known fact that communication between GPUs are slow, the average
     of gradient is done on CPU.
     """
-    def __init__(self, gpu_num=None, **kwargs):
+    def __init__(self, gpu_num=2, val_gpu_num=None, **kwargs):
         super(DataParallelEngine, self).__init__(**kwargs)
         # TODO: if num_gpu is None, use all available ones.
-        self.gpu_num = gpu_num
-        self.devices = [i for i in range(gpu_num)]
+        self.train_gpu_num = gpu_num
+        self.train_devices = [i for i in range(gpu_num)]
+        if val_gpu_num is not None:
+            self.val_gpu_num = val_gpu_num
+            self.val_devices = [i for i in range(val_gpu_num)]
+        else:
+            self.val_gpu_num = gpu_num
+            self.val_devices = self.train_devices
+
+        self.gpu_num = self.train_gpu_num
+        self.devices = self.train_devices
 
         if A.backend() != A.TORCH:
             raise ValueError("Backend other torch has not been implemented yet.")
@@ -218,13 +243,24 @@ class DataParallelEngine(SingleGPUEngine):
             # reproduced resnet has a lower accuracy. Check when implement
             # tensorflow data parallel.
 
+    def set_val(self, val):
+        super(DataParallelEngine, self).set_val(val)
+
+        if val:
+            self.devices = self.val_devices
+            self.gpu_num = self.val_gpu_num
+        else:
+            self.devices = self.train_devices
+            self.gpu_num = self.train_gpu_num
+
     def _setup(self):
         if self.gpu_num == 1:
             super(DataParallelEngine, self)._setup()
             return
 
         # Set up the primary computational graph, and replicate.
-        self.brain.setup()
+        if not self.brain.is_setup:
+            self.brain.setup()
         A.get_variable_scope().reuse_variables()
         # Replicate the parameters.
         self._sync(self.brain.get_filters(), self.devices)
@@ -293,9 +329,15 @@ class DataParallelEngine(SingleGPUEngine):
         loss = self._average(losses)
         evals = [t.eval for t in self.towers]
         eval = self._average(evals)
+        # To keep return values, a list is created in `thread_run` to get the
+        # results. It only has one element, so we retrieve it.
+        results = [r[0] for r in results]
+        if None not in results:
+            ret = self._average(results)
+        else:
+            ret = None
 
         if val:
-            # import ipdb; ipdb.set_trace()
             self._val_loss = loss
             self._val_eval = eval
             for t in self.towers:
@@ -305,7 +347,7 @@ class DataParallelEngine(SingleGPUEngine):
             self._train_loss = loss
             self._train_eval = eval
 
-        return loss
+        return ret
 
     def _update(self, *args, **kwargs):
         # TODO: test the behavior of tensorflow, given that the loss is gather
@@ -381,14 +423,33 @@ class DataParallelEngine(SingleGPUEngine):
         """
         # TODO: think how the gather works in tensorflow
         data_gathered = P.gather(data)
-        data_reduced = []
-        if type(data_gathered) is list:
-            for i, d in enumerate(data_gathered):
-                data_reduced.append(
-                    A.mean(d, name=A.get_name(data[0][i], with_device_id=False) + "_reduced"))
+        def mean_inner(d, name=None):
+            if is_tuple_or_list(d):
+                return list(map(mean_inner, d))
+            else:
+                d_reduced = A.mean(d)
+                return d_reduced
+
+        data_reduced = mean_inner(data_gathered)
+
+        if is_tuple_or_list(data_reduced):
+            # Rename all the results. The results are a list of tensors, or named
+            # tuples. So an iteration would do.
+            for i, r in enumerate(data_reduced):
+                name = A.get_name(data[0][i], with_device_id=False)
+                if name:
+                    new_name = name # NOTE: Use the same name for now.
+                    if A.is_tensor(r):
+                        A.cache_tensor_auto_scope(r, new_name)
+                    elif isinstance(data[0][i], A.NamedValue):
+                        r = type(data[0][i])(new_name, r)
+                        # TODO: cache the tuple results separately
+                        data_reduced[i] = r
         else:
-            data_reduced = A.mean(data_gathered,
-                                  name=A.get_name(data[0], with_device_id=False) + "_reduced")
+            name = A.get_name(data[0])
+            if name:
+                new_name = name
+                A.cache_tensor_auto_scope(data_reduced, new_name)
 
         return data_reduced
 

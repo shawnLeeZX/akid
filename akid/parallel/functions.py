@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from .. import backend as A
+from ..utils.tools import is_tuple_or_list
 import torch as th
 import tensorflow as tf
 
@@ -30,7 +31,7 @@ def scatter(data, devices):
 def gather(data, output_device=0):
     def gather_inner(data):
         d = data[0]
-        if type(d) is list:
+        if is_tuple_or_list(d):
             return list(map(gather_inner, list(zip(*data))))
         else:
             return A.gather_parallel(data, output_device)
@@ -61,12 +62,13 @@ def broadcast(data, devices):
     if len(data) > 0:
         out = [out[i:i + len(data)] for i in range(0, len(out), len(data))]
 
-    device_num = len(devices)
-    for i in range(1, device_num):
-        with device("/gpu:{}".format(i)):
-            for j, t in enumerate(out[i]):
-                name = "{}:{}".format(A.get_name(data[j]).split(':')[0], i)
-                A.cache_tensor(t, name)
+    if A.get_name(data[0]) is not None:
+        device_num = len(devices)
+        for i in range(1, device_num):
+            with device("/gpu:{}".format(i)):
+                for j, t in enumerate(out[i]):
+                    name = "{}:{}".format(A.get_name(data[j]).split(':')[0], i)
+                    A.cache_tensor(t, name)
 
     return out
 

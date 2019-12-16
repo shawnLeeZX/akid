@@ -136,6 +136,14 @@ class Block(six.with_metaclass(abc.ABCMeta, object)):
     def get_copy(self):
         return copy.copy(self)
 
+    def get_clone(self):
+        """
+        To clone is to create a copy of this block that has an independent copy
+        of each component of this block. The relationship between get_clone and
+        get_copy is like the that between deepcopy and copy.
+        """
+        return self.get_copy()
+
 
 class DataBlock(Block):
     """
