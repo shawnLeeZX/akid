@@ -322,6 +322,89 @@ class ConvolutionLayer(SynapseLayer):
         return self.data_g
 
 
+class SelfNormalizedConvolutionLayer(SynapseLayer):
+    NAME = "SNConv2D"
+    def __init__(self,
+                 ksize,
+                 strides=1,
+                 padding="SAME",
+                 depthwise=False,
+                 **kwargs):
+        super(SelfNormalizedConvolutionLayer, self).__init__(**kwargs)
+        self.ksize = [ksize, ksize] if type(ksize) is int else ksize
+
+        self.strides = strides
+        if A.backend() == A.TORCH:
+            if len(strides) == 4:
+                # The stride format is of that of tensorflow format. Extract the
+                # stride to torch format.
+                self.strides = [strides[1], strides[2]]
+
+        self.padding = padding
+        self.depthwise = depthwise
+
+    def get_weigth_shape(self):
+        if A.backend() == A.TORCH:
+            if len(self.ksize) == 4:
+                # The ksize format is of that of tensorflow format. Extract the
+                # ksize to torch format.
+                self.ksize = [self.ksize[1], self.ksize[2]]
+            shape = [self.out_channel_num, self.in_channel_num,
+                          self.ksize[0], self.ksize[1]]
+        else:
+            shape = [self.ksize[0], self.ksize[1],
+                          self.in_channel_num, self.out_channel_num]
+
+        return shape
+
+    def _setup(self):
+        self.shape = self.get_weigth_shape()
+        self._weights = self._get_variable("weights",
+                                          self.shape,
+                                          self._get_initializer(self.init_para))
+
+        if self.initial_bias_value is not None:
+            self._biases = self._get_variable(
+                'biases',
+                [self.out_channel_num if not self.depthwise else self.out_channel_num * self.in_channel_num],
+                initializer=self._get_initializer(init_para={"name": "constant",
+                                                             "value": self.initial_bias_value}))
+            if A.DATA_FORMAT == "CHW":
+                self.biases = A.reshape(self.biases, [1, -1, 1, 1])
+            elif A.DATA_FORMAT == "HWC":
+                self.biases = A.reshape(self.biases, [1, 1, 1, -1])
+            else:
+                assert False, "Should not reach here. Data format is wrong."
+        else:
+            self._biases = None
+
+        self.log("Padding method {}.".format(self.padding), debug=True)
+
+    def _pre_forward(self, input, *args, **kwargs):
+        super(SelfNormalizedConvolutionLayer, self)._pre_forward(*args, **kwargs)
+        self.input_shape = A.get_shape(input)
+
+    def _forward(self, input):
+        name = 'fmap' if self.summarize_output else None
+
+        conv = A.nn.conv2d(input, self.weights,
+                           None, self.strides,
+                           self.padding, name=name)
+
+        self.mean = A.mean(conv, dim=[0, 2, 3], keep_dim=True)
+        self.std = A.std(conv, dim=[0, 2, 3], keep_dim=True)
+        out = (conv - self.mean) / self.std
+
+        out = out + self.biases
+
+        self._data = out
+
+        return self._data
+
+
+SNConv2D = SelfNormalizedConvolutionLayer
+
+
 class Convolution1DLayer(SynapseLayer):
     NAME = "Conv1D"
 
