@@ -7,7 +7,6 @@ from ..core.blocks import ProcessingLayer
 from .activation_layers import GroupSoftmaxLayer
 from .. import backend as A
 from .. import nn
-from ..utils import functions as f
 from six.moves import range
 
 
